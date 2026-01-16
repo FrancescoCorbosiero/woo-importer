@@ -37,6 +37,7 @@ class GoldenSneakersBatchImporter
     private $image_map = [];
     private $batch_size = 100;  // WooCommerce max per batch
     private $failed_products = [];
+    private $category_cache = [];  // Cache for category IDs
 
     private $stats = [
         'products_created' => 0,
@@ -182,6 +183,38 @@ class GoldenSneakersBatchImporter
         $title = preg_replace('/-+/', '-', $title);
         $title = trim($title, '-');
         return $title;
+    }
+
+    /**
+     * Detect product type by size format
+     *
+     * Sneakers: numeric sizes (36, 37.5, 42, 10.5)
+     * Clothing: letter sizes (S, M, L, XL, XXL)
+     *
+     * @param array $sizes Array of size data from feed
+     * @return string 'sneakers' or 'clothing'
+     */
+    private function detectProductType(array $sizes): string
+    {
+        if (empty($sizes)) {
+            return 'sneakers';  // Default
+        }
+
+        // Check first size's size_eu value
+        $first_size = $sizes[0]['size_eu'] ?? '';
+
+        // Letter sizes pattern: S, M, L, XL, XXL, XS, 2XL, 3XL
+        if (preg_match('/^[XSML]{1,3}L?$|^\d*XL$/i', $first_size)) {
+            return 'clothing';
+        }
+
+        // Numeric sizes (with optional decimal): 36, 37.5, 42, 10.5
+        if (preg_match('/^\d+\.?\d*$/', $first_size)) {
+            return 'sneakers';
+        }
+
+        // Default to sneakers for unknown formats
+        return 'sneakers';
     }
 
     /**
@@ -339,13 +372,21 @@ class GoldenSneakersBatchImporter
     /**
      * Ensure the import category exists in WooCommerce
      *
+     * @param string|null $name Category name (uses config default if null)
+     * @param string|null $slug Category slug (uses sanitized name if null)
      * @return int Category ID
      * @throws Exception on error
      */
-    private function ensureCategoryExists(): int
+    private function ensureCategoryExists(?string $name = null, ?string $slug = null): int
     {
-        $category_name = $this->config['import']['category_name'];
-        $category_slug = $this->sanitize_title($category_name);
+        // Use defaults from config if not provided
+        $category_name = $name ?? $this->config['import']['category_name'];
+        $category_slug = $slug ?? $this->sanitize_title($category_name);
+
+        // Check cache first
+        if (isset($this->category_cache[$category_slug])) {
+            return $this->category_cache[$category_slug];
+        }
 
         try {
             // Search for existing category by slug
@@ -355,7 +396,8 @@ class GoldenSneakersBatchImporter
 
             if (!empty($categories)) {
                 $category_id = $categories[0]->id;
-                $this->logger->info("✅ Using existing category: {$category_name} (ID: {$category_id})");
+                $this->category_cache[$category_slug] = $category_id;
+                $this->logger->debug("✅ Using existing category: {$category_name} (ID: {$category_id})");
                 return $category_id;
             }
 
@@ -372,6 +414,7 @@ class GoldenSneakersBatchImporter
                 'menu_order' => 0,
             ]);
 
+            $this->category_cache[$category_slug] = $result->id;
             $this->logger->info("✅ Created category: {$category_name} (ID: {$result->id})");
             return $result->id;
 
@@ -398,15 +441,30 @@ class GoldenSneakersBatchImporter
      * Build product payload for batch operation
      *
      * @param array $product_data Product data from API
-     * @param int $category_id WooCommerce category ID
+     * @param int|null $category_id WooCommerce category ID (auto-detected if null)
      * @return array Product payload for WooCommerce API
      */
-    private function buildProductPayload(array $product_data, int $category_id): array
+    private function buildProductPayload(array $product_data, ?int $category_id = null): array
     {
         $sku = $product_data['sku'];
         $name = $product_data['name'];
         $brand = $product_data['brand_name'];
-        $sizes = $product_data['sizes'];
+        $sizes = $product_data['sizes'] ?? [];
+
+        // Detect product type and get appropriate category
+        $product_type = $product_data['_product_type'] ?? $this->detectProductType($sizes);
+
+        if ($category_id === null) {
+            $category_config = $this->config['categories'][$product_type] ?? null;
+            if ($category_config) {
+                $category_id = $this->ensureCategoryExists(
+                    $category_config['name'],
+                    $category_config['slug']
+                );
+            } else {
+                $category_id = $this->ensureCategoryExists();
+            }
+        }
 
         $template_data = [
             'product_name' => $name,
@@ -461,6 +519,9 @@ class GoldenSneakersBatchImporter
     /**
      * Build variation payload for batch operation
      *
+     * Uses presented_price (customer price with margin + VAT),
+     * not offer_price (wholesale cost).
+     *
      * @param array $size_data Size data from API
      * @param string $variation_sku Variation SKU
      * @return array Variation payload for WooCommerce API
@@ -469,7 +530,7 @@ class GoldenSneakersBatchImporter
     {
         return [
             'sku' => $variation_sku,
-            'regular_price' => (string) $size_data['offer_price'],
+            'regular_price' => (string) $size_data['presented_price'],  // Customer price (not wholesale)
             'manage_stock' => true,
             'stock_quantity' => $size_data['available_quantity'],
             'stock_status' => $size_data['available_quantity'] > 0 ? 'instock' : 'outofstock',
@@ -480,7 +541,7 @@ class GoldenSneakersBatchImporter
                 ]
             ],
             'meta_data' => [
-                ['key' => '_size_us', 'value' => $size_data['size_us']],
+                ['key' => '_size_us', 'value' => $size_data['size_us'] ?? ''],
                 ['key' => '_barcode', 'value' => $size_data['barcode'] ?? '']
             ]
         ];
@@ -489,12 +550,15 @@ class GoldenSneakersBatchImporter
     /**
      * Process products in batches
      *
+     * Category is auto-detected per product based on size format:
+     * - Numeric sizes (36, 37.5) → Sneakers
+     * - Letter sizes (S, M, L) → Abbigliamento
+     *
      * @param array $api_products Products from Golden Sneakers API
      * @param array $existing_products Existing WooCommerce products (SKU => data)
-     * @param int $category_id Category ID to assign products to
      * @return array Product mappings (SKU => [id, sizes])
      */
-    private function batchProcessProducts(array $api_products, array $existing_products, int $category_id): array
+    private function batchProcessProducts(array $api_products, array $existing_products): array
     {
         $to_create = [];
         $to_update = [];
@@ -507,11 +571,12 @@ class GoldenSneakersBatchImporter
             // Skip if no sizes
             if (empty($product['sizes'])) {
                 $this->stats['skipped']++;
-                $this->logger->debug("  ⏭️  Skipped {$product['name']} - no sizes available");
+                $this->logger->debug("  Skipped {$product['name']} - no sizes available");
                 continue;
             }
 
-            $payload = $this->buildProductPayload($product, $category_id);
+            // buildProductPayload auto-detects category based on size format
+            $payload = $this->buildProductPayload($product);
 
             if (isset($existing_products[$sku])) {
                 // Update existing product
@@ -534,7 +599,7 @@ class GoldenSneakersBatchImporter
             }
         }
 
-        $this->logger->info("  📊 Products to create: " . count($to_create) . ", to update: " . count($to_update));
+        $this->logger->info("  Products to create: " . count($to_create) . ", to update: " . count($to_update));
 
         // Batch create products
         if (!empty($to_create)) {
@@ -774,23 +839,19 @@ class GoldenSneakersBatchImporter
 
             // Phase 2: Fetch existing from WooCommerce
             $this->logger->info('');
-            $this->logger->info('🔍 Phase 2: Fetching existing WooCommerce products...');
+            $this->logger->info('Phase 2: Fetching existing WooCommerce products...');
             $existing_products = $this->fetchExistingProducts();
-            $this->logger->info("✅ Found " . count($existing_products) . " existing products in WooCommerce");
+            $this->logger->info("Found " . count($existing_products) . " existing products in WooCommerce");
 
-            // Phase 3: Ensure category exists
+            // Phase 3: Batch process products (category auto-detected per product)
             $this->logger->info('');
-            $this->logger->info('📁 Phase 3: Ensuring category exists...');
-            $category_id = $this->ensureCategoryExists();
+            $this->logger->info('Phase 3: Batch processing products...');
+            $this->logger->info('  (Categories auto-detected: Sneakers/Abbigliamento)');
+            $product_map = $this->batchProcessProducts($api_products, $existing_products);
 
-            // Phase 4: Batch process products
+            // Phase 4: Batch process variations
             $this->logger->info('');
-            $this->logger->info('📦 Phase 4: Batch processing products...');
-            $product_map = $this->batchProcessProducts($api_products, $existing_products, $category_id);
-
-            // Phase 5: Batch process variations
-            $this->logger->info('');
-            $this->logger->info('🔢 Phase 5: Batch processing variations...');
+            $this->logger->info('Phase 4: Batch processing variations...');
 
             $total = count($product_map);
             $current = 0;
@@ -800,7 +861,7 @@ class GoldenSneakersBatchImporter
                 $current++;
 
                 if (empty($data['id'])) {
-                    $this->logger->warning("  ⚠️ Skipping variations for {$sku} - no product ID");
+                    $this->logger->warning("  Skipping variations for {$sku} - no product ID");
                     continue;
                 }
 
@@ -817,7 +878,7 @@ class GoldenSneakersBatchImporter
             }
 
             echo "\n";
-            $this->logger->info("  ✅ Processed variations for {$products_with_variations} products");
+            $this->logger->info("  Processed variations for {$products_with_variations} products");
 
             // Summary
             $this->logger->info('');
