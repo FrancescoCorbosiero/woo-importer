@@ -105,6 +105,25 @@ class ImagePreImporter
     }
 
     /**
+     * Parse template string with placeholders
+     *
+     * @param string $template Template string with {placeholders}
+     * @param array $data Associative array of placeholder values
+     * @return string Parsed string
+     */
+    private function parseTemplate($template, $data)
+    {
+        $replacements = [
+            '{product_name}' => $data['product_name'] ?? '',
+            '{brand_name}' => $data['brand_name'] ?? '',
+            '{sku}' => $data['sku'] ?? '',
+            '{store_name}' => $this->config['store']['name'] ?? 'ResellPiacenza',
+        ];
+
+        return str_replace(array_keys($replacements), array_values($replacements), $template);
+    }
+
+    /**
      * Main runner
      */
     public function run()
@@ -349,11 +368,17 @@ class ImagePreImporter
      */
     private function updateMediaMetadata($media_id, $sku, $product_name, $brand_name)
     {
-        // Build SEO metadata
+        // Build SEO metadata using Italian templates
+        $template_data = [
+            'product_name' => $product_name,
+            'brand_name' => $brand_name,
+            'sku' => $sku,
+        ];
+
         $title = $product_name;
-        $alt_text = "{$product_name} - {$sku} - Buy at ResellPiacenza";
-        $caption = "{$brand_name} {$product_name}";
-        $description = "Shop authentic {$product_name} ({$sku}) at ResellPiacenza. Original sneakers from {$brand_name}. Fast shipping across Italy.";
+        $alt_text = $this->parseTemplate($this->config['templates']['image_alt'], $template_data);
+        $caption = $this->parseTemplate($this->config['templates']['image_caption'], $template_data);
+        $description = $this->parseTemplate($this->config['templates']['image_description'], $template_data);
 
         $wp_url = rtrim($this->config['woocommerce']['url'], '/') . "/wp-json/wp/v2/media/{$media_id}";
 
@@ -425,11 +450,17 @@ class ImagePreImporter
     {
         $filename = $this->sanitizeFileName($sku . '.' . $extension);
 
-        // Build SEO-optimized metadata
+        // Build SEO-optimized metadata using Italian templates
+        $template_data = [
+            'product_name' => $product_name,
+            'brand_name' => $brand_name,
+            'sku' => $sku,
+        ];
+
         $title = $product_name;
-        $alt_text = "{$product_name} - {$sku} - Buy at ResellPiacenza";
-        $caption = "{$brand_name} {$product_name}";
-        $description = "Shop authentic {$product_name} ({$sku}) at ResellPiacenza. Original sneakers from {$brand_name}. Fast shipping across Italy.";
+        $alt_text = $this->parseTemplate($this->config['templates']['image_alt'], $template_data);
+        $caption = $this->parseTemplate($this->config['templates']['image_caption'], $template_data);
+        $description = $this->parseTemplate($this->config['templates']['image_description'], $template_data);
 
         // Prepare WordPress REST API request
         $boundary = 'WooCommerceImageUpload' . time();

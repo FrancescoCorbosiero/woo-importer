@@ -127,6 +127,25 @@ class GoldenSneakersImporter
     }
 
     /**
+     * Parse template string with placeholders
+     *
+     * @param string $template Template string with {placeholders}
+     * @param array $data Associative array of placeholder values
+     * @return string Parsed string
+     */
+    private function parseTemplate($template, $data)
+    {
+        $replacements = [
+            '{product_name}' => $data['product_name'] ?? '',
+            '{brand_name}' => $data['brand_name'] ?? '',
+            '{sku}' => $data['sku'] ?? '',
+            '{store_name}' => $this->config['store']['name'] ?? 'ResellPiacenza',
+        ];
+
+        return str_replace(array_keys($replacements), array_values($replacements), $template);
+    }
+
+    /**
      * Sanitize title (WordPress replacement)
      */
     private function sanitize_title($title)
@@ -295,19 +314,38 @@ class GoldenSneakersImporter
                 ],
                 'attributes' => [
                     [
-                        'name' => $this->config['import']['brand_attribute'],
+                        'name' => 'pa_' . $this->config['import']['brand_attribute_slug'],
+                        'position' => 0,
                         'visible' => true,
                         'variation' => false,
                         'options' => [$brand]
                     ],
                     [
-                        'name' => $this->config['import']['size_attribute'],
+                        'name' => 'pa_' . $this->config['import']['size_attribute_slug'],
+                        'position' => 1,
                         'visible' => true,
                         'variation' => true,
                         'options' => $this->extractSizeOptions($sizes)
                     ]
                 ]
             ];
+
+            // Generate localized descriptions from templates
+            $template_data = [
+                'product_name' => $name,
+                'brand_name' => $brand,
+                'sku' => $sku,
+            ];
+
+            $product_payload['short_description'] = $this->parseTemplate(
+                $this->config['templates']['short_description'],
+                $template_data
+            );
+
+            $product_payload['description'] = $this->parseTemplate(
+                $this->config['templates']['long_description'],
+                $template_data
+            );
 
             // Add image if available in map
             $media_id = $this->getMediaIdForSKU($sku);
@@ -372,7 +410,7 @@ class GoldenSneakersImporter
                     'stock_status' => $quantity > 0 ? 'instock' : 'outofstock',
                     'attributes' => [
                         [
-                            'name' => $this->config['import']['size_attribute'],
+                            'name' => 'pa_' . $this->config['import']['size_attribute_slug'],
                             'option' => $size_eu
                         ]
                     ],
