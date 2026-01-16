@@ -6,7 +6,8 @@
  * Provides 10-20x performance improvement over sequential import.php
  *
  * Usage:
- *   php import-batch.php                    # Full batch import
+ *   php import-batch.php                    # Full batch import from API
+ *   php import-batch.php --feed=diff.json   # Import from file (used by sync-check)
  *   php import-batch.php --dry-run          # Test without changes
  *   php import-batch.php --limit=50         # Import first 50 products
  *   php import-batch.php --markup=30        # Override markup percentage
@@ -32,6 +33,7 @@ class GoldenSneakersBatchImporter
     private $logger;
     private $dry_run = false;
     private $limit = null;
+    private $feed_file = null;
     private $image_map = [];
     private $batch_size = 100;  // WooCommerce max per batch
     private $failed_products = [];
@@ -57,6 +59,7 @@ class GoldenSneakersBatchImporter
         $this->config = $config;
         $this->dry_run = $options['dry_run'] ?? false;
         $this->limit = $options['limit'] ?? null;
+        $this->feed_file = $options['feed_file'] ?? null;
 
         // Override markup/vat if provided
         if (isset($options['markup'])) {
@@ -193,13 +196,31 @@ class GoldenSneakersBatchImporter
     }
 
     /**
-     * Fetch products from Golden Sneakers API
+     * Fetch products from Golden Sneakers API (or file if provided)
      *
      * @return array Products data
      * @throws Exception on API error
      */
     private function fetchProductsFromAPI(): array
     {
+        // If feed file provided, read from file instead of API
+        if ($this->feed_file) {
+            if (!file_exists($this->feed_file)) {
+                throw new Exception("Feed file not found: {$this->feed_file}");
+            }
+
+            $this->logger->info("Loading feed from file: {$this->feed_file}");
+
+            $content = file_get_contents($this->feed_file);
+            $data = json_decode($content, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new Exception("Failed to parse feed file: " . json_last_error_msg());
+            }
+
+            return $data;
+        }
+
         $url = $this->getAPIUrl();
 
         $ch = curl_init();
@@ -732,8 +753,9 @@ class GoldenSneakersBatchImporter
         $this->logger->info('');
 
         try {
-            // Phase 1: Fetch from API
-            $this->logger->info('📡 Phase 1: Fetching from Golden Sneakers API...');
+            // Phase 1: Fetch from API or file
+            $source = $this->feed_file ? 'file' : 'Golden Sneakers API';
+            $this->logger->info("Phase 1: Fetching from {$source}...");
             $api_products = $this->fetchProductsFromAPI();
 
             if (empty($api_products)) {
@@ -860,6 +882,7 @@ $options = [
     'limit' => null,
     'markup' => null,
     'vat' => null,
+    'feed_file' => null,
 ];
 
 foreach ($argv as $arg) {
@@ -872,13 +895,16 @@ foreach ($argv as $arg) {
     if (strpos($arg, '--vat=') === 0) {
         $options['vat'] = (int) str_replace('--vat=', '', $arg);
     }
+    if (strpos($arg, '--feed=') === 0) {
+        $options['feed_file'] = str_replace('--feed=', '', $arg);
+    }
 }
 
 // Show help
 if (in_array('--help', $argv) || in_array('-h', $argv)) {
     echo <<<HELP
 Golden Sneakers to WooCommerce Batch Importer
-⚡ High-Performance Mode using WooCommerce Batch API
+High-Performance Mode using WooCommerce Batch API
 
 Usage:
   php import-batch.php [options]
@@ -888,12 +914,14 @@ Options:
   --limit=N         Process only first N products
   --markup=N        Override markup percentage
   --vat=N           Override VAT percentage
+  --feed=FILE       Read products from JSON file instead of API
   --help, -h        Show this help message
 
 Examples:
   php import-batch.php --dry-run --limit=10
   php import-batch.php --limit=50
   php import-batch.php --markup=30 --vat=22
+  php import-batch.php --feed=data/diff.json
 
 Prerequisites:
   Run import-images.php first to pre-upload images
