@@ -142,6 +142,22 @@ return [
     ],
 
     // ===========================================
+    // Categories (Auto-detected by size format)
+    // ===========================================
+    // Numeric sizes (36, 37.5, 42) → Sneakers
+    // Letter sizes (S, M, L, XL) → Clothing
+    'categories' => [
+        'sneakers' => [
+            'name' => env('CATEGORY_SNEAKERS_NAME', 'Sneakers'),
+            'slug' => env('CATEGORY_SNEAKERS_SLUG', 'sneakers'),
+        ],
+        'clothing' => [
+            'name' => env('CATEGORY_CLOTHING_NAME', 'Abbigliamento'),
+            'slug' => env('CATEGORY_CLOTHING_SLUG', 'abbigliamento'),
+        ],
+    ],
+
+    // ===========================================
     // Logging Configuration
     // ===========================================
     'logging' => [
