@@ -1,0 +1,10 @@
+.env
+config.php
+
+# General build/output directories
+dist/
+build/
+
+# IDE files
+.vscode/
+.idea/

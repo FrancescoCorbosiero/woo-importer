@@ -1,0 +1,15 @@
+{
+    "name": "resellpiacenza/woo-import",
+    "description": "Golden Sneakers to WooCommerce Product Importer",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "automattic/woocommerce": "^3.0",
+        "monolog/monolog": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "ResellPiacenza\\": "src/"
+        }
+    }
+}
