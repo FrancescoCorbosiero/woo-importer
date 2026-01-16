@@ -314,14 +314,14 @@ class GoldenSneakersImporter
                 ],
                 'attributes' => [
                     [
-                        'name' => 'pa_' . $this->config['import']['brand_attribute_slug'],
+                        'name' => $this->config['import']['brand_attribute_name'],
                         'position' => 0,
                         'visible' => true,
                         'variation' => false,
                         'options' => [$brand]
                     ],
                     [
-                        'name' => 'pa_' . $this->config['import']['size_attribute_slug'],
+                        'name' => $this->config['import']['size_attribute_name'],
                         'position' => 1,
                         'visible' => true,
                         'variation' => true,
@@ -410,7 +410,7 @@ class GoldenSneakersImporter
                     'stock_status' => $quantity > 0 ? 'instock' : 'outofstock',
                     'attributes' => [
                         [
-                            'name' => 'pa_' . $this->config['import']['size_attribute_slug'],
+                            'name' => $this->config['import']['size_attribute_name'],
                             'option' => $size_eu
                         ]
                     ],
