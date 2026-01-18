@@ -1,0 +1,127 @@
+scope,field,type,access,description,options,default,seo_impact,notes
+product,id,integer,read-only,Unique identifier,,,none,auto-generated
+product,name,string,writable,Product name,,,HIGH,page title/H1
+product,slug,string,writable,Product URL slug,,,HIGH,URL structure for SEO
+product,permalink,string,read-only,Full product URL,,,none,
+product,date_created,date-time,read-only,Creation timestamp,,,none,
+product,date_created_gmt,date-time,read-only,Creation timestamp GMT,,,none,
+product,date_modified,date-time,read-only,Last modified,,,LOW,freshness signal
+product,date_modified_gmt,date-time,read-only,Last modified GMT,,,none,
+product,type,string,writable,Product type,"simple,grouped,external,variable",,none,
+product,status,string,writable,Publication status,"draft,pending,private,publish",,MEDIUM,indexing
+product,featured,boolean,writable,Featured product,,false,LOW,internal sorting
+product,catalog_visibility,string,writable,Visibility,"visible,catalog,search,hidden",,MEDIUM,search/listing
+product,description,string,writable,Full description (HTML),,,HIGH,main content
+product,short_description,string,writable,Brief summary (HTML),,,HIGH,meta description source
+product,sku,string,writable,Stock Keeping Unit,,,MEDIUM,product identifier
+product,global_unique_id,string,writable,GTIN/UPC/EAN/ISBN,,,HIGH,structured data/rich snippets
+product,price,string,read-only,Current price,,,none,
+product,regular_price,string,writable,Standard price,,,MEDIUM,rich snippets
+product,sale_price,string,writable,Promotional price,,,MEDIUM,rich snippets
+product,date_on_sale_from,date-time,writable,Sale start date,,,LOW,
+product,date_on_sale_from_gmt,date-time,writable,Sale start date GMT,,,none,
+product,date_on_sale_to,date-time,writable,Sale end date,,,LOW,
+product,date_on_sale_to_gmt,date-time,writable,Sale end date GMT,,,none,
+product,price_html,string,read-only,Formatted price HTML,,,none,
+product,on_sale,boolean,read-only,Sale status,,,none,
+product,purchasable,boolean,read-only,Can be purchased,,,none,
+product,total_sales,integer,read-only,Sales count,,,LOW,social proof
+product,virtual,boolean,writable,Virtual product,,false,none,
+product,downloadable,boolean,writable,Downloadable,,false,none,
+product,downloads,array,writable,Download files,,,none,
+product,download_limit,integer,writable,Download count limit,,-1,none,
+product,download_expiry,integer,writable,Download expiry days,,-1,none,
+product,external_url,string,writable,External product URL,,,none,external type only
+product,button_text,string,writable,External button text,,,none,external type only
+product,tax_status,string,writable,Tax status,"taxable,shipping,none",,none,
+product,tax_class,string,writable,Tax class,,,none,
+product,manage_stock,boolean,writable,Stock management,,false,none,
+product,stock_quantity,integer,writable,Inventory count,,,HIGH,availability schema
+product,stock_status,string,writable,Stock status,"instock,outofstock,onbackorder",,HIGH,availability schema
+product,backorders,string,writable,Backorder policy,"no,notify,yes",,LOW,
+product,backorders_allowed,boolean,read-only,Backorders allowed,,,none,
+product,backordered,boolean,read-only,Currently backordered,,,none,
+product,low_stock_amount,integer,writable,Low stock threshold,,,none,
+product,sold_individually,boolean,writable,One per order,,false,none,
+product,weight,string,writable,Product weight,,,MEDIUM,shipping schema
+product,dimensions.length,string,writable,Length dimension,,,LOW,shipping schema
+product,dimensions.width,string,writable,Width dimension,,,LOW,shipping schema
+product,dimensions.height,string,writable,Height dimension,,,LOW,shipping schema
+product,shipping_required,boolean,read-only,Needs shipping,,,none,
+product,shipping_taxable,boolean,read-only,Shipping taxable,,,none,
+product,shipping_class,string,writable,Shipping class slug,,,none,
+product,shipping_class_id,integer,read-only,Shipping class ID,,,none,
+product,reviews_allowed,boolean,writable,Allow reviews,,true,MEDIUM,user reviews schema
+product,average_rating,string,read-only,Average rating,,,HIGH,star ratings schema
+product,rating_count,integer,read-only,Review count,,,HIGH,star ratings schema
+product,related_ids,array,read-only,Related products,,,LOW,internal linking
+product,upsell_ids,array,writable,Upsell products,,,LOW,internal linking
+product,cross_sell_ids,array,writable,Cross-sell products,,,LOW,internal linking
+product,parent_id,integer,writable,Parent product ID,,,none,
+product,purchase_note,string,writable,Post-purchase note,,,none,
+product,categories,array,writable,Product categories,,,HIGH,breadcrumbs/structure
+product,tags,array,writable,Product tags,,,MEDIUM,keyword association
+product,images,array,writable,Product images,,,HIGH,image SEO
+product,images.id,integer,writable,Image attachment ID,,,none,
+product,images.src,string,writable,Image URL,,,HIGH,image indexing
+product,images.name,string,writable,Image title,,,MEDIUM,image SEO
+product,images.alt,string,writable,Image alt text,,,HIGH,accessibility/image SEO
+product,attributes,array,writable,Product attributes,,,MEDIUM,filters/facets
+product,attributes.id,integer,writable,Attribute ID,,,none,
+product,attributes.name,string,writable,Attribute name,,,MEDIUM,filter labels
+product,attributes.position,integer,writable,Display order,,,none,
+product,attributes.visible,boolean,writable,Show on product page,,false,LOW,
+product,attributes.variation,boolean,writable,Used for variations,,false,none,
+product,attributes.options,array,writable,Attribute terms,,,MEDIUM,filter values
+product,default_attributes,array,writable,Default variation,,,none,
+product,variations,array,read-only,Variation IDs,,,none,
+product,grouped_products,array,writable,Grouped product IDs,,,none,grouped type only
+product,menu_order,integer,writable,Sort order,,,none,
+product,meta_data,array,writable,Custom meta fields,,,VARIES,extensible
+variation,id,integer,read-only,Variation ID,,,none,
+variation,date_created,date-time,read-only,Creation date,,,none,
+variation,date_created_gmt,date-time,read-only,Creation date GMT,,,none,
+variation,date_modified,date-time,read-only,Modified date,,,none,
+variation,date_modified_gmt,date-time,read-only,Modified date GMT,,,none,
+variation,description,string,writable,Variation description,,,MEDIUM,per-variation content
+variation,permalink,string,read-only,Variation URL,,,none,
+variation,sku,string,writable,Variation SKU,,,MEDIUM,unique identifier
+variation,global_unique_id,string,writable,GTIN/UPC/EAN/ISBN,,,HIGH,per-variation barcode
+variation,price,string,read-only,Current price,,,none,
+variation,regular_price,string,writable,Standard price,,,MEDIUM,rich snippets
+variation,sale_price,string,writable,Sale price,,,MEDIUM,rich snippets
+variation,date_on_sale_from,date-time,writable,Sale start,,,none,
+variation,date_on_sale_from_gmt,date-time,writable,Sale start GMT,,,none,
+variation,date_on_sale_to,date-time,writable,Sale end,,,none,
+variation,date_on_sale_to_gmt,date-time,writable,Sale end GMT,,,none,
+variation,on_sale,boolean,read-only,On sale status,,,none,
+variation,status,string,writable,Publication status,"draft,pending,private,publish",,LOW,
+variation,purchasable,boolean,read-only,Can purchase,,,none,
+variation,virtual,boolean,writable,Virtual product,,false,none,
+variation,downloadable,boolean,writable,Downloadable,,false,none,
+variation,downloads,array,writable,Download files,,,none,
+variation,download_limit,integer,writable,Download limit,,-1,none,
+variation,download_expiry,integer,writable,Download expiry,,-1,none,
+variation,tax_status,string,writable,Tax status,"taxable,shipping,none",,none,
+variation,tax_class,string,writable,Tax class,,,none,
+variation,manage_stock,boolean,writable,Manage stock,,false,none,
+variation,stock_quantity,integer,writable,Stock count,,,HIGH,availability
+variation,stock_status,string,writable,Stock status,"instock,outofstock,onbackorder",,HIGH,availability
+variation,backorders,string,writable,Backorders,"no,notify,yes",,none,
+variation,backorders_allowed,boolean,read-only,Backorders OK,,,none,
+variation,backordered,boolean,read-only,On backorder,,,none,
+variation,low_stock_amount,integer,writable,Low stock level,,,none,
+variation,weight,string,writable,Weight,,,LOW,shipping
+variation,dimensions.length,string,writable,Length,,,LOW,shipping
+variation,dimensions.width,string,writable,Width,,,LOW,shipping
+variation,dimensions.height,string,writable,Height,,,LOW,shipping
+variation,shipping_class,string,writable,Shipping class,,,none,
+variation,shipping_class_id,integer,read-only,Shipping class ID,,,none,
+variation,image,object,writable,Variation image,,,MEDIUM,per-variation image
+variation,image.id,integer,writable,Image ID,,,none,
+variation,image.src,string,writable,Image URL,,,MEDIUM,
+variation,image.name,string,writable,Image title,,,LOW,
+variation,image.alt,string,writable,Image alt,,,MEDIUM,
+variation,attributes,array,writable,Variation attributes,,,none,
+variation,menu_order,integer,writable,Sort order,,,none,
+variation,meta_data,array,writable,Custom meta,,,VARIES,extensible

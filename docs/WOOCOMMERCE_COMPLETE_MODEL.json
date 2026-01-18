@@ -1,0 +1,244 @@
+{
+  "$schema": "WooCommerce REST API v3 - Complete Product Schema",
+  "$description": "All available fields in WooCommerce Products API",
+  "$source": "https://woocommerce.github.io/woocommerce-rest-api-docs/#products",
+  "$version": "wc/v3",
+
+  "product": {
+    "id": {"type": "integer", "access": "read-only", "description": "Unique identifier for the resource"},
+    "name": {"type": "string", "access": "writable", "description": "Product name"},
+    "slug": {"type": "string", "access": "writable", "description": "Product slug (URL-friendly identifier)"},
+    "permalink": {"type": "string", "access": "read-only", "description": "Product URL"},
+    "date_created": {"type": "date-time", "access": "read-only", "description": "Creation date in site timezone"},
+    "date_created_gmt": {"type": "date-time", "access": "read-only", "description": "Creation date in GMT"},
+    "date_modified": {"type": "date-time", "access": "read-only", "description": "Last modified date in site timezone"},
+    "date_modified_gmt": {"type": "date-time", "access": "read-only", "description": "Last modified date in GMT"},
+    "type": {"type": "string", "access": "writable", "description": "Product type", "options": ["simple", "grouped", "external", "variable"]},
+    "status": {"type": "string", "access": "writable", "description": "Product status", "options": ["draft", "pending", "private", "publish"]},
+    "featured": {"type": "boolean", "access": "writable", "description": "Featured product", "default": false},
+    "catalog_visibility": {"type": "string", "access": "writable", "description": "Catalog visibility", "options": ["visible", "catalog", "search", "hidden"]},
+    "description": {"type": "string", "access": "writable", "description": "Product description (HTML allowed)"},
+    "short_description": {"type": "string", "access": "writable", "description": "Product short description (HTML allowed)"},
+    "sku": {"type": "string", "access": "writable", "description": "Unique identifier (Stock Keeping Unit)"},
+    "global_unique_id": {"type": "string", "access": "writable", "description": "GTIN, UPC, EAN or ISBN"},
+    "price": {"type": "string", "access": "read-only", "description": "Current product price"},
+    "regular_price": {"type": "string", "access": "writable", "description": "Product regular price"},
+    "sale_price": {"type": "string", "access": "writable", "description": "Product sale price"},
+    "date_on_sale_from": {"type": "date-time", "access": "writable", "description": "Start date of sale price (site timezone)"},
+    "date_on_sale_from_gmt": {"type": "date-time", "access": "writable", "description": "Start date of sale price (GMT)"},
+    "date_on_sale_to": {"type": "date-time", "access": "writable", "description": "End date of sale price (site timezone)"},
+    "date_on_sale_to_gmt": {"type": "date-time", "access": "writable", "description": "End date of sale price (GMT)"},
+    "price_html": {"type": "string", "access": "read-only", "description": "Price formatted in HTML"},
+    "on_sale": {"type": "boolean", "access": "read-only", "description": "Shows if the product is on sale"},
+    "purchasable": {"type": "boolean", "access": "read-only", "description": "Shows if the product can be bought"},
+    "total_sales": {"type": "integer", "access": "read-only", "description": "Amount of sales"},
+    "virtual": {"type": "boolean", "access": "writable", "description": "If the product is virtual", "default": false},
+    "downloadable": {"type": "boolean", "access": "writable", "description": "If the product is downloadable", "default": false},
+    "downloads": {
+      "type": "array<object>",
+      "access": "writable",
+      "description": "List of downloadable files",
+      "structure": {
+        "id": {"type": "string", "description": "File ID"},
+        "name": {"type": "string", "description": "File name"},
+        "file": {"type": "string", "description": "File URL"}
+      }
+    },
+    "download_limit": {"type": "integer", "access": "writable", "description": "Number of times downloadable files can be downloaded after purchase", "default": -1},
+    "download_expiry": {"type": "integer", "access": "writable", "description": "Number of days until access to downloadable files expires", "default": -1},
+    "external_url": {"type": "string", "access": "writable", "description": "Product external URL (for external products only)"},
+    "button_text": {"type": "string", "access": "writable", "description": "Product external button text (for external products only)"},
+    "tax_status": {"type": "string", "access": "writable", "description": "Tax status", "options": ["taxable", "shipping", "none"]},
+    "tax_class": {"type": "string", "access": "writable", "description": "Tax class"},
+    "manage_stock": {"type": "boolean", "access": "writable", "description": "Stock management at product level", "default": false},
+    "stock_quantity": {"type": "integer", "access": "writable", "description": "Stock quantity"},
+    "stock_status": {"type": "string", "access": "writable", "description": "Controls the stock status", "options": ["instock", "outofstock", "onbackorder"]},
+    "backorders": {"type": "string", "access": "writable", "description": "If managing stock, this controls if backorders are allowed", "options": ["no", "notify", "yes"]},
+    "backorders_allowed": {"type": "boolean", "access": "read-only", "description": "Shows if backorders are allowed"},
+    "backordered": {"type": "boolean", "access": "read-only", "description": "Shows if the product is on backordered"},
+    "low_stock_amount": {"type": "integer", "access": "writable", "description": "Low stock threshold"},
+    "sold_individually": {"type": "boolean", "access": "writable", "description": "Allow one of this item to be bought in a single order", "default": false},
+    "weight": {"type": "string", "access": "writable", "description": "Product weight"},
+    "dimensions": {
+      "type": "object",
+      "access": "writable",
+      "description": "Product dimensions",
+      "structure": {
+        "length": {"type": "string", "description": "Product length"},
+        "width": {"type": "string", "description": "Product width"},
+        "height": {"type": "string", "description": "Product height"}
+      }
+    },
+    "shipping_required": {"type": "boolean", "access": "read-only", "description": "Shows if the product need to be shipped"},
+    "shipping_taxable": {"type": "boolean", "access": "read-only", "description": "Shows whether or not the product shipping is taxable"},
+    "shipping_class": {"type": "string", "access": "writable", "description": "Shipping class slug"},
+    "shipping_class_id": {"type": "integer", "access": "read-only", "description": "Shipping class ID"},
+    "reviews_allowed": {"type": "boolean", "access": "writable", "description": "Allow reviews", "default": true},
+    "average_rating": {"type": "string", "access": "read-only", "description": "Reviews average rating"},
+    "rating_count": {"type": "integer", "access": "read-only", "description": "Amount of reviews that the product have"},
+    "related_ids": {"type": "array<integer>", "access": "read-only", "description": "List of related products IDs"},
+    "upsell_ids": {"type": "array<integer>", "access": "writable", "description": "List of up-sell products IDs"},
+    "cross_sell_ids": {"type": "array<integer>", "access": "writable", "description": "List of cross-sell products IDs"},
+    "parent_id": {"type": "integer", "access": "writable", "description": "Product parent ID"},
+    "purchase_note": {"type": "string", "access": "writable", "description": "Optional note to send the customer after purchase"},
+    "categories": {
+      "type": "array<object>",
+      "access": "writable",
+      "description": "List of categories",
+      "structure": {
+        "id": {"type": "integer", "access": "writable", "description": "Category ID"},
+        "name": {"type": "string", "access": "read-only", "description": "Category name"},
+        "slug": {"type": "string", "access": "read-only", "description": "Category slug"}
+      }
+    },
+    "tags": {
+      "type": "array<object>",
+      "access": "writable",
+      "description": "List of tags",
+      "structure": {
+        "id": {"type": "integer", "access": "writable", "description": "Tag ID"},
+        "name": {"type": "string", "access": "read-only", "description": "Tag name"},
+        "slug": {"type": "string", "access": "read-only", "description": "Tag slug"}
+      }
+    },
+    "images": {
+      "type": "array<object>",
+      "access": "writable",
+      "description": "List of images",
+      "structure": {
+        "id": {"type": "integer", "access": "writable", "description": "Image ID"},
+        "date_created": {"type": "date-time", "access": "read-only", "description": "Image creation date"},
+        "date_created_gmt": {"type": "date-time", "access": "read-only", "description": "Image creation date (GMT)"},
+        "date_modified": {"type": "date-time", "access": "read-only", "description": "Image modification date"},
+        "date_modified_gmt": {"type": "date-time", "access": "read-only", "description": "Image modification date (GMT)"},
+        "src": {"type": "string", "access": "writable", "description": "Image URL"},
+        "name": {"type": "string", "access": "writable", "description": "Image name (title)"},
+        "alt": {"type": "string", "access": "writable", "description": "Image alternative text"}
+      }
+    },
+    "attributes": {
+      "type": "array<object>",
+      "access": "writable",
+      "description": "List of attributes",
+      "structure": {
+        "id": {"type": "integer", "access": "writable", "description": "Attribute ID"},
+        "name": {"type": "string", "access": "writable", "description": "Attribute name"},
+        "position": {"type": "integer", "access": "writable", "description": "Attribute position"},
+        "visible": {"type": "boolean", "access": "writable", "description": "Visible on product page", "default": false},
+        "variation": {"type": "boolean", "access": "writable", "description": "Define if the attribute can be used as variation", "default": false},
+        "options": {"type": "array<string>", "access": "writable", "description": "List of available term names"}
+      }
+    },
+    "default_attributes": {
+      "type": "array<object>",
+      "access": "writable",
+      "description": "Default variation attributes",
+      "structure": {
+        "id": {"type": "integer", "access": "writable", "description": "Attribute ID"},
+        "name": {"type": "string", "access": "writable", "description": "Attribute name"},
+        "option": {"type": "string", "access": "writable", "description": "Selected attribute term name"}
+      }
+    },
+    "variations": {"type": "array<integer>", "access": "read-only", "description": "List of variations IDs"},
+    "grouped_products": {"type": "array<integer>", "access": "writable", "description": "List of grouped products ID"},
+    "menu_order": {"type": "integer", "access": "writable", "description": "Menu order, used to custom sort products"},
+    "meta_data": {
+      "type": "array<object>",
+      "access": "writable",
+      "description": "Meta data",
+      "structure": {
+        "id": {"type": "integer", "access": "read-only", "description": "Meta ID"},
+        "key": {"type": "string", "access": "writable", "description": "Meta key"},
+        "value": {"type": "mixed", "access": "writable", "description": "Meta value"}
+      }
+    }
+  },
+
+  "variation": {
+    "id": {"type": "integer", "access": "read-only", "description": "Unique identifier for the resource"},
+    "date_created": {"type": "date-time", "access": "read-only", "description": "Creation date in site timezone"},
+    "date_created_gmt": {"type": "date-time", "access": "read-only", "description": "Creation date in GMT"},
+    "date_modified": {"type": "date-time", "access": "read-only", "description": "Modification date in site timezone"},
+    "date_modified_gmt": {"type": "date-time", "access": "read-only", "description": "Modification date in GMT"},
+    "description": {"type": "string", "access": "writable", "description": "Variation description"},
+    "permalink": {"type": "string", "access": "read-only", "description": "Variation URL"},
+    "sku": {"type": "string", "access": "writable", "description": "Unique identifier"},
+    "global_unique_id": {"type": "string", "access": "writable", "description": "GTIN, UPC, EAN or ISBN"},
+    "price": {"type": "string", "access": "read-only", "description": "Current variation price"},
+    "regular_price": {"type": "string", "access": "writable", "description": "Variation regular price"},
+    "sale_price": {"type": "string", "access": "writable", "description": "Variation sale price"},
+    "date_on_sale_from": {"type": "date-time", "access": "writable", "description": "Start date of sale price (site timezone)"},
+    "date_on_sale_from_gmt": {"type": "date-time", "access": "writable", "description": "Start date of sale price (GMT)"},
+    "date_on_sale_to": {"type": "date-time", "access": "writable", "description": "End date of sale price (site timezone)"},
+    "date_on_sale_to_gmt": {"type": "date-time", "access": "writable", "description": "End date of sale price (GMT)"},
+    "on_sale": {"type": "boolean", "access": "read-only", "description": "Shows if the variation is on sale"},
+    "status": {"type": "string", "access": "writable", "description": "Variation status", "options": ["draft", "pending", "private", "publish"]},
+    "purchasable": {"type": "boolean", "access": "read-only", "description": "Shows if the variation can be bought"},
+    "virtual": {"type": "boolean", "access": "writable", "description": "If the variation is virtual", "default": false},
+    "downloadable": {"type": "boolean", "access": "writable", "description": "If the variation is downloadable", "default": false},
+    "downloads": {
+      "type": "array<object>",
+      "access": "writable",
+      "description": "List of downloadable files"
+    },
+    "download_limit": {"type": "integer", "access": "writable", "description": "Download limit", "default": -1},
+    "download_expiry": {"type": "integer", "access": "writable", "description": "Download expiry days", "default": -1},
+    "tax_status": {"type": "string", "access": "writable", "description": "Tax status", "options": ["taxable", "shipping", "none"]},
+    "tax_class": {"type": "string", "access": "writable", "description": "Tax class"},
+    "manage_stock": {"type": "boolean", "access": "writable", "description": "Stock management at variation level", "default": false},
+    "stock_quantity": {"type": "integer", "access": "writable", "description": "Stock quantity"},
+    "stock_status": {"type": "string", "access": "writable", "description": "Stock status", "options": ["instock", "outofstock", "onbackorder"]},
+    "backorders": {"type": "string", "access": "writable", "description": "Backorders", "options": ["no", "notify", "yes"]},
+    "backorders_allowed": {"type": "boolean", "access": "read-only", "description": "Shows if backorders are allowed"},
+    "backordered": {"type": "boolean", "access": "read-only", "description": "Shows if the variation is on backordered"},
+    "low_stock_amount": {"type": "integer", "access": "writable", "description": "Low stock threshold"},
+    "weight": {"type": "string", "access": "writable", "description": "Variation weight"},
+    "dimensions": {
+      "type": "object",
+      "access": "writable",
+      "description": "Variation dimensions",
+      "structure": {
+        "length": {"type": "string"},
+        "width": {"type": "string"},
+        "height": {"type": "string"}
+      }
+    },
+    "shipping_class": {"type": "string", "access": "writable", "description": "Shipping class slug"},
+    "shipping_class_id": {"type": "integer", "access": "read-only", "description": "Shipping class ID"},
+    "image": {
+      "type": "object",
+      "access": "writable",
+      "description": "Variation image",
+      "structure": {
+        "id": {"type": "integer"},
+        "src": {"type": "string"},
+        "name": {"type": "string"},
+        "alt": {"type": "string"}
+      }
+    },
+    "attributes": {
+      "type": "array<object>",
+      "access": "writable",
+      "description": "List of attributes",
+      "structure": {
+        "id": {"type": "integer"},
+        "name": {"type": "string"},
+        "option": {"type": "string"}
+      }
+    },
+    "menu_order": {"type": "integer", "access": "writable", "description": "Menu order"},
+    "meta_data": {
+      "type": "array<object>",
+      "access": "writable",
+      "description": "Meta data"
+    }
+  },
+
+  "_summary": {
+    "total_product_fields": 53,
+    "total_variation_fields": 35,
+    "writable_product_fields": 40,
+    "writable_variation_fields": 26,
+    "note": "Some fields are only applicable to certain product types (external, grouped, etc.)"
+  }
+}

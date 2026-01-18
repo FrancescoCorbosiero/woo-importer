@@ -1,0 +1,81 @@
+scope,field,type,access,source,currently_used,example_value
+product,id,integer,read-only,WooCommerce,no,
+product,name,string,writable,API (product.name),YES,"Nike Dunk Low Next Nature White Black Panda (Women's)"
+product,slug,string,writable,auto-generated,no,
+product,permalink,string,read-only,WooCommerce,no,
+product,type,string,writable,hard-coded,YES,variable
+product,status,string,writable,hard-coded,YES,publish
+product,featured,boolean,writable,not set,no,
+product,catalog_visibility,string,writable,hard-coded,YES,visible
+product,description,string,writable,config template,YES,"<p>Scopri le <strong>{product_name}</strong>..."
+product,short_description,string,writable,config template,YES,"Sneakers originali {brand_name}..."
+product,sku,string,writable,API (product.sku),YES,DD1873-102
+product,global_unique_id,string,writable,not set,no,
+product,regular_price,string,writable,not set (variable),no,
+product,sale_price,string,writable,not set,no,
+product,date_on_sale_from,date-time,writable,not set,no,
+product,date_on_sale_to,date-time,writable,not set,no,
+product,virtual,boolean,writable,not set,no,
+product,downloadable,boolean,writable,not set,no,
+product,downloads,array,writable,not set,no,
+product,download_limit,integer,writable,not set,no,
+product,download_expiry,integer,writable,not set,no,
+product,external_url,string,writable,not set,no,
+product,button_text,string,writable,not set,no,
+product,tax_status,string,writable,not set,no,
+product,tax_class,string,writable,not set,no,
+product,manage_stock,boolean,writable,not set (variable),no,
+product,stock_quantity,integer,writable,not set (variable),no,
+product,stock_status,string,writable,not set (variable),no,
+product,backorders,string,writable,not set,no,
+product,low_stock_amount,integer,writable,not set,no,
+product,sold_individually,boolean,writable,not set,no,
+product,weight,string,writable,not set,no,
+product,dimensions.length,string,writable,not set,no,
+product,dimensions.width,string,writable,not set,no,
+product,dimensions.height,string,writable,not set,no,
+product,shipping_class,string,writable,not set,no,
+product,reviews_allowed,boolean,writable,not set,no,
+product,upsell_ids,array,writable,not set,no,
+product,cross_sell_ids,array,writable,not set,no,
+product,parent_id,integer,writable,not set,no,
+product,purchase_note,string,writable,not set,no,
+product,categories,array,writable,auto-detected,YES,[{id: 123}]
+product,tags,array,writable,not set,no,
+product,images,array,writable,image-map.json,YES,[{id: 5678}]
+product,images.name,string,writable,via WordPress,YES,product name
+product,images.alt,string,writable,via WordPress,YES,SEO alt text
+product,attributes,array,writable,API + config,YES,"[{name: Marca, options: [Nike]}]"
+product,default_attributes,array,writable,not set,no,
+product,grouped_products,array,writable,not set,no,
+product,menu_order,integer,writable,not set,no,
+product,meta_data,array,writable,not set,no,
+variation,sku,string,writable,constructed,YES,DD1873-102-35.5
+variation,description,string,writable,not set,no,
+variation,regular_price,string,writable,API + markup,YES,89.50
+variation,sale_price,string,writable,not set,no,
+variation,date_on_sale_from,date-time,writable,not set,no,
+variation,date_on_sale_to,date-time,writable,not set,no,
+variation,status,string,writable,not set,no,
+variation,virtual,boolean,writable,not set,no,
+variation,downloadable,boolean,writable,not set,no,
+variation,tax_status,string,writable,not set,no,
+variation,tax_class,string,writable,not set,no,
+variation,manage_stock,boolean,writable,hard-coded,YES,true
+variation,stock_quantity,integer,writable,API,YES,5
+variation,stock_status,string,writable,calculated,YES,instock
+variation,backorders,string,writable,not set,no,
+variation,low_stock_amount,integer,writable,not set,no,
+variation,weight,string,writable,not set,no,
+variation,dimensions.length,string,writable,not set,no,
+variation,dimensions.width,string,writable,not set,no,
+variation,dimensions.height,string,writable,not set,no,
+variation,shipping_class,string,writable,not set,no,
+variation,image,object,writable,not set,no,
+variation,attributes,array,writable,API,YES,"[{name: Taglia, option: 35.5}]"
+variation,menu_order,integer,writable,not set,no,
+variation,meta_data,array,writable,API,YES,"[{key: _size_us, value: 5}]"
+media,title,string,writable,API,YES,product name
+media,alt_text,string,writable,config template,YES,SEO alt text
+media,caption,string,writable,config template,YES,brand + product
+media,description,string,writable,config template,YES,purchase description
