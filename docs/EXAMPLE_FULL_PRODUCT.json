@@ -1,6 +1,7 @@
 {
-  "$schema": "Complete WooCommerce Variable Product - Maximum SEO & Rich Snippets",
+  "$schema": "Complete WooCommerce Variable Product - Plugin-Agnostic SEO",
   "$note": "This is a CREATE payload - read-only fields shown for reference only",
+  "$identifier_strategy": "SKU is the primary identifier. GTIN/barcode is optional bonus when available from feed.",
 
   "product": {
     "name": "Nike Dunk Low Next Nature White Black Panda (Donna)",
@@ -15,7 +16,8 @@
     "short_description": "Nike Dunk Low Next Nature \"Panda\" (DD1873-102) - Sneakers donna in pelle con materiali sostenibili. Colorway iconico bianco/nero. 100% autentiche con garanzia ResellPiacenza.",
 
     "sku": "DD1873-102",
-    "global_unique_id": "0196152912548",
+    "global_unique_id": null,
+    "_global_unique_id_note": "OPTIONAL: Set only when barcode is available from feed. Otherwise leave null/omit.",
 
     "regular_price": "",
     "sale_price": "",
@@ -46,7 +48,7 @@
     "upsell_ids": [],
     "cross_sell_ids": [],
 
-    "purchase_note": "Grazie per aver scelto ResellPiacenza! 🎉\n\nIl tuo ordine verrà spedito entro 24 ore lavorative.\nConserva la scatola originale per eventuali resi.\n\nPer assistenza: support@resellpiacenza.it",
+    "purchase_note": "Grazie per aver scelto ResellPiacenza!\n\nIl tuo ordine verrà spedito entro 24 ore lavorative.\nConserva la scatola originale per eventuali resi.\n\nPer assistenza: support@resellpiacenza.it",
 
     "categories": [
       {"id": 10, "name": "Sneakers", "slug": "sneakers"},
@@ -63,8 +65,7 @@
       {"id": 104, "name": "Bianco", "slug": "bianco"},
       {"id": 105, "name": "Nero", "slug": "nero"},
       {"id": 106, "name": "Next Nature", "slug": "next-nature"},
-      {"id": 107, "name": "Sostenibile", "slug": "sostenibile"},
-      {"id": 108, "name": "DD1873-102", "slug": "dd1873-102"}
+      {"id": 107, "name": "DD1873-102", "slug": "dd1873-102"}
     ],
 
     "images": [
@@ -127,27 +128,11 @@
       },
       {
         "id": 4,
-        "name": "pa_materiale",
+        "name": "pa_genere",
         "position": 3,
         "visible": true,
         "variation": false,
-        "options": ["Pelle Sintetica", "Materiali Riciclati"]
-      },
-      {
-        "id": 5,
-        "name": "pa_genere",
-        "position": 4,
-        "visible": true,
-        "variation": false,
         "options": ["Donna"]
-      },
-      {
-        "id": 6,
-        "name": "pa_anno-release",
-        "position": 5,
-        "visible": true,
-        "variation": false,
-        "options": ["2023"]
       }
     ],
 
@@ -163,48 +148,28 @@
 
     "meta_data": [
       {
-        "key": "_yoast_wpseo_title",
-        "value": "Nike Dunk Low Panda Donna DD1873-102 | ResellPiacenza"
-      },
-      {
-        "key": "_yoast_wpseo_metadesc",
-        "value": "Acquista Nike Dunk Low Next Nature Panda (DD1873-102) su ResellPiacenza. Sneakers donna 100% autentiche. Spedizione 24-48h in Italia. Reso facile."
-      },
-      {
-        "key": "_yoast_wpseo_focuskw",
-        "value": "Nike Dunk Low Panda"
-      },
-      {
-        "key": "_product_video_url",
-        "value": "https://www.youtube.com/watch?v=example123"
-      },
-      {
         "key": "_size_guide_id",
-        "value": "nike-wmns"
-      },
-      {
-        "key": "_release_date",
-        "value": "2023-03-15"
-      },
-      {
-        "key": "_retail_price",
-        "value": "119.99"
+        "value": "nike-wmns",
+        "_note": "Internal reference for size chart display"
       },
       {
         "key": "_style_code",
-        "value": "DD1873-102"
+        "value": "DD1873-102",
+        "_note": "Duplicate of SKU for custom integrations"
       },
       {
         "key": "_colorway",
-        "value": "White/Black-White"
+        "value": "White/Black-White",
+        "_note": "Official colorway name from manufacturer"
       }
-    ]
+    ],
+    "_meta_data_note": "Keep meta_data minimal. Avoid SEO plugin-specific keys."
   },
 
   "variations": [
     {
       "sku": "DD1873-102-35.5",
-      "global_unique_id": "0196152912501",
+      "global_unique_id": null,
       "regular_price": "139.00",
       "sale_price": "",
       "status": "publish",
@@ -222,13 +187,6 @@
         "height": "13"
       },
 
-      "image": {
-        "id": 5001,
-        "src": "https://resellpiacenza.it/wp-content/uploads/DD1873-102-main.jpg",
-        "name": "Nike Dunk Low Panda EU 35.5",
-        "alt": "Nike Dunk Low Panda Donna Taglia EU 35.5 - US 5"
-      },
-
       "attributes": [
         {
           "id": 2,
@@ -239,15 +197,13 @@
 
       "meta_data": [
         {"key": "_size_us", "value": "5"},
-        {"key": "_size_uk", "value": "2.5"},
-        {"key": "_size_cm", "value": "22"},
-        {"key": "_barcode", "value": "0196152912501"},
-        {"key": "_cost_price", "value": "85.00"}
-      ]
+        {"key": "_barcode", "value": null}
+      ],
+      "_meta_data_note": "barcode null when not provided by feed"
     },
     {
       "sku": "DD1873-102-36",
-      "global_unique_id": "0196152912502",
+      "global_unique_id": null,
       "regular_price": "139.00",
       "sale_price": "",
       "status": "publish",
@@ -275,10 +231,7 @@
 
       "meta_data": [
         {"key": "_size_us", "value": "5.5"},
-        {"key": "_size_uk", "value": "3"},
-        {"key": "_size_cm", "value": "22.5"},
-        {"key": "_barcode", "value": "0196152912502"},
-        {"key": "_cost_price", "value": "85.00"}
+        {"key": "_barcode", "value": null}
       ]
     },
     {
@@ -313,15 +266,13 @@
 
       "meta_data": [
         {"key": "_size_us", "value": "7"},
-        {"key": "_size_uk", "value": "4.5"},
-        {"key": "_size_cm", "value": "24"},
-        {"key": "_barcode", "value": "0196152912508"},
-        {"key": "_cost_price", "value": "85.00"}
-      ]
+        {"key": "_barcode", "value": "0196152912508"}
+      ],
+      "_meta_data_note": "This variation HAS barcode from feed"
     },
     {
       "sku": "DD1873-102-42",
-      "global_unique_id": "0196152912542",
+      "global_unique_id": null,
       "regular_price": "159.00",
       "sale_price": "",
       "status": "publish",
@@ -349,39 +300,101 @@
 
       "meta_data": [
         {"key": "_size_us", "value": "10"},
-        {"key": "_size_uk", "value": "7.5"},
-        {"key": "_size_cm", "value": "27"},
-        {"key": "_barcode", "value": "0196152912542"},
-        {"key": "_cost_price", "value": "90.00"}
+        {"key": "_barcode", "value": null}
       ]
     }
   ],
 
-  "_google_rich_snippets_enabled": {
-    "product_schema": true,
-    "fields_contributing": [
-      "name → schema:name",
-      "description → schema:description",
-      "sku → schema:sku",
-      "global_unique_id → schema:gtin",
-      "images[0].src → schema:image",
-      "regular_price/sale_price → schema:offers.price",
-      "stock_status → schema:offers.availability",
-      "average_rating → schema:aggregateRating.ratingValue",
-      "rating_count → schema:aggregateRating.reviewCount",
-      "brand (from attributes) → schema:brand.name"
+  "_seo_strategy": {
+    "approach": "Plugin-agnostic: rely on WooCommerce native fields",
+    "why": "SEO plugins (Yoast, RankMath, SEOPress, etc.) auto-generate from these fields",
+
+    "native_seo_fields": {
+      "title_tag": {
+        "source": "product.name",
+        "note": "Themes/plugins auto-generate <title> from product name"
+      },
+      "meta_description": {
+        "source": "product.short_description",
+        "note": "Keep under 160 chars, include SKU and key selling points"
+      },
+      "h1": {
+        "source": "product.name",
+        "note": "Theme renders as H1 on product page"
+      },
+      "url_slug": {
+        "source": "product.slug",
+        "note": "Custom slug with product name + SKU for uniqueness"
+      },
+      "image_alt": {
+        "source": "images[].alt",
+        "note": "Critical for image SEO and accessibility"
+      },
+      "image_title": {
+        "source": "images[].name",
+        "note": "Used in gallery lightbox and image search"
+      },
+      "structured_data_sku": {
+        "source": "product.sku",
+        "note": "Maps to schema:sku - always available"
+      },
+      "structured_data_gtin": {
+        "source": "product.global_unique_id",
+        "note": "Maps to schema:gtin - only when barcode available"
+      },
+      "breadcrumbs": {
+        "source": "product.categories",
+        "note": "Hierarchical categories enable proper breadcrumb navigation"
+      },
+      "internal_linking": {
+        "source": "product.tags + product.categories",
+        "note": "Tags create keyword-based archive pages"
+      }
+    },
+
+    "avoid_these_meta_keys": [
+      "_yoast_wpseo_title",
+      "_yoast_wpseo_metadesc",
+      "_yoast_wpseo_focuskw",
+      "rank_math_title",
+      "rank_math_description",
+      "rank_math_focus_keyword",
+      "_note": "These create plugin dependency. Let plugins auto-generate from native fields."
     ]
   },
 
-  "_seo_checklist": {
-    "title_tag": "✅ Via Yoast meta or product name",
-    "meta_description": "✅ Via Yoast meta or short_description",
-    "h1": "✅ Product name",
-    "h2_h3": "✅ In description HTML",
-    "image_alt": "✅ All images have unique alt text",
-    "internal_links": "✅ Via categories, tags, upsells, cross-sells",
-    "structured_data": "✅ GTIN, price, availability, reviews",
-    "url_slug": "✅ Custom SEO-friendly slug with SKU",
-    "breadcrumbs": "✅ Via hierarchical categories"
+  "_identifier_strategy": {
+    "primary": "SKU",
+    "why_sku": [
+      "Always available from feed",
+      "Unique per product",
+      "Used for order management",
+      "Maps to schema:sku"
+    ],
+    "secondary": "global_unique_id (GTIN/EAN/UPC)",
+    "why_gtin_secondary": [
+      "Often missing from feeds",
+      "When available: enables Google Shopping rich results",
+      "Maps to schema:gtin13 or schema:gtin14",
+      "Required for Google Merchant Center"
+    ],
+    "variation_identifier": "parent_sku + '-' + size_eu",
+    "example": "DD1873-102-38"
+  },
+
+  "_google_structured_data": {
+    "note": "WooCommerce + theme generate Product schema automatically",
+    "fields_mapped_from_wc": {
+      "schema:name": "product.name",
+      "schema:description": "product.description (stripped HTML)",
+      "schema:sku": "product.sku",
+      "schema:gtin": "product.global_unique_id (when present)",
+      "schema:image": "product.images[0].src",
+      "schema:brand.name": "From pa_marca attribute or meta",
+      "schema:offers.price": "variation.regular_price or sale_price",
+      "schema:offers.priceCurrency": "From WooCommerce settings",
+      "schema:offers.availability": "Mapped from stock_status",
+      "schema:aggregateRating": "From WooCommerce reviews (when enabled)"
+    }
   }
 }

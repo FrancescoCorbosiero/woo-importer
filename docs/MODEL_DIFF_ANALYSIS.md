@@ -47,20 +47,22 @@
 
 ---
 
+## 🔑 Identifier Strategy
+
+| Identifier | Role | Availability | Use Case |
+|------------|------|--------------|----------|
+| **SKU** | **Primary** | Always available | Order management, product lookup, variation naming |
+| **GTIN/Barcode** | Secondary | Often missing | Google Shopping, Merchant Center (when available) |
+
+**Variation SKU format:** `{parent_sku}-{size_eu}` → `DD1873-102-38`
+
+---
+
 ## 🔴 Missing Fields - HIGH SEO IMPACT
 
 These fields significantly affect search rankings and rich snippets:
 
-### 1. `global_unique_id` (GTIN/UPC/EAN/ISBN)
-**Impact:** ⭐⭐⭐⭐⭐ Critical for Google Shopping & Rich Snippets
-```json
-{
-  "global_unique_id": "0196152912548"
-}
-```
-**Note:** You have `barcode` in your API - this should map directly!
-
-### 2. `tags`
+### 1. `tags`
 **Impact:** ⭐⭐⭐⭐ Keyword association & internal linking
 ```json
 {
@@ -84,14 +86,14 @@ These fields significantly affect search rankings and rich snippets:
 ```
 **Note:** Currently auto-generated - customize for better URLs
 
-### 4. Variation `global_unique_id` (per-size barcode)
-**Impact:** ⭐⭐⭐⭐⭐ Critical for Google Merchant Center
+### 4. `global_unique_id` (GTIN/Barcode) - OPTIONAL
+**Impact:** ⭐⭐⭐ Bonus for Google Shopping (when available)
 ```json
 {
-  "global_unique_id": "0196152912548"  // per variation
+  "global_unique_id": "0196152912548"
 }
 ```
-**Note:** Your API provides `barcode` per size - should map to this!
+**Note:** Only set when `barcode` is provided by feed. SKU remains primary identifier.
 
 ---
 
@@ -236,24 +238,45 @@ These require `meta_data` or theme-specific APIs:
 
 ## 📊 Priority Implementation Roadmap
 
-### Phase 1: Critical SEO (Do Now)
-1. ✅ Map `barcode` → `global_unique_id` (product level for simple, variation level for variable)
-2. ✅ Generate smart `tags` from product name parsing
-3. ✅ Custom `slug` generation with SKU
+### Phase 1: Critical SEO (Native WooCommerce Fields)
+1. Generate smart `tags` from product name parsing (brand, model, color, gender)
+2. Custom `slug` generation: `{product-name-slugified}-{sku}`
+3. Add `pa_colore` and `pa_genere` attributes (parsed from name)
 
 ### Phase 2: Enhanced Structure
 4. Category hierarchy (Brand > Gender > Type)
 5. Related products linking (upsell_ids, cross_sell_ids)
-6. Add estimated `weight`
+6. Add estimated `weight` and `dimensions`
 
 ### Phase 3: Professional Polish
 7. `purchase_note` in Italian
 8. `default_attributes` (most common size)
 9. `backorders` and `low_stock_amount` policies
 
-### Phase 4: Theme Integration
-10. Research Shoptimizer meta keys
-11. Add size guide, trust badges via meta_data
+### Phase 4: Optional Enhancements
+10. Map `barcode` → `global_unique_id` (only when available from feed)
+11. Research Shoptimizer theme meta keys if needed
+
+---
+
+## 🚫 SEO Plugin Agnostic Approach
+
+**Do NOT use plugin-specific meta keys like:**
+- `_yoast_wpseo_title`, `_yoast_wpseo_metadesc`
+- `rank_math_title`, `rank_math_description`
+
+**Instead, rely on native WooCommerce fields:**
+| SEO Element | Native WC Source |
+|-------------|------------------|
+| Title Tag | `product.name` (plugins auto-generate) |
+| Meta Description | `product.short_description` |
+| H1 | `product.name` (theme renders) |
+| URL | `product.slug` |
+| Image SEO | `images[].alt`, `images[].name` |
+| Structured Data | `sku`, `price`, `stock_status`, `categories` |
+| Breadcrumbs | `categories` (hierarchical) |
+
+SEO plugins will auto-generate from these native fields.
 
 ---
 
