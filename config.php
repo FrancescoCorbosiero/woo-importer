@@ -158,6 +158,20 @@ return [
     ],
 
     // ===========================================
+    // Brand Categories (Auto-created from brand_name)
+    // ===========================================
+    // Products are automatically assigned to brand categories (Nike, Adidas, etc.)
+    // Falls back to 'uncategorized' when brand is not available
+    'brand_categories' => [
+        'enabled' => env('BRAND_CATEGORIES_ENABLED', true),
+        'slug_suffix' => env('BRAND_CATEGORY_SLUG_SUFFIX', '-originali'),  // e.g., "nike-originali"
+        'uncategorized' => [
+            'name' => env('BRAND_UNCATEGORIZED_NAME', 'Senza Categoria'),
+            'slug' => env('BRAND_UNCATEGORIZED_SLUG', 'senza-categoria'),
+        ],
+    ],
+
+    // ===========================================
     // Logging Configuration
     // ===========================================
     'logging' => [

@@ -39,6 +39,7 @@ class GoldenSneakersImporter
     private $failed_products = [];
     private $image_map = null;
     private $category_cache = [];  // Cache for category IDs
+    private $brand_category_cache = [];  // Cache for brand category IDs
 
     public function __construct($config, $options = [])
     {
@@ -337,6 +338,15 @@ class GoldenSneakersImporter
                 $category_id = $this->ensureCategoryExists();
             }
 
+            // Get brand category (auto-created)
+            $brand_category_id = $this->ensureBrandCategoryExists($brand);
+
+            // Build categories array
+            $categories = [['id' => $category_id]];
+            if ($brand_category_id) {
+                $categories[] = ['id' => $brand_category_id];
+            }
+
             // Check if product exists
             $existing_product = $this->findProductBySKU($sku);
 
@@ -350,9 +360,7 @@ class GoldenSneakersImporter
                 'sku' => $sku,
                 'status' => 'publish',
                 'catalog_visibility' => 'visible',
-                'categories' => [
-                    ['id' => $category_id]
-                ],
+                'categories' => $categories,
                 'attributes' => [
                     [
                         'name' => $this->config['import']['brand_attribute_name'],
@@ -578,6 +586,74 @@ class GoldenSneakersImporter
         } catch (Exception $e) {
             $this->logger->error("Category error: " . $e->getMessage());
             throw $e;
+        }
+    }
+
+    /**
+     * Ensure brand category exists and is properly configured
+     *
+     * Creates brand categories like "Nike" with slug "nike-originali".
+     * Falls back to "Senza Categoria" when brand is empty or null.
+     *
+     * @param string|null $brand_name Brand name from product data
+     * @return int Category ID
+     */
+    private function ensureBrandCategoryExists($brand_name = null)
+    {
+        // Check if brand categories are enabled
+        if (!($this->config['brand_categories']['enabled'] ?? true)) {
+            return null;
+        }
+
+        // Handle missing or empty brand - use uncategorized fallback
+        if (empty($brand_name) || trim($brand_name) === '') {
+            $brand_name = $this->config['brand_categories']['uncategorized']['name'];
+            $brand_slug = $this->config['brand_categories']['uncategorized']['slug'];
+        } else {
+            // Generate slug from brand name with optional suffix
+            $slug_suffix = $this->config['brand_categories']['slug_suffix'] ?? '-originali';
+            $brand_slug = $this->sanitize_title($brand_name) . $slug_suffix;
+        }
+
+        // Check cache first
+        if (isset($this->brand_category_cache[$brand_slug])) {
+            return $this->brand_category_cache[$brand_slug];
+        }
+
+        try {
+            // Search for existing category by slug
+            $categories = $this->wc_client->get('products/categories', [
+                'slug' => $brand_slug
+            ]);
+
+            if (!empty($categories)) {
+                $category_id = $categories[0]->id;
+                $this->brand_category_cache[$brand_slug] = $category_id;
+                $this->logger->debug("Using existing brand category: {$brand_name} (ID: {$category_id})");
+                return $category_id;
+            }
+
+            // Category doesn't exist, create it
+            if ($this->dry_run) {
+                $this->logger->info("[DRY RUN] Would create brand category: {$brand_name}");
+                return 9998;
+            }
+
+            $result = $this->wc_client->post('products/categories', [
+                'name' => $brand_name,
+                'slug' => $brand_slug,
+                'display' => 'default',
+                'menu_order' => 0,
+            ]);
+
+            $this->brand_category_cache[$brand_slug] = $result->id;
+            $this->logger->info("Created brand category: {$brand_name} (ID: {$result->id}, Slug: {$brand_slug})");
+            return $result->id;
+
+        } catch (Exception $e) {
+            $this->logger->error("Brand category error: " . $e->getMessage());
+            // Don't throw - continue without brand category
+            return null;
         }
     }
 

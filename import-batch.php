@@ -38,6 +38,7 @@ class GoldenSneakersBatchImporter
     private $batch_size = 100;  // WooCommerce max per batch
     private $failed_products = [];
     private $category_cache = [];  // Cache for category IDs
+    private $brand_category_cache = [];  // Cache for brand category IDs
 
     private $stats = [
         'products_created' => 0,
@@ -425,6 +426,74 @@ class GoldenSneakersBatchImporter
     }
 
     /**
+     * Ensure brand category exists and is properly configured
+     *
+     * Creates brand categories like "Nike" with slug "nike-originali".
+     * Falls back to "Senza Categoria" when brand is empty or null.
+     *
+     * @param string|null $brand_name Brand name from product data
+     * @return int|null Category ID or null if disabled/error
+     */
+    private function ensureBrandCategoryExists(?string $brand_name = null): ?int
+    {
+        // Check if brand categories are enabled
+        if (!($this->config['brand_categories']['enabled'] ?? true)) {
+            return null;
+        }
+
+        // Handle missing or empty brand - use uncategorized fallback
+        if (empty($brand_name) || trim($brand_name) === '') {
+            $brand_name = $this->config['brand_categories']['uncategorized']['name'];
+            $brand_slug = $this->config['brand_categories']['uncategorized']['slug'];
+        } else {
+            // Generate slug from brand name with optional suffix
+            $slug_suffix = $this->config['brand_categories']['slug_suffix'] ?? '-originali';
+            $brand_slug = $this->sanitize_title($brand_name) . $slug_suffix;
+        }
+
+        // Check cache first
+        if (isset($this->brand_category_cache[$brand_slug])) {
+            return $this->brand_category_cache[$brand_slug];
+        }
+
+        try {
+            // Search for existing category by slug
+            $categories = $this->wc_client->get('products/categories', [
+                'slug' => $brand_slug
+            ]);
+
+            if (!empty($categories)) {
+                $category_id = $categories[0]->id;
+                $this->brand_category_cache[$brand_slug] = $category_id;
+                $this->logger->debug("✅ Using existing brand category: {$brand_name} (ID: {$category_id})");
+                return $category_id;
+            }
+
+            // Category doesn't exist, create it
+            if ($this->dry_run) {
+                $this->logger->info("🔍 [DRY RUN] Would create brand category: {$brand_name}");
+                return 9998;
+            }
+
+            $result = $this->wc_client->post('products/categories', [
+                'name' => $brand_name,
+                'slug' => $brand_slug,
+                'display' => 'default',
+                'menu_order' => 0,
+            ]);
+
+            $this->brand_category_cache[$brand_slug] = $result->id;
+            $this->logger->info("✅ Created brand category: {$brand_name} (ID: {$result->id}, Slug: {$brand_slug})");
+            return $result->id;
+
+        } catch (Exception $e) {
+            $this->logger->error("❌ Brand category error: " . $e->getMessage());
+            // Don't throw - continue without brand category
+            return null;
+        }
+    }
+
+    /**
      * Extract EU size options from sizes array
      *
      * @param array $sizes Array of size data
@@ -448,7 +517,7 @@ class GoldenSneakersBatchImporter
     {
         $sku = $product_data['sku'];
         $name = $product_data['name'];
-        $brand = $product_data['brand_name'];
+        $brand = $product_data['brand_name'] ?? null;
         $sizes = $product_data['sizes'] ?? [];
 
         // Detect product type and get appropriate category
@@ -466,9 +535,18 @@ class GoldenSneakersBatchImporter
             }
         }
 
+        // Get brand category (auto-created)
+        $brand_category_id = $this->ensureBrandCategoryExists($brand);
+
+        // Build categories array
+        $categories = [['id' => $category_id]];
+        if ($brand_category_id) {
+            $categories[] = ['id' => $brand_category_id];
+        }
+
         $template_data = [
             'product_name' => $name,
-            'brand_name' => $brand,
+            'brand_name' => $brand ?? '',
             'sku' => $sku,
         ];
 
@@ -486,9 +564,7 @@ class GoldenSneakersBatchImporter
                 $this->config['templates']['long_description'],
                 $template_data
             ),
-            'categories' => [
-                ['id' => $category_id]
-            ],
+            'categories' => $categories,
             'attributes' => [
                 [
                     'name' => $this->config['import']['brand_attribute_name'],
