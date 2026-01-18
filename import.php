@@ -38,6 +38,7 @@ class GoldenSneakersImporter
     private $limit = null;
     private $failed_products = [];
     private $image_map = null;
+    private $category_cache = [];  // Cache for category IDs
 
     public function __construct($config, $options = [])
     {
@@ -127,6 +128,25 @@ class GoldenSneakersImporter
     }
 
     /**
+     * Parse template string with placeholders
+     *
+     * @param string $template Template string with {placeholders}
+     * @param array $data Associative array of placeholder values
+     * @return string Parsed string
+     */
+    private function parseTemplate($template, $data)
+    {
+        $replacements = [
+            '{product_name}' => $data['product_name'] ?? '',
+            '{brand_name}' => $data['brand_name'] ?? '',
+            '{sku}' => $data['sku'] ?? '',
+            '{store_name}' => $this->config['store']['name'] ?? 'ResellPiacenza',
+        ];
+
+        return str_replace(array_keys($replacements), array_values($replacements), $template);
+    }
+
+    /**
      * Sanitize title (WordPress replacement)
      */
     private function sanitize_title($title)
@@ -136,6 +156,38 @@ class GoldenSneakersImporter
         $title = preg_replace('/-+/', '-', $title);
         $title = trim($title, '-');
         return $title;
+    }
+
+    /**
+     * Detect product type by size format
+     *
+     * Sneakers: numeric sizes (36, 37.5, 42, 10.5)
+     * Clothing: letter sizes (S, M, L, XL, XXL)
+     *
+     * @param array $sizes Array of size data from feed
+     * @return string 'sneakers' or 'clothing'
+     */
+    private function detectProductType(array $sizes): string
+    {
+        if (empty($sizes)) {
+            return 'sneakers';  // Default
+        }
+
+        // Check first size's size_eu value
+        $first_size = $sizes[0]['size_eu'] ?? '';
+
+        // Letter sizes pattern: S, M, L, XL, XXL, XS, 2XL, 3XL
+        if (preg_match('/^[XSML]{1,3}L?$|^\d*XL$/i', $first_size)) {
+            return 'clothing';
+        }
+
+        // Numeric sizes (with optional decimal): 36, 37.5, 42, 10.5
+        if (preg_match('/^\d+\.?\d*$/', $first_size)) {
+            return 'sneakers';
+        }
+
+        // Default to sneakers for unknown formats
+        return 'sneakers';
     }
 
     /**
@@ -175,19 +227,18 @@ class GoldenSneakersImporter
             }
 
             $this->logger->info('');
+            $this->logger->info('Categories auto-detected based on size format (Sneakers/Abbigliamento)');
+            $this->logger->info('');
 
-            // Ensure category exists
-            $category_id = $this->ensureCategoryExists();
-
-            // Process products with progress indicator
+            // Process products with progress indicator (category auto-detected per product)
             $count = count($products);
             foreach ($products as $index => $product_data) {
                 $progress = $index + 1;
                 $percentage = round(($progress / $count) * 100);
 
-                echo "\r🔄 Progress: {$progress}/{$count} ({$percentage}%) - {$product_data['name']}                    ";
+                echo "\r Progress: {$progress}/{$count} ({$percentage}%) - {$product_data['name']}                    ";
 
-                $this->processProduct($product_data, $category_id);
+                $this->processProduct($product_data);
             }
 
             echo "\n\n";
@@ -256,21 +307,34 @@ class GoldenSneakersImporter
 
     /**
      * Process a single product
+     * Category is auto-detected based on size format
      */
-    private function processProduct($product_data, $category_id)
+    private function processProduct($product_data)
     {
         try {
             $sku = $product_data['sku'];
             $name = $product_data['name'];
             $brand = $product_data['brand_name'];
             $image_url = $product_data['image_full_url'];
-            $sizes = $product_data['sizes'];
+            $sizes = $product_data['sizes'] ?? [];
 
             // Skip if no sizes
             if (empty($sizes)) {
                 $this->stats['skipped']++;
-                $this->logger->debug("  ⏭️  Skipped {$name} - no sizes available");
+                $this->logger->debug("  Skipped {$name} - no sizes available");
                 return;
+            }
+
+            // Auto-detect product type and get appropriate category
+            $product_type = $product_data['_product_type'] ?? $this->detectProductType($sizes);
+            $category_config = $this->config['categories'][$product_type] ?? null;
+            if ($category_config) {
+                $category_id = $this->ensureCategoryExists(
+                    $category_config['name'],
+                    $category_config['slug']
+                );
+            } else {
+                $category_id = $this->ensureCategoryExists();
             }
 
             // Check if product exists
@@ -287,27 +351,42 @@ class GoldenSneakersImporter
                 'status' => 'publish',
                 'catalog_visibility' => 'visible',
                 'categories' => [
-                    [
-                        'id' => $category_id,
-                        'name' => $this->config['import']['category_name'],
-                        'slug' => $this->sanitize_title($this->config['import']['category_name'])
-                    ]
+                    ['id' => $category_id]
                 ],
                 'attributes' => [
                     [
-                        'name' => $this->config['import']['brand_attribute'],
+                        'name' => $this->config['import']['brand_attribute_name'],
+                        'position' => 0,
                         'visible' => true,
                         'variation' => false,
                         'options' => [$brand]
                     ],
                     [
-                        'name' => $this->config['import']['size_attribute'],
+                        'name' => $this->config['import']['size_attribute_name'],
+                        'position' => 1,
                         'visible' => true,
                         'variation' => true,
                         'options' => $this->extractSizeOptions($sizes)
                     ]
                 ]
             ];
+
+            // Generate localized descriptions from templates
+            $template_data = [
+                'product_name' => $name,
+                'brand_name' => $brand,
+                'sku' => $sku,
+            ];
+
+            $product_payload['short_description'] = $this->parseTemplate(
+                $this->config['templates']['short_description'],
+                $template_data
+            );
+
+            $product_payload['description'] = $this->parseTemplate(
+                $this->config['templates']['long_description'],
+                $template_data
+            );
 
             // Add image if available in map
             $media_id = $this->getMediaIdForSKU($sku);
@@ -349,14 +428,16 @@ class GoldenSneakersImporter
 
     /**
      * Process product variations
+     * Uses presented_price (customer price with margin + VAT),
+     * not offer_price (wholesale cost).
      */
     private function processVariations($product_id, $sizes, $parent_sku)
     {
         foreach ($sizes as $size_data) {
             try {
                 $size_eu = $size_data['size_eu'];
-                $size_us = $size_data['size_us'];
-                $price = $size_data['offer_price'];
+                $size_us = $size_data['size_us'] ?? '';
+                $price = $size_data['presented_price'];  // Customer price (not wholesale)
                 $quantity = $size_data['available_quantity'];
                 $barcode = $size_data['barcode'] ?? '';
 
@@ -372,7 +453,7 @@ class GoldenSneakersImporter
                     'stock_status' => $quantity > 0 ? 'instock' : 'outofstock',
                     'attributes' => [
                         [
-                            'name' => $this->config['import']['size_attribute'],
+                            'name' => $this->config['import']['size_attribute_name'],
                             'option' => $size_eu
                         ]
                     ],
@@ -400,7 +481,7 @@ class GoldenSneakersImporter
 
             } catch (Exception $e) {
                 $this->stats['errors']++;
-                $this->logger->error("  ❌ Variation error (Size {$size_eu}): " . $e->getMessage());
+                $this->logger->error("  Variation error (Size {$size_eu}): " . $e->getMessage());
             }
         }
     }
@@ -448,11 +529,21 @@ class GoldenSneakersImporter
 
     /**
      * Ensure category exists and is properly configured
+     *
+     * @param string|null $name Category name (uses config default if null)
+     * @param string|null $slug Category slug (uses sanitized name if null)
+     * @return int Category ID
      */
-    private function ensureCategoryExists()
+    private function ensureCategoryExists($name = null, $slug = null)
     {
-        $category_name = $this->config['import']['category_name'];
-        $category_slug = $this->sanitize_title($category_name);
+        // Use defaults from config if not provided
+        $category_name = $name ?? $this->config['import']['category_name'];
+        $category_slug = $slug ?? $this->sanitize_title($category_name);
+
+        // Check cache first
+        if (isset($this->category_cache[$category_slug])) {
+            return $this->category_cache[$category_slug];
+        }
 
         try {
             // Search for existing category by slug
@@ -462,13 +553,14 @@ class GoldenSneakersImporter
 
             if (!empty($categories)) {
                 $category_id = $categories[0]->id;
-                $this->logger->info("✅ Using existing category: {$category_name} (ID: {$category_id})");
+                $this->category_cache[$category_slug] = $category_id;
+                $this->logger->debug("Using existing category: {$category_name} (ID: {$category_id})");
                 return $category_id;
             }
 
             // Category doesn't exist, create it
             if ($this->dry_run) {
-                $this->logger->info("🔍 [DRY RUN] Would create category: {$category_name}");
+                $this->logger->info("[DRY RUN] Would create category: {$category_name}");
                 return 9999;
             }
 
@@ -479,11 +571,12 @@ class GoldenSneakersImporter
                 'menu_order' => 0,
             ]);
 
-            $this->logger->info("✅ Created category: {$category_name} (ID: {$result->id})");
+            $this->category_cache[$category_slug] = $result->id;
+            $this->logger->info("Created category: {$category_name} (ID: {$result->id})");
             return $result->id;
 
         } catch (Exception $e) {
-            $this->logger->error("❌ Category error: " . $e->getMessage());
+            $this->logger->error("Category error: " . $e->getMessage());
             throw $e;
         }
     }

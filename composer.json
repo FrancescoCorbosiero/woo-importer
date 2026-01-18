@@ -1,15 +1,34 @@
 {
     "name": "resellpiacenza/woo-import",
-    "description": "Golden Sneakers to WooCommerce Product Importer",
+    "description": "Golden Sneakers to WooCommerce Product Importer with Italian localization",
     "type": "project",
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "ResellPiacenza",
+            "email": "dev@resellpiacenza.it"
+        }
+    ],
     "require": {
         "php": ">=7.4",
         "automattic/woocommerce": "^3.0",
-        "monolog/monolog": "^2.0"
+        "monolog/monolog": "^2.0",
+        "vlucas/phpdotenv": "^5.0"
     },
     "autoload": {
         "psr-4": {
             "ResellPiacenza\\": "src/"
         }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "import": "php import.php",
+        "import:dry": "php import.php --dry-run",
+        "import:test": "php import.php --dry-run --limit=5",
+        "images": "php import-images.php",
+        "images:test": "php import-images.php --limit=5"
     }
 }
