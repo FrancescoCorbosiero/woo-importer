@@ -1,0 +1,171 @@
+{
+  "$schema": "Current WooCommerce Import Model - woo-importer",
+  "$description": "Fields currently used by import.php and import-images.php",
+  "$version": "1.0",
+
+  "product": {
+    "name": {
+      "type": "string",
+      "source": "API (product.name)",
+      "example": "Nike Dunk Low Next Nature White Black Panda (Women's)",
+      "required": true
+    },
+    "type": {
+      "type": "string",
+      "source": "hard-coded",
+      "value": "variable",
+      "required": true
+    },
+    "sku": {
+      "type": "string",
+      "source": "API (product.sku)",
+      "example": "DD1873-102",
+      "required": true
+    },
+    "status": {
+      "type": "string",
+      "source": "hard-coded",
+      "value": "publish",
+      "required": true
+    },
+    "catalog_visibility": {
+      "type": "string",
+      "source": "hard-coded",
+      "value": "visible",
+      "required": true
+    },
+    "short_description": {
+      "type": "string",
+      "source": "config template",
+      "template": "Sneakers originali {brand_name}. Prodotto autentico al 100%. Spedizione veloce in Italia.",
+      "example": "Sneakers originali Nike. Prodotto autentico al 100%. Spedizione veloce in Italia.",
+      "required": true
+    },
+    "description": {
+      "type": "string (HTML)",
+      "source": "config template",
+      "template": "<p>Scopri le <strong>{product_name}</strong>, sneakers originali {brand_name}...</p>",
+      "required": true
+    },
+    "categories": {
+      "type": "array<object>",
+      "source": "auto-detected from size format",
+      "structure": [{"id": "integer"}],
+      "example": [{"id": 123}],
+      "note": "Numeric sizes → Sneakers, Letter sizes (S/M/L) → Abbigliamento",
+      "required": true
+    },
+    "attributes": {
+      "type": "array<object>",
+      "source": "API + config",
+      "structure": [
+        {
+          "name": "Marca",
+          "position": 0,
+          "visible": true,
+          "variation": false,
+          "options": ["Nike"]
+        },
+        {
+          "name": "Taglia",
+          "position": 1,
+          "visible": true,
+          "variation": true,
+          "options": ["35.5", "36", "36.5", "37"]
+        }
+      ],
+      "required": true
+    },
+    "images": {
+      "type": "array<object>",
+      "source": "image-map.json (pre-uploaded)",
+      "structure": [{"id": "integer"}],
+      "example": [{"id": 5678}],
+      "required": false
+    }
+  },
+
+  "variation": {
+    "sku": {
+      "type": "string",
+      "source": "constructed",
+      "pattern": "{parent_sku}-{size_eu}",
+      "example": "DD1873-102-35.5",
+      "required": true
+    },
+    "regular_price": {
+      "type": "string",
+      "source": "API (calculated with markup + VAT)",
+      "example": "89.50",
+      "required": true
+    },
+    "manage_stock": {
+      "type": "boolean",
+      "source": "hard-coded",
+      "value": true,
+      "required": true
+    },
+    "stock_quantity": {
+      "type": "integer",
+      "source": "API (size.available_quantity)",
+      "example": 5,
+      "required": true
+    },
+    "stock_status": {
+      "type": "string",
+      "source": "calculated from stock_quantity",
+      "values": ["instock", "outofstock"],
+      "required": true
+    },
+    "attributes": {
+      "type": "array<object>",
+      "structure": [{"name": "Taglia", "option": "35.5"}],
+      "required": true
+    },
+    "meta_data": {
+      "type": "array<object>",
+      "structure": [
+        {"key": "_size_us", "value": "5"},
+        {"key": "_barcode", "value": null}
+      ],
+      "required": false
+    }
+  },
+
+  "media": {
+    "title": {
+      "type": "string",
+      "source": "API (product.name)",
+      "example": "Nike Dunk Low Next Nature White Black Panda (Women's)",
+      "required": true
+    },
+    "alt_text": {
+      "type": "string",
+      "source": "config template",
+      "template": "{product_name} - {sku} - Acquista su {store_name}",
+      "example": "Nike Dunk Low Next Nature White Black Panda (Women's) - DD1873-102 - Acquista su ResellPiacenza",
+      "required": true
+    },
+    "caption": {
+      "type": "string",
+      "source": "config template",
+      "template": "{brand_name} {product_name}",
+      "example": "Nike Nike Dunk Low Next Nature White Black Panda (Women's)",
+      "required": true
+    },
+    "description": {
+      "type": "string",
+      "source": "config template",
+      "template": "Acquista {product_name} ({sku}) su {store_name}. Sneakers originali {brand_name}. Spedizione rapida in tutta Italia.",
+      "required": true
+    }
+  },
+
+  "_summary": {
+    "total_product_fields": 8,
+    "total_variation_fields": 7,
+    "total_media_fields": 4,
+    "total_fields_used": 19,
+    "fields_not_used": "See WOOCOMMERCE_COMPLETE_MODEL.json for comparison"
+  }
+}
