@@ -1,0 +1,387 @@
+{
+  "$schema": "Complete WooCommerce Variable Product - Maximum SEO & Rich Snippets",
+  "$note": "This is a CREATE payload - read-only fields shown for reference only",
+
+  "product": {
+    "name": "Nike Dunk Low Next Nature White Black Panda (Donna)",
+    "slug": "nike-dunk-low-next-nature-white-black-panda-donna-dd1873-102",
+    "type": "variable",
+    "status": "publish",
+    "featured": true,
+    "catalog_visibility": "visible",
+
+    "description": "<h2>Nike Dunk Low Next Nature White Black Panda</h2><p>Le <strong>Nike Dunk Low Next Nature</strong> in colorway White Black, conosciute come \"Panda\", rappresentano l'iconica silhouette anni '80 rivisitata con materiali sostenibili. Almeno il 20% del peso della tomaia è realizzato con materiali riciclati.</p><h3>Caratteristiche Tecniche</h3><ul><li><strong>Tomaia:</strong> Pelle sintetica e materiali riciclati</li><li><strong>Intersuola:</strong> Schiuma Nike per ammortizzazione leggera</li><li><strong>Suola:</strong> Gomma con motivo a trattore per grip ottimale</li><li><strong>Chiusura:</strong> Lacci tradizionali</li></ul><h3>Colorway</h3><p>Tomaia bianca con overlay in pelle nera. Swoosh nero sui pannelli laterali. Suola bianca con dettagli neri.</p><h3>Garanzia di Autenticità</h3><p>Ogni paio venduto su ResellPiacenza è <strong>100% autentico</strong>. Acquistiamo esclusivamente da fornitori verificati e ogni prodotto passa un controllo qualità prima della spedizione.</p><h3>Spedizione e Resi</h3><ul><li>✓ Spedizione express in 24-48h in tutta Italia</li><li>✓ Spedizione gratuita sopra i 150€</li><li>✓ Reso facile entro 14 giorni</li><li>✓ Pagamento sicuro con carta o PayPal</li></ul>",
+
+    "short_description": "Nike Dunk Low Next Nature \"Panda\" (DD1873-102) - Sneakers donna in pelle con materiali sostenibili. Colorway iconico bianco/nero. 100% autentiche con garanzia ResellPiacenza.",
+
+    "sku": "DD1873-102",
+    "global_unique_id": "0196152912548",
+
+    "regular_price": "",
+    "sale_price": "",
+
+    "virtual": false,
+    "downloadable": false,
+
+    "tax_status": "taxable",
+    "tax_class": "",
+
+    "manage_stock": false,
+    "stock_status": "instock",
+    "backorders": "no",
+    "low_stock_amount": 2,
+    "sold_individually": false,
+
+    "weight": "0.9",
+    "dimensions": {
+      "length": "35",
+      "width": "22",
+      "height": "14"
+    },
+
+    "shipping_class": "sneakers-standard",
+
+    "reviews_allowed": true,
+
+    "upsell_ids": [],
+    "cross_sell_ids": [],
+
+    "purchase_note": "Grazie per aver scelto ResellPiacenza! 🎉\n\nIl tuo ordine verrà spedito entro 24 ore lavorative.\nConserva la scatola originale per eventuali resi.\n\nPer assistenza: support@resellpiacenza.it",
+
+    "categories": [
+      {"id": 10, "name": "Sneakers", "slug": "sneakers"},
+      {"id": 15, "name": "Nike", "slug": "nike"},
+      {"id": 22, "name": "Donna", "slug": "donna"},
+      {"id": 30, "name": "Dunk", "slug": "dunk"}
+    ],
+
+    "tags": [
+      {"id": 100, "name": "Nike", "slug": "nike"},
+      {"id": 101, "name": "Dunk Low", "slug": "dunk-low"},
+      {"id": 102, "name": "Panda", "slug": "panda"},
+      {"id": 103, "name": "Donna", "slug": "donna"},
+      {"id": 104, "name": "Bianco", "slug": "bianco"},
+      {"id": 105, "name": "Nero", "slug": "nero"},
+      {"id": 106, "name": "Next Nature", "slug": "next-nature"},
+      {"id": 107, "name": "Sostenibile", "slug": "sostenibile"},
+      {"id": 108, "name": "DD1873-102", "slug": "dd1873-102"}
+    ],
+
+    "images": [
+      {
+        "id": 5001,
+        "src": "https://resellpiacenza.it/wp-content/uploads/DD1873-102-main.jpg",
+        "name": "Nike Dunk Low Next Nature White Black Panda Donna",
+        "alt": "Nike Dunk Low Next Nature White Black Panda (Donna) - DD1873-102 - Acquista su ResellPiacenza"
+      },
+      {
+        "id": 5002,
+        "src": "https://resellpiacenza.it/wp-content/uploads/DD1873-102-side.jpg",
+        "name": "Nike Dunk Low Panda vista laterale",
+        "alt": "Nike Dunk Low Next Nature Panda vista laterale con Swoosh nero"
+      },
+      {
+        "id": 5003,
+        "src": "https://resellpiacenza.it/wp-content/uploads/DD1873-102-top.jpg",
+        "name": "Nike Dunk Low Panda vista dall'alto",
+        "alt": "Nike Dunk Low Next Nature Panda vista dall'alto dettaglio tomaia"
+      },
+      {
+        "id": 5004,
+        "src": "https://resellpiacenza.it/wp-content/uploads/DD1873-102-sole.jpg",
+        "name": "Nike Dunk Low Panda suola",
+        "alt": "Nike Dunk Low Next Nature Panda suola in gomma bianca"
+      },
+      {
+        "id": 5005,
+        "src": "https://resellpiacenza.it/wp-content/uploads/DD1873-102-box.jpg",
+        "name": "Nike Dunk Low Panda con scatola originale",
+        "alt": "Nike Dunk Low Next Nature Panda DD1873-102 con scatola Nike originale"
+      }
+    ],
+
+    "attributes": [
+      {
+        "id": 1,
+        "name": "pa_marca",
+        "position": 0,
+        "visible": true,
+        "variation": false,
+        "options": ["Nike"]
+      },
+      {
+        "id": 2,
+        "name": "pa_taglia",
+        "position": 1,
+        "visible": true,
+        "variation": true,
+        "options": ["35.5", "36", "36.5", "37.5", "38", "38.5", "39", "40", "40.5", "41", "42"]
+      },
+      {
+        "id": 3,
+        "name": "pa_colore",
+        "position": 2,
+        "visible": true,
+        "variation": false,
+        "options": ["Bianco/Nero"]
+      },
+      {
+        "id": 4,
+        "name": "pa_materiale",
+        "position": 3,
+        "visible": true,
+        "variation": false,
+        "options": ["Pelle Sintetica", "Materiali Riciclati"]
+      },
+      {
+        "id": 5,
+        "name": "pa_genere",
+        "position": 4,
+        "visible": true,
+        "variation": false,
+        "options": ["Donna"]
+      },
+      {
+        "id": 6,
+        "name": "pa_anno-release",
+        "position": 5,
+        "visible": true,
+        "variation": false,
+        "options": ["2023"]
+      }
+    ],
+
+    "default_attributes": [
+      {
+        "id": 2,
+        "name": "pa_taglia",
+        "option": "38"
+      }
+    ],
+
+    "menu_order": 0,
+
+    "meta_data": [
+      {
+        "key": "_yoast_wpseo_title",
+        "value": "Nike Dunk Low Panda Donna DD1873-102 | ResellPiacenza"
+      },
+      {
+        "key": "_yoast_wpseo_metadesc",
+        "value": "Acquista Nike Dunk Low Next Nature Panda (DD1873-102) su ResellPiacenza. Sneakers donna 100% autentiche. Spedizione 24-48h in Italia. Reso facile."
+      },
+      {
+        "key": "_yoast_wpseo_focuskw",
+        "value": "Nike Dunk Low Panda"
+      },
+      {
+        "key": "_product_video_url",
+        "value": "https://www.youtube.com/watch?v=example123"
+      },
+      {
+        "key": "_size_guide_id",
+        "value": "nike-wmns"
+      },
+      {
+        "key": "_release_date",
+        "value": "2023-03-15"
+      },
+      {
+        "key": "_retail_price",
+        "value": "119.99"
+      },
+      {
+        "key": "_style_code",
+        "value": "DD1873-102"
+      },
+      {
+        "key": "_colorway",
+        "value": "White/Black-White"
+      }
+    ]
+  },
+
+  "variations": [
+    {
+      "sku": "DD1873-102-35.5",
+      "global_unique_id": "0196152912501",
+      "regular_price": "139.00",
+      "sale_price": "",
+      "status": "publish",
+
+      "manage_stock": true,
+      "stock_quantity": 2,
+      "stock_status": "instock",
+      "backorders": "no",
+      "low_stock_amount": 1,
+
+      "weight": "0.85",
+      "dimensions": {
+        "length": "32",
+        "width": "20",
+        "height": "13"
+      },
+
+      "image": {
+        "id": 5001,
+        "src": "https://resellpiacenza.it/wp-content/uploads/DD1873-102-main.jpg",
+        "name": "Nike Dunk Low Panda EU 35.5",
+        "alt": "Nike Dunk Low Panda Donna Taglia EU 35.5 - US 5"
+      },
+
+      "attributes": [
+        {
+          "id": 2,
+          "name": "pa_taglia",
+          "option": "35.5"
+        }
+      ],
+
+      "meta_data": [
+        {"key": "_size_us", "value": "5"},
+        {"key": "_size_uk", "value": "2.5"},
+        {"key": "_size_cm", "value": "22"},
+        {"key": "_barcode", "value": "0196152912501"},
+        {"key": "_cost_price", "value": "85.00"}
+      ]
+    },
+    {
+      "sku": "DD1873-102-36",
+      "global_unique_id": "0196152912502",
+      "regular_price": "139.00",
+      "sale_price": "",
+      "status": "publish",
+
+      "manage_stock": true,
+      "stock_quantity": 3,
+      "stock_status": "instock",
+      "backorders": "no",
+      "low_stock_amount": 1,
+
+      "weight": "0.87",
+      "dimensions": {
+        "length": "33",
+        "width": "20",
+        "height": "13"
+      },
+
+      "attributes": [
+        {
+          "id": 2,
+          "name": "pa_taglia",
+          "option": "36"
+        }
+      ],
+
+      "meta_data": [
+        {"key": "_size_us", "value": "5.5"},
+        {"key": "_size_uk", "value": "3"},
+        {"key": "_size_cm", "value": "22.5"},
+        {"key": "_barcode", "value": "0196152912502"},
+        {"key": "_cost_price", "value": "85.00"}
+      ]
+    },
+    {
+      "sku": "DD1873-102-38",
+      "global_unique_id": "0196152912508",
+      "regular_price": "149.00",
+      "sale_price": "139.00",
+      "date_on_sale_from": "2024-01-15T00:00:00",
+      "date_on_sale_to": "2024-01-31T23:59:59",
+      "status": "publish",
+
+      "manage_stock": true,
+      "stock_quantity": 5,
+      "stock_status": "instock",
+      "backorders": "notify",
+      "low_stock_amount": 1,
+
+      "weight": "0.90",
+      "dimensions": {
+        "length": "34",
+        "width": "21",
+        "height": "14"
+      },
+
+      "attributes": [
+        {
+          "id": 2,
+          "name": "pa_taglia",
+          "option": "38"
+        }
+      ],
+
+      "meta_data": [
+        {"key": "_size_us", "value": "7"},
+        {"key": "_size_uk", "value": "4.5"},
+        {"key": "_size_cm", "value": "24"},
+        {"key": "_barcode", "value": "0196152912508"},
+        {"key": "_cost_price", "value": "85.00"}
+      ]
+    },
+    {
+      "sku": "DD1873-102-42",
+      "global_unique_id": "0196152912542",
+      "regular_price": "159.00",
+      "sale_price": "",
+      "status": "publish",
+
+      "manage_stock": true,
+      "stock_quantity": 0,
+      "stock_status": "outofstock",
+      "backorders": "no",
+      "low_stock_amount": 1,
+
+      "weight": "0.95",
+      "dimensions": {
+        "length": "37",
+        "width": "23",
+        "height": "15"
+      },
+
+      "attributes": [
+        {
+          "id": 2,
+          "name": "pa_taglia",
+          "option": "42"
+        }
+      ],
+
+      "meta_data": [
+        {"key": "_size_us", "value": "10"},
+        {"key": "_size_uk", "value": "7.5"},
+        {"key": "_size_cm", "value": "27"},
+        {"key": "_barcode", "value": "0196152912542"},
+        {"key": "_cost_price", "value": "90.00"}
+      ]
+    }
+  ],
+
+  "_google_rich_snippets_enabled": {
+    "product_schema": true,
+    "fields_contributing": [
+      "name → schema:name",
+      "description → schema:description",
+      "sku → schema:sku",
+      "global_unique_id → schema:gtin",
+      "images[0].src → schema:image",
+      "regular_price/sale_price → schema:offers.price",
+      "stock_status → schema:offers.availability",
+      "average_rating → schema:aggregateRating.ratingValue",
+      "rating_count → schema:aggregateRating.reviewCount",
+      "brand (from attributes) → schema:brand.name"
+    ]
+  },
+
+  "_seo_checklist": {
+    "title_tag": "✅ Via Yoast meta or product name",
+    "meta_description": "✅ Via Yoast meta or short_description",
+    "h1": "✅ Product name",
+    "h2_h3": "✅ In description HTML",
+    "image_alt": "✅ All images have unique alt text",
+    "internal_links": "✅ Via categories, tags, upsells, cross-sells",
+    "structured_data": "✅ GTIN, price, availability, reviews",
+    "url_slug": "✅ Custom SEO-friendly slug with SKU",
+    "breadcrumbs": "✅ Via hierarchical categories"
+  }
+}
