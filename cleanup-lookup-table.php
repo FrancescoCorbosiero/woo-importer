@@ -1,4 +1,6 @@
 <?php
+/* RUN THIS: docker exec wordpress wp db query "DELETE FROM wp_wc_product_meta_lookup WHERE product_id NOT IN (SELECT ID FROM wp_posts WHERE post_type IN ('product', 'product_variation'));" --path=/opt/bitnami/wordpress --allow-root
+ */
 /**
  * WooCommerce Lookup Table Cleanup Script
  *

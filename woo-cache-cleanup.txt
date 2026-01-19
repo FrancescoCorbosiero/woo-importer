@@ -1,0 +1,8 @@
+docker exec wordpress php -r "
+require '/opt/bitnami/wordpress/wp-load.php';
+global \$wpdb;
+\$wpdb->query(\"TRUNCATE TABLE {\$wpdb->prefix}wc_product_meta_lookup\");
+echo \"Lookup table truncated.\n\";
+\$count = \$wpdb->get_var(\"SELECT COUNT(*) FROM {\$wpdb->prefix}wc_product_meta_lookup\");
+echo \"Entries remaining: \$count\n\";
+"
