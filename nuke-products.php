@@ -16,7 +16,7 @@
  * @package ResellPiacenza\WooImport
  */
 
-require_once __DIR__ . '/config.php';
+$config = require __DIR__ . '/config.php';
 
 use Automattic\WooCommerce\Client;
 use Monolog\Logger;
@@ -308,8 +308,6 @@ class ProductNuker
 // =============================================================================
 // CLI ENTRY POINT
 // =============================================================================
-
-$config = require __DIR__ . '/config.php';
 
 // Parse command line arguments
 $options = getopt('', [
