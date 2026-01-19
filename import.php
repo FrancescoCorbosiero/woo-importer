@@ -39,7 +39,7 @@ class GoldenSneakersImporter
     private $failed_products = [];
     private $image_map = null;
     private $category_cache = [];  // Cache for category IDs
-    private $brand_category_cache = [];  // Cache for brand category IDs
+    private $brand_cache = [];  // Cache for brand IDs (uses brands taxonomy)
 
     public function __construct($config, $options = [])
     {
@@ -338,13 +338,16 @@ class GoldenSneakersImporter
                 $category_id = $this->ensureCategoryExists();
             }
 
-            // Get brand category (auto-created)
-            $brand_category_id = $this->ensureBrandCategoryExists($brand);
+            // Get brand ID from brands taxonomy (not categories)
+            $brand_id = $this->ensureBrandExists($brand);
 
-            // Build categories array
+            // Build categories array (type category only, brands are separate)
             $categories = [['id' => $category_id]];
-            if ($brand_category_id) {
-                $categories[] = ['id' => $brand_category_id];
+
+            // Build brands array for products/brands taxonomy
+            $brands = [];
+            if ($brand_id) {
+                $brands[] = ['id' => $brand_id];
             }
 
             // Check if product exists
@@ -361,6 +364,7 @@ class GoldenSneakersImporter
                 'status' => 'publish',
                 'catalog_visibility' => 'visible',
                 'categories' => $categories,
+                'brands' => $brands,  // Uses brands taxonomy (Perfect Brands plugin)
                 'attributes' => [
                     [
                         'name' => $this->config['import']['brand_attribute_name'],
@@ -590,69 +594,65 @@ class GoldenSneakersImporter
     }
 
     /**
-     * Ensure brand category exists and is properly configured
+     * Ensure brand exists in the brands taxonomy (Perfect Brands plugin)
      *
-     * Creates brand categories like "Nike" with slug "nike-originali".
-     * Falls back to "Senza Categoria" when brand is empty or null.
+     * Creates brands like "Nike" with slug "nike".
+     * Uses the /products/brands endpoint instead of categories.
      *
      * @param string|null $brand_name Brand name from product data
-     * @return int Category ID
+     * @return int|null Brand ID or null if disabled/failed
      */
-    private function ensureBrandCategoryExists($brand_name = null)
+    private function ensureBrandExists($brand_name = null)
     {
-        // Check if brand categories are enabled
-        if (!($this->config['brand_categories']['enabled'] ?? true)) {
+        // Check if brands are enabled
+        if (!($this->config['brands']['enabled'] ?? true)) {
             return null;
         }
 
-        // Handle missing or empty brand - use uncategorized fallback
+        // Handle missing or empty brand
         if (empty($brand_name) || trim($brand_name) === '') {
-            $brand_name = $this->config['brand_categories']['uncategorized']['name'];
-            $brand_slug = $this->config['brand_categories']['uncategorized']['slug'];
-        } else {
-            // Generate slug from brand name with optional suffix
-            $slug_suffix = $this->config['brand_categories']['slug_suffix'] ?? '-originali';
-            $brand_slug = $this->sanitize_title($brand_name) . $slug_suffix;
+            return null;  // Skip brands for products without brand info
         }
 
+        // Generate slug from brand name
+        $brand_slug = $this->sanitize_title($brand_name);
+
         // Check cache first
-        if (isset($this->brand_category_cache[$brand_slug])) {
-            return $this->brand_category_cache[$brand_slug];
+        if (isset($this->brand_cache[$brand_slug])) {
+            return $this->brand_cache[$brand_slug];
         }
 
         try {
-            // Search for existing category by slug
-            $categories = $this->wc_client->get('products/categories', [
+            // Search for existing brand by slug
+            $brands = $this->wc_client->get('products/brands', [
                 'slug' => $brand_slug
             ]);
 
-            if (!empty($categories)) {
-                $category_id = $categories[0]->id;
-                $this->brand_category_cache[$brand_slug] = $category_id;
-                $this->logger->debug("Using existing brand category: {$brand_name} (ID: {$category_id})");
-                return $category_id;
+            if (!empty($brands)) {
+                $brand_id = $brands[0]->id;
+                $this->brand_cache[$brand_slug] = $brand_id;
+                $this->logger->debug("Using existing brand: {$brand_name} (ID: {$brand_id})");
+                return $brand_id;
             }
 
-            // Category doesn't exist, create it
+            // Brand doesn't exist, create it
             if ($this->dry_run) {
-                $this->logger->info("[DRY RUN] Would create brand category: {$brand_name}");
+                $this->logger->info("[DRY RUN] Would create brand: {$brand_name}");
                 return 9998;
             }
 
-            $result = $this->wc_client->post('products/categories', [
+            $result = $this->wc_client->post('products/brands', [
                 'name' => $brand_name,
                 'slug' => $brand_slug,
-                'display' => 'default',
-                'menu_order' => 0,
             ]);
 
-            $this->brand_category_cache[$brand_slug] = $result->id;
-            $this->logger->info("Created brand category: {$brand_name} (ID: {$result->id}, Slug: {$brand_slug})");
+            $this->brand_cache[$brand_slug] = $result->id;
+            $this->logger->info("Created brand: {$brand_name} (ID: {$result->id}, Slug: {$brand_slug})");
             return $result->id;
 
         } catch (Exception $e) {
-            $this->logger->error("Brand category error: " . $e->getMessage());
-            // Don't throw - continue without brand category
+            $this->logger->error("Brand error: " . $e->getMessage());
+            // Don't throw - continue without brand
             return null;
         }
     }
