@@ -1,0 +1,384 @@
+/**
+ * GS Product Sync Admin Styles
+ */
+
+/* General */
+.gsps-wrap {
+    max-width: 1200px;
+}
+
+.gsps-box {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    margin-bottom: 20px;
+    padding: 20px;
+}
+
+.gsps-box h2 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.gsps-link-small {
+    font-size: 13px;
+    font-weight: normal;
+    text-decoration: none;
+}
+
+/* Status Colors */
+.status-ok { color: #46b450; }
+.status-warning { color: #ffb900; }
+.status-error { color: #dc3232; }
+.status-inactive { color: #999; }
+
+/* Dashboard Cards */
+.gsps-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.gsps-card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-left: 4px solid #0073aa;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.gsps-card-icon {
+    font-size: 40px;
+    color: #0073aa;
+    width: 40px;
+    height: 40px;
+}
+
+.gsps-card-icon::before {
+    width: 40px;
+    height: 40px;
+}
+
+.gsps-card h3 {
+    margin: 0 0 5px 0;
+    font-size: 13px;
+    color: #666;
+    font-weight: normal;
+}
+
+.gsps-card-value {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+/* Dashboard Layout */
+.gsps-main-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+@media (max-width: 1024px) {
+    .gsps-main-content {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Actions */
+.gsps-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.gsps-actions .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.gsps-actions .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+.gsps-action-btn.is-loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.gsps-action-btn.is-loading::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-left: 8px;
+    border: 2px solid #fff;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: gsps-spin 1s linear infinite;
+}
+
+@keyframes gsps-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Action Result */
+.gsps-action-result {
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 15px;
+}
+
+.gsps-action-result.success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.gsps-action-result.error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+/* Status Table */
+.gsps-status-table {
+    width: 100%;
+}
+
+.gsps-status-table th {
+    text-align: left;
+    padding: 8px 0;
+    font-weight: normal;
+    color: #666;
+    width: 40%;
+}
+
+.gsps-status-table td {
+    padding: 8px 0;
+}
+
+/* Log Stats */
+.gsps-log-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.gsps-log-stat {
+    text-align: center;
+    padding: 10px 20px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    min-width: 80px;
+}
+
+.gsps-log-count {
+    display: block;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.gsps-log-label {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+}
+
+.gsps-log-debug .gsps-log-count { color: #999; }
+.gsps-log-info .gsps-log-count { color: #0073aa; }
+.gsps-log-warning .gsps-log-count { color: #ffb900; }
+.gsps-log-error .gsps-log-count { color: #dc3232; }
+
+/* Logs Table (Dashboard) */
+.gsps-logs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.gsps-logs-table th,
+.gsps-logs-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.gsps-logs-table th {
+    color: #666;
+    font-weight: normal;
+}
+
+.gsps-log-date {
+    white-space: nowrap;
+    color: #666;
+}
+
+.gsps-log-message {
+    word-break: break-word;
+}
+
+.gsps-no-logs {
+    color: #666;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Log Levels */
+.gsps-log-level {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.gsps-level-debug {
+    background: #f0f0f0;
+    color: #666;
+}
+
+.gsps-level-info {
+    background: #e7f3ff;
+    color: #0073aa;
+}
+
+.gsps-level-warning {
+    background: #fff8e5;
+    color: #996800;
+}
+
+.gsps-level-error {
+    background: #ffeaea;
+    color: #dc3232;
+}
+
+/* Logs Page Full Table */
+.gsps-logs-table-full .column-date { width: 140px; }
+.gsps-logs-table-full .column-context { width: 120px; }
+.gsps-logs-table-full .column-level { width: 80px; }
+
+.gsps-log-row-error {
+    background-color: #fff5f5;
+}
+
+.gsps-log-row-warning {
+    background-color: #fffef5;
+}
+
+.gsps-context {
+    display: inline-block;
+    padding: 2px 6px;
+    background: #f0f0f0;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+.gsps-toggle-data {
+    font-size: 11px;
+    margin-left: 10px;
+}
+
+.gsps-log-data {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    font-size: 11px;
+    overflow-x: auto;
+}
+
+/* Filters */
+.gsps-filters form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.gsps-filters select,
+.gsps-filters input[type="search"] {
+    height: 32px;
+}
+
+/* Settings Tabs */
+.gsps-tabs {
+    display: flex;
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 20px;
+}
+
+.gsps-tab {
+    padding: 10px 20px;
+    text-decoration: none;
+    color: #555;
+    border: 1px solid transparent;
+    border-bottom: none;
+    margin-bottom: -1px;
+    background: #f7f7f7;
+}
+
+.gsps-tab:hover {
+    background: #fff;
+}
+
+.gsps-tab.active {
+    background: #fff;
+    border-color: #ccc;
+    color: #000;
+}
+
+.gsps-tab-content {
+    display: none;
+}
+
+.gsps-tab-content.active {
+    display: block;
+}
+
+/* Settings Form */
+.gsps-settings-form .form-table th {
+    width: 200px;
+}
+
+.gsps-settings-form textarea {
+    font-family: monospace;
+}
+
+/* Responsive */
+@media (max-width: 782px) {
+    .gsps-cards {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .gsps-actions {
+        flex-direction: column;
+    }
+
+    .gsps-actions .button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .gsps-log-stats {
+        justify-content: center;
+    }
+
+    .gsps-tabs {
+        flex-wrap: wrap;
+    }
+}
