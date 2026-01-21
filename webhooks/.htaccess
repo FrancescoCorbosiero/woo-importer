@@ -1,0 +1,16 @@
+# Security rules for webhook endpoint
+
+# Deny access to all files except receiver.php
+<FilesMatch "^(?!receiver\.php$).*$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Disable directory listing
+Options -Indexes
+
+# Allow POST requests only
+<LimitExcept POST>
+    Order Allow,Deny
+    Deny from all
+</LimitExcept>

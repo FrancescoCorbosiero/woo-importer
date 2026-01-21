@@ -17,7 +17,10 @@
     },
     "autoload": {
         "psr-4": {
-            "ResellPiacenza\\": "src/"
+            "ResellPiacenza\\": "src/",
+            "WooImporter\\Database\\": "database/",
+            "WooImporter\\Models\\": "models/",
+            "WooImporter\\Services\\": "services/"
         }
     },
     "config": {
@@ -29,6 +32,12 @@
         "import:dry": "php import.php --dry-run",
         "import:test": "php import.php --dry-run --limit=5",
         "images": "php import-images.php",
-        "images:test": "php import-images.php --limit=5"
+        "images:test": "php import-images.php --limit=5",
+        "sync": "php sync-all.php",
+        "sync:dry": "php sync-all.php --dry-run",
+        "sync:feed": "php sync-feed-to-db.php",
+        "sync:woo": "php sync-db-to-woo.php",
+        "webhooks": "php process-webhooks.php",
+        "webhooks:stats": "php process-webhooks.php --stats"
     }
 }

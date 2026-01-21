@@ -175,4 +175,50 @@ return [
         'level' => env('LOG_LEVEL', 'info'),
         'console_level' => env('LOG_CONSOLE_LEVEL', 'info'),
     ],
+
+    // ===========================================
+    // Database Configuration (Source of Truth)
+    // ===========================================
+    'database' => [
+        'host' => env('DB_HOST', 'localhost'),
+        'port' => (int) env('DB_PORT', 3306),
+        'database' => env('DB_DATABASE', 'woo_importer'),
+        'username' => env('DB_USERNAME', ''),
+        'password' => env('DB_PASSWORD', ''),
+        'charset' => env('DB_CHARSET', 'utf8mb4'),
+        'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+    ],
+
+    // ===========================================
+    // Webhook Configuration
+    // ===========================================
+    'webhooks' => [
+        'secret' => env('WEBHOOK_SECRET', ''),
+        'create_from_wc' => env('WEBHOOK_CREATE_FROM_WC', false),
+    ],
+
+    // ===========================================
+    // Locale Settings (Italian defaults)
+    // ===========================================
+    'locale' => [
+        'language' => env('STORE_LOCALE', 'it_IT'),
+        'size_attribute_name' => env('IMPORT_SIZE_ATTRIBUTE_NAME', 'Taglia'),
+        'size_attribute_slug' => env('IMPORT_SIZE_ATTRIBUTE_SLUG', 'taglia'),
+        'brand_attribute_name' => env('IMPORT_BRAND_ATTRIBUTE_NAME', 'Marca'),
+        'brand_attribute_slug' => env('IMPORT_BRAND_ATTRIBUTE_SLUG', 'marca'),
+        'default_short_description' => 'Sneakers originali {brand_name}. Prodotto autentico al 100%. Spedizione veloce in Italia.',
+        'default_long_description' => '<p>Scopri le <strong>{product_name}</strong>, sneakers originali {brand_name} disponibili su {store_name}.</p><p>✓ Prodotto 100% autentico<br>✓ Spedizione rapida in tutta Italia<br>✓ Reso facile entro 14 giorni</p>',
+    ],
+
+    // ===========================================
+    // Brand Categories Configuration
+    // ===========================================
+    'brand_categories' => [
+        'enabled' => true,
+        'slug_suffix' => '-originali',
+        'uncategorized' => [
+            'name' => 'Senza Categoria',
+            'slug' => 'senza-categoria',
+        ],
+    ],
 ];
