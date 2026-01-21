@@ -34,6 +34,7 @@ class DeltaSyncChecker
     private $check_only = false;
     private $skip_images = false;
     private $force_full = false;
+    private $ignore_locks = false;
     private $verbose = false;
 
     // Paths
@@ -73,6 +74,7 @@ class DeltaSyncChecker
         $this->check_only = $options['check_only'] ?? false;
         $this->skip_images = $options['skip_images'] ?? false;
         $this->force_full = $options['force_full'] ?? false;
+        $this->ignore_locks = $options['ignore_locks'] ?? false;
         $this->verbose = $options['verbose'] ?? false;
 
         // Setup paths
@@ -439,6 +441,9 @@ class DeltaSyncChecker
         if ($this->force_full) {
             $this->logger->warning('  FORCE FULL MODE');
         }
+        if ($this->ignore_locks) {
+            $this->logger->warning('  IGNORE LOCKS MODE');
+        }
 
         $this->logger->info('');
 
@@ -755,6 +760,11 @@ class DeltaSyncChecker
         $cmd = 'php ' . escapeshellarg(__DIR__ . '/import-batch.php') .
                ' --feed=' . escapeshellarg($this->diff_file);
 
+        // Pass ignore-locks option if set
+        if ($this->ignore_locks) {
+            $cmd .= ' --ignore-locks';
+        }
+
         $this->logger->info("Executing: {$cmd}");
         $this->logger->info('');
 
@@ -782,18 +792,25 @@ Options:
   --check-only      Check for changes without importing
   --skip-images     Skip image processing
   --force-full      Force full import (ignore diff)
+  --ignore-locks    Ignore field locks and overwrite all fields
   --verbose, -v     Show detailed change information
   --help, -h        Show this help message
 
+Field Locking:
+  Products can have fields locked to prevent sync from overwriting them.
+  This preserves manual edits (SEO content, custom descriptions, etc.)
+  Use lock-fields.php to manage locks, or --ignore-locks to bypass.
+
 Examples:
-  php sync-check.php                    # Full sync (images + products)
+  php sync-check.php                    # Full sync (respects field locks)
   php sync-check.php --check-only       # Just check for changes
   php sync-check.php --dry-run          # Preview what would happen
   php sync-check.php --skip-images      # Products only, no images
   php sync-check.php --force-full       # Force full re-import
+  php sync-check.php --ignore-locks     # Sync all fields, ignore locks
 
 Cron setup:
-  # Run every 30 minutes
+  # Run every 30 minutes (respects field locks)
   */30 * * * * cd /path/to/project && php sync-check.php >> logs/cron.log 2>&1
 
 HELP;
@@ -805,6 +822,7 @@ $options = [
     'check_only' => in_array('--check-only', $argv),
     'skip_images' => in_array('--skip-images', $argv),
     'force_full' => in_array('--force-full', $argv),
+    'ignore_locks' => in_array('--ignore-locks', $argv),
     'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
 ];
 

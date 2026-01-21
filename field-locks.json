@@ -1,0 +1,9 @@
+{
+    "_comment": "Field locking configuration - prevents feed sync from overwriting WooCommerce edits",
+    "config": {
+        "enabled": true,
+        "auto_lock_on_edit": false,
+        "default_locked_fields": []
+    },
+    "products": {}
+}

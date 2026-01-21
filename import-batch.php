@@ -34,11 +34,31 @@ class GoldenSneakersBatchImporter
     private $dry_run = false;
     private $limit = null;
     private $feed_file = null;
+    private $ignore_locks = false;
     private $image_map = [];
+    private $field_locks = [];  // SKU => locked fields mapping
+    private $field_locks_config = [];  // Global lock configuration
     private $batch_size = 100;  // WooCommerce max per batch
     private $failed_products = [];
     private $category_cache = [];  // Cache for category IDs
     private $brand_category_cache = [];  // Cache for brand category IDs
+
+    // Fields that can be locked (content fields editable in WooCommerce)
+    private const LOCKABLE_FIELDS = [
+        'name',
+        'description',
+        'short_description',
+        'images',
+        'categories',
+    ];
+
+    // Fields that are NEVER locked (always sync from feed)
+    private const ALWAYS_SYNC_FIELDS = [
+        'sku',           // Identity field
+        'attributes',    // Size options for variations
+        'type',          // Product type
+        'status',        // Publish status
+    ];
 
     private $stats = [
         'products_created' => 0,
@@ -54,7 +74,7 @@ class GoldenSneakersBatchImporter
      * Constructor
      *
      * @param array $config Configuration array from config.php
-     * @param array $options CLI options (dry_run, limit, markup, vat)
+     * @param array $options CLI options (dry_run, limit, markup, vat, ignore_locks)
      */
     public function __construct(array $config, array $options = [])
     {
@@ -62,6 +82,7 @@ class GoldenSneakersBatchImporter
         $this->dry_run = $options['dry_run'] ?? false;
         $this->limit = $options['limit'] ?? null;
         $this->feed_file = $options['feed_file'] ?? null;
+        $this->ignore_locks = $options['ignore_locks'] ?? false;
 
         // Override markup/vat if provided
         if (isset($options['markup'])) {
@@ -79,6 +100,7 @@ class GoldenSneakersBatchImporter
         $this->setupLogger();
         $this->setupWooCommerceClient();
         $this->loadImageMap();
+        $this->loadFieldLocks();
     }
 
     /**
@@ -134,11 +156,99 @@ class GoldenSneakersBatchImporter
         $map_file = __DIR__ . '/image-map.json';
         if (file_exists($map_file)) {
             $this->image_map = json_decode(file_get_contents($map_file), true) ?: [];
-            $this->logger->info("📷 Loaded image map with " . count($this->image_map) . " images");
+            $this->logger->info("Loaded image map with " . count($this->image_map) . " images");
         } else {
             $this->image_map = [];
-            $this->logger->warning("⚠️  No image-map.json found. Run import-images.php first for images.");
+            $this->logger->warning("No image-map.json found. Run import-images.php first for images.");
         }
+    }
+
+    /**
+     * Load field locks from JSON file
+     *
+     * Field locks prevent feed sync from overwriting specific product fields
+     * that have been manually edited in WooCommerce (e.g., SEO-optimized descriptions).
+     */
+    private function loadFieldLocks(): void
+    {
+        $locks_file = __DIR__ . '/field-locks.json';
+
+        if (!file_exists($locks_file)) {
+            $this->field_locks = [];
+            $this->field_locks_config = ['enabled' => false];
+            return;
+        }
+
+        $data = json_decode(file_get_contents($locks_file), true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->logger->warning("Failed to parse field-locks.json: " . json_last_error_msg());
+            $this->field_locks = [];
+            $this->field_locks_config = ['enabled' => false];
+            return;
+        }
+
+        $this->field_locks_config = $data['config'] ?? ['enabled' => true];
+        $this->field_locks = $data['products'] ?? [];
+
+        if (!empty($this->field_locks) && ($this->field_locks_config['enabled'] ?? true)) {
+            $locked_count = count($this->field_locks);
+            $this->logger->info("Loaded field locks for {$locked_count} products");
+        }
+    }
+
+    /**
+     * Check if a specific field is locked for a product
+     *
+     * @param string $sku Product SKU
+     * @param string $field Field name to check
+     * @return bool True if field is locked
+     */
+    private function isFieldLocked(string $sku, string $field): bool
+    {
+        // Locks disabled globally or via CLI
+        if ($this->ignore_locks) {
+            return false;
+        }
+
+        if (!($this->field_locks_config['enabled'] ?? true)) {
+            return false;
+        }
+
+        // Check product-specific locks
+        if (isset($this->field_locks[$sku]['locked_fields'])) {
+            return in_array($field, $this->field_locks[$sku]['locked_fields']);
+        }
+
+        // Check global default locked fields
+        $defaults = $this->field_locks_config['default_locked_fields'] ?? [];
+        return in_array($field, $defaults);
+    }
+
+    /**
+     * Get all locked fields for a product
+     *
+     * @param string $sku Product SKU
+     * @return array List of locked field names
+     */
+    private function getLockedFields(string $sku): array
+    {
+        if ($this->ignore_locks || !($this->field_locks_config['enabled'] ?? true)) {
+            return [];
+        }
+
+        $locked = [];
+
+        // Product-specific locks take precedence
+        if (isset($this->field_locks[$sku]['locked_fields'])) {
+            $locked = $this->field_locks[$sku]['locked_fields'];
+        } else {
+            // Fall back to global defaults
+            $locked = $this->field_locks_config['default_locked_fields'] ?? [];
+        }
+
+        // Filter to only valid lockable fields
+        return array_intersect($locked, self::LOCKABLE_FIELDS);
     }
 
     /**
@@ -509,16 +619,23 @@ class GoldenSneakersBatchImporter
     /**
      * Build product payload for batch operation
      *
+     * For updates (existing products), respects field locks to preserve
+     * manually edited content (SEO descriptions, etc.).
+     *
      * @param array $product_data Product data from API
      * @param int|null $category_id WooCommerce category ID (auto-detected if null)
+     * @param bool $is_update Whether this is an update to existing product
      * @return array Product payload for WooCommerce API
      */
-    private function buildProductPayload(array $product_data, ?int $category_id = null): array
+    private function buildProductPayload(array $product_data, ?int $category_id = null, bool $is_update = false): array
     {
         $sku = $product_data['sku'];
         $name = $product_data['name'];
         $brand = $product_data['brand_name'] ?? null;
         $sizes = $product_data['sizes'] ?? [];
+
+        // Get locked fields for this product (only relevant for updates)
+        $locked_fields = $is_update ? $this->getLockedFields($sku) : [];
 
         // Detect product type and get appropriate category
         $product_type = $product_data['_product_type'] ?? $this->detectProductType($sizes);
@@ -550,21 +667,12 @@ class GoldenSneakersBatchImporter
             'sku' => $sku,
         ];
 
+        // Start with essential fields that are always synced
         $payload = [
-            'name' => $name,
             'type' => 'variable',
             'sku' => $sku,
             'status' => 'publish',
             'catalog_visibility' => 'visible',
-            'short_description' => $this->parseTemplate(
-                $this->config['templates']['short_description'],
-                $template_data
-            ),
-            'description' => $this->parseTemplate(
-                $this->config['templates']['long_description'],
-                $template_data
-            ),
-            'categories' => $categories,
             'attributes' => [
                 [
                     'name' => $this->config['import']['brand_attribute_name'],
@@ -583,10 +691,40 @@ class GoldenSneakersBatchImporter
             ]
         ];
 
-        // Add image if available
-        $media_id = $this->getMediaIdForSKU($sku);
-        if ($media_id) {
-            $payload['images'] = [['id' => $media_id]];
+        // Add lockable fields only if not locked
+        if (!in_array('name', $locked_fields)) {
+            $payload['name'] = $name;
+        }
+
+        if (!in_array('short_description', $locked_fields)) {
+            $payload['short_description'] = $this->parseTemplate(
+                $this->config['templates']['short_description'],
+                $template_data
+            );
+        }
+
+        if (!in_array('description', $locked_fields)) {
+            $payload['description'] = $this->parseTemplate(
+                $this->config['templates']['long_description'],
+                $template_data
+            );
+        }
+
+        if (!in_array('categories', $locked_fields)) {
+            $payload['categories'] = $categories;
+        }
+
+        // Add image if available and not locked
+        if (!in_array('images', $locked_fields)) {
+            $media_id = $this->getMediaIdForSKU($sku);
+            if ($media_id) {
+                $payload['images'] = [['id' => $media_id]];
+            }
+        }
+
+        // Log locked fields for visibility
+        if (!empty($locked_fields)) {
+            $this->logger->debug("  [{$sku}] Locked fields preserved: " . implode(', ', $locked_fields));
         }
 
         return $payload;
@@ -651,11 +789,9 @@ class GoldenSneakersBatchImporter
                 continue;
             }
 
-            // buildProductPayload auto-detects category based on size format
-            $payload = $this->buildProductPayload($product);
-
             if (isset($existing_products[$sku])) {
-                // Update existing product
+                // Update existing product - pass is_update=true to respect field locks
+                $payload = $this->buildProductPayload($product, null, true);
                 $payload['id'] = $existing_products[$sku]['id'];
                 $to_update[] = $payload;
                 $product_map[$sku] = [
@@ -664,7 +800,8 @@ class GoldenSneakersBatchImporter
                     'name' => $product['name'],
                 ];
             } else {
-                // Create new product
+                // Create new product - no locks needed for new products
+                $payload = $this->buildProductPayload($product, null, false);
                 $to_create[] = $payload;
                 $product_map[$sku] = [
                     'id' => null,  // Will be set after batch create
@@ -886,7 +1023,14 @@ class GoldenSneakersBatchImporter
         $this->logger->info('========================================');
 
         if ($this->dry_run) {
-            $this->logger->warning('⚠️  DRY RUN MODE - No changes will be made');
+            $this->logger->warning('DRY RUN MODE - No changes will be made');
+        }
+
+        if ($this->ignore_locks) {
+            $this->logger->warning('IGNORE LOCKS - All fields will be overwritten');
+        } elseif (!empty($this->field_locks)) {
+            $locked_count = count($this->field_locks);
+            $this->logger->info("Field locks active for {$locked_count} products");
         }
 
         $this->logger->info("Markup: {$this->config['api']['params']['markup_percentage']}% | VAT: {$this->config['api']['params']['vat_percentage']}%");
@@ -1016,6 +1160,7 @@ class GoldenSneakersBatchImporter
 
 $options = [
     'dry_run' => in_array('--dry-run', $argv),
+    'ignore_locks' => in_array('--ignore-locks', $argv),
     'limit' => null,
     'markup' => null,
     'vat' => null,
@@ -1052,13 +1197,20 @@ Options:
   --markup=N        Override markup percentage
   --vat=N           Override VAT percentage
   --feed=FILE       Read products from JSON file instead of API
+  --ignore-locks    Ignore field locks and overwrite all fields
   --help, -h        Show this help message
+
+Field Locking:
+  Edit field-locks.json to protect product fields from being overwritten.
+  Locked fields (name, description, etc.) will be preserved during sync.
+  Use --ignore-locks to force overwrite all fields.
 
 Examples:
   php import-batch.php --dry-run --limit=10
   php import-batch.php --limit=50
   php import-batch.php --markup=30 --vat=22
   php import-batch.php --feed=data/diff.json
+  php import-batch.php --ignore-locks    # Force overwrite locked fields
 
 Prerequisites:
   Run import-images.php first to pre-upload images
