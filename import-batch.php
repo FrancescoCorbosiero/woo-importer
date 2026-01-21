@@ -509,17 +509,51 @@ class GoldenSneakersBatchImporter
     /**
      * Build product payload for batch operation
      *
+     * For CREATE (new products): Full payload with name, descriptions, categories, images, attributes
+     * For UPDATE (existing products): Minimal payload with only attributes to preserve manual edits
+     *
+     * This approach allows:
+     * - New products to get template descriptions automatically
+     * - Users to enrich products in WooCommerce (SEO content, better descriptions)
+     * - Feed updates to only touch stock/price via variations, leaving user content intact
+     *
      * @param array $product_data Product data from API
      * @param int|null $category_id WooCommerce category ID (auto-detected if null)
+     * @param bool $is_update True for updates (minimal payload), false for creates (full payload)
      * @return array Product payload for WooCommerce API
      */
-    private function buildProductPayload(array $product_data, ?int $category_id = null): array
+    private function buildProductPayload(array $product_data, ?int $category_id = null, bool $is_update = false): array
     {
         $sku = $product_data['sku'];
         $name = $product_data['name'];
         $brand = $product_data['brand_name'] ?? null;
         $sizes = $product_data['sizes'] ?? [];
 
+        // For updates: minimal payload - only attributes to keep size options in sync
+        // Variations handle stock_quantity, regular_price, stock_status
+        // This preserves user edits to: name, descriptions, categories, images
+        if ($is_update) {
+            return [
+                'attributes' => [
+                    [
+                        'name' => $this->config['import']['brand_attribute_name'],
+                        'position' => 0,
+                        'visible' => true,
+                        'variation' => false,
+                        'options' => [$brand]
+                    ],
+                    [
+                        'name' => $this->config['import']['size_attribute_name'],
+                        'position' => 1,
+                        'visible' => true,
+                        'variation' => true,
+                        'options' => $this->extractSizeOptions($sizes)
+                    ]
+                ]
+            ];
+        }
+
+        // For creates: full payload with all product data
         // Detect product type and get appropriate category
         $product_type = $product_data['_product_type'] ?? $this->detectProductType($sizes);
 
@@ -651,11 +685,14 @@ class GoldenSneakersBatchImporter
                 continue;
             }
 
-            // buildProductPayload auto-detects category based on size format
-            $payload = $this->buildProductPayload($product);
+            // Check if product exists (determines create vs update)
+            $is_update = isset($existing_products[$sku]);
 
-            if (isset($existing_products[$sku])) {
-                // Update existing product
+            // Build payload: full for creates, minimal for updates (preserves user edits)
+            $payload = $this->buildProductPayload($product, null, $is_update);
+
+            if ($is_update) {
+                // Update existing product - minimal payload preserves user's SEO edits
                 $payload['id'] = $existing_products[$sku]['id'];
                 $to_update[] = $payload;
                 $product_map[$sku] = [
@@ -664,7 +701,7 @@ class GoldenSneakersBatchImporter
                     'name' => $product['name'],
                 ];
             } else {
-                // Create new product
+                // Create new product - full payload with template descriptions
                 $to_create[] = $payload;
                 $product_map[$sku] = [
                     'id' => null,  // Will be set after batch create
