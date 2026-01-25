@@ -95,17 +95,31 @@ return [
         // Category
         'category_name' => env('IMPORT_CATEGORY_NAME', 'Sneakers'),
 
-        // Size attribute (Italian: Taglia)
-        'size_attribute_name' => env('IMPORT_SIZE_ATTRIBUTE_NAME', 'Taglia'),
-        'size_attribute_slug' => env('IMPORT_SIZE_ATTRIBUTE_SLUG', 'taglia'),
-
-        // Brand attribute (Italian: Marca)
-        'brand_attribute_name' => env('IMPORT_BRAND_ATTRIBUTE_NAME', 'Marca'),
-        'brand_attribute_slug' => env('IMPORT_BRAND_ATTRIBUTE_SLUG', 'marca'),
-
         // Behavior
         'batch_size' => (int) env('IMPORT_BATCH_SIZE', 100),
         'create_out_of_stock' => env('IMPORT_CREATE_OUT_OF_STOCK', true),
+    ],
+
+    // ===========================================
+    // Global WooCommerce Attributes (pa_* taxonomies)
+    // ===========================================
+    // These are registered as global attributes for filtering support
+    // The importer will ensure they exist before using them
+    'attributes' => [
+        'size' => [
+            'name' => env('ATTRIBUTE_SIZE_NAME', 'Taglia'),
+            'slug' => env('ATTRIBUTE_SIZE_SLUG', 'taglia'),
+            'type' => 'select',
+            'order_by' => 'menu_order',
+            'has_archives' => true,
+        ],
+        'brand' => [
+            'name' => env('ATTRIBUTE_BRAND_NAME', 'Marca'),
+            'slug' => env('ATTRIBUTE_BRAND_SLUG', 'marca'),
+            'type' => 'select',
+            'order_by' => 'name',
+            'has_archives' => true,
+        ],
     ],
 
     // ===========================================
@@ -162,8 +176,11 @@ return [
     // ===========================================
     // Products are assigned to brands via the brands taxonomy (not categories)
     // Uses /products/brands endpoint - requires a WooCommerce brands plugin
+    // This is SEPARATE from the brand product attribute (pa_marca)
     'brands' => [
         'enabled' => env('BRANDS_ENABLED', true),
+        // Set to true to also create brand as product attribute (for filtering widgets)
+        'create_attribute' => env('BRANDS_CREATE_ATTRIBUTE', false),
     ],
 
     // ===========================================
