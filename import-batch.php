@@ -38,7 +38,8 @@ class GoldenSneakersBatchImporter
     private $batch_size = 100;  // WooCommerce max per batch
     private $failed_products = [];
     private $category_cache = [];  // Cache for category IDs
-    private $brand_category_cache = [];  // Cache for brand category IDs
+    private $brand_cache = [];  // Cache for brand taxonomy IDs
+    private $attribute_cache = [];  // Cache for global attribute IDs
 
     private $stats = [
         'products_created' => 0,
@@ -426,69 +427,124 @@ class GoldenSneakersBatchImporter
     }
 
     /**
-     * Ensure brand category exists and is properly configured
+     * Ensure brand exists in brands taxonomy (Perfect Brands plugin)
      *
-     * Creates brand categories like "Nike" with slug "nike-originali".
-     * Falls back to "Senza Categoria" when brand is empty or null.
+     * Uses the /products/brands endpoint to create/get brands.
+     * This is SEPARATE from product categories.
      *
      * @param string|null $brand_name Brand name from product data
-     * @return int|null Category ID or null if disabled/error
+     * @return int|null Brand taxonomy ID or null if disabled/error
      */
-    private function ensureBrandCategoryExists(?string $brand_name = null): ?int
+    private function ensureBrandExists(?string $brand_name = null): ?int
     {
-        // Check if brand categories are enabled
-        if (!($this->config['brand_categories']['enabled'] ?? true)) {
+        // Check if brands are enabled
+        if (!($this->config['brands']['enabled'] ?? true)) {
             return null;
         }
 
-        // Handle missing or empty brand - use uncategorized fallback
+        // Handle missing or empty brand
         if (empty($brand_name) || trim($brand_name) === '') {
-            $brand_name = $this->config['brand_categories']['uncategorized']['name'];
-            $brand_slug = $this->config['brand_categories']['uncategorized']['slug'];
-        } else {
-            // Generate slug from brand name with optional suffix
-            $slug_suffix = $this->config['brand_categories']['slug_suffix'] ?? '-originali';
-            $brand_slug = $this->sanitize_title($brand_name) . $slug_suffix;
+            return null;  // Skip brands for products without brand info
         }
 
+        // Generate slug from brand name
+        $brand_slug = $this->sanitize_title($brand_name);
+
         // Check cache first
-        if (isset($this->brand_category_cache[$brand_slug])) {
-            return $this->brand_category_cache[$brand_slug];
+        if (isset($this->brand_cache[$brand_slug])) {
+            return $this->brand_cache[$brand_slug];
         }
 
         try {
-            // Search for existing category by slug
-            $categories = $this->wc_client->get('products/categories', [
+            // Search for existing brand by slug
+            $brands = $this->wc_client->get('products/brands', [
                 'slug' => $brand_slug
             ]);
 
-            if (!empty($categories)) {
-                $category_id = $categories[0]->id;
-                $this->brand_category_cache[$brand_slug] = $category_id;
-                $this->logger->debug("✅ Using existing brand category: {$brand_name} (ID: {$category_id})");
-                return $category_id;
+            if (!empty($brands)) {
+                $brand_id = $brands[0]->id;
+                $this->brand_cache[$brand_slug] = $brand_id;
+                $this->logger->debug("✅ Using existing brand: {$brand_name} (ID: {$brand_id})");
+                return $brand_id;
             }
 
-            // Category doesn't exist, create it
+            // Brand doesn't exist, create it
             if ($this->dry_run) {
-                $this->logger->info("🔍 [DRY RUN] Would create brand category: {$brand_name}");
+                $this->logger->info("🔍 [DRY RUN] Would create brand: {$brand_name}");
                 return 9998;
             }
 
-            $result = $this->wc_client->post('products/categories', [
+            $result = $this->wc_client->post('products/brands', [
                 'name' => $brand_name,
                 'slug' => $brand_slug,
-                'display' => 'default',
-                'menu_order' => 0,
             ]);
 
-            $this->brand_category_cache[$brand_slug] = $result->id;
-            $this->logger->info("✅ Created brand category: {$brand_name} (ID: {$result->id}, Slug: {$brand_slug})");
+            $this->brand_cache[$brand_slug] = $result->id;
+            $this->logger->info("✅ Created brand: {$brand_name} (ID: {$result->id}, Slug: {$brand_slug})");
             return $result->id;
 
         } catch (Exception $e) {
-            $this->logger->error("❌ Brand category error: " . $e->getMessage());
-            // Don't throw - continue without brand category
+            $this->logger->error("❌ Brand error: " . $e->getMessage());
+            // Don't throw - continue without brand
+            return null;
+        }
+    }
+
+    /**
+     * Ensure global WooCommerce attribute exists
+     *
+     * Creates the attribute taxonomy if it doesn't exist (e.g., pa_taglia, pa_marca).
+     * This enables filtering via WooCommerce attribute widgets.
+     *
+     * @param string $key Attribute key from config ('size' or 'brand')
+     * @return int|null Attribute ID or null on error
+     */
+    private function ensureGlobalAttributeExists(string $key): ?int
+    {
+        $attr_config = $this->config['attributes'][$key] ?? null;
+        if (!$attr_config) {
+            return null;
+        }
+
+        $slug = $attr_config['slug'];
+
+        // Check cache first
+        if (isset($this->attribute_cache[$slug])) {
+            return $this->attribute_cache[$slug];
+        }
+
+        try {
+            // Search for existing attribute by slug
+            $attributes = $this->wc_client->get('products/attributes');
+
+            foreach ($attributes as $attr) {
+                if ($attr->slug === $slug) {
+                    $this->attribute_cache[$slug] = $attr->id;
+                    $this->logger->debug("✅ Using existing attribute: {$attr_config['name']} (ID: {$attr->id})");
+                    return $attr->id;
+                }
+            }
+
+            // Attribute doesn't exist, create it
+            if ($this->dry_run) {
+                $this->logger->info("🔍 [DRY RUN] Would create attribute: {$attr_config['name']}");
+                return 9997;
+            }
+
+            $result = $this->wc_client->post('products/attributes', [
+                'name' => $attr_config['name'],
+                'slug' => $slug,
+                'type' => $attr_config['type'] ?? 'select',
+                'order_by' => $attr_config['order_by'] ?? 'menu_order',
+                'has_archives' => $attr_config['has_archives'] ?? true,
+            ]);
+
+            $this->attribute_cache[$slug] = $result->id;
+            $this->logger->info("✅ Created global attribute: {$attr_config['name']} (ID: {$result->id}, Slug: pa_{$slug})");
+            return $result->id;
+
+        } catch (Exception $e) {
+            $this->logger->error("❌ Attribute error ({$key}): " . $e->getMessage());
             return null;
         }
     }
@@ -509,13 +565,18 @@ class GoldenSneakersBatchImporter
     /**
      * Build product payload for batch operation
      *
-     * For CREATE (new products): Full payload with name, descriptions, categories, images, attributes
-     * For UPDATE (existing products): Minimal payload with only attributes to preserve manual edits
+     * For CREATE (new products): Full payload with name, descriptions, categories, brands, images, attributes
+     * For UPDATE (existing products): Minimal payload - ONLY size attribute to keep variation options in sync
      *
      * This approach allows:
-     * - New products to get template descriptions automatically
-     * - Users to enrich products in WooCommerce (SEO content, better descriptions)
-     * - Feed updates to only touch stock/price via variations, leaving user content intact
+     * - New products to get template descriptions and auto-categorization
+     * - Users to manually manage: categories, brands, descriptions, images, names
+     * - Feed updates to only sync stock/price via variations, preserving all user edits
+     *
+     * Taxonomy architecture:
+     * - Categories (product_cat): User-managed product categorization (Sneakers, Jordan 1, etc.)
+     * - Brands taxonomy: Separate brand organization via Perfect Brands plugin
+     * - Attributes (pa_*): Global attributes for filtering (pa_taglia for size)
      *
      * @param array $product_data Product data from API
      * @param int|null $category_id WooCommerce category ID (auto-detected if null)
@@ -529,28 +590,37 @@ class GoldenSneakersBatchImporter
         $brand = $product_data['brand_name'] ?? null;
         $sizes = $product_data['sizes'] ?? [];
 
-        // For updates: minimal payload - only attributes to keep size options in sync
-        // Variations handle stock_quantity, regular_price, stock_status
-        // This preserves user edits to: name, descriptions, categories, images
+        // Get global attribute IDs (ensures they exist)
+        $size_attr_id = $this->ensureGlobalAttributeExists('size');
+        $size_attr_config = $this->config['attributes']['size'];
+
+        // For updates: MINIMAL payload - only size attribute to keep variation options in sync
+        // Variations handle: stock_quantity, regular_price, stock_status
+        // This PRESERVES user edits to: name, descriptions, categories, brands, images, brand attribute
         if ($is_update) {
-            return [
-                'attributes' => [
-                    [
-                        'name' => $this->config['import']['brand_attribute_name'],
-                        'position' => 0,
-                        'visible' => true,
-                        'variation' => false,
-                        'options' => [$brand]
-                    ],
-                    [
-                        'name' => $this->config['import']['size_attribute_name'],
-                        'position' => 1,
-                        'visible' => true,
-                        'variation' => true,
-                        'options' => $this->extractSizeOptions($sizes)
-                    ]
-                ]
-            ];
+            $attributes = [];
+
+            // Only include size attribute (required for variations)
+            if ($size_attr_id) {
+                $attributes[] = [
+                    'id' => $size_attr_id,
+                    'position' => 0,
+                    'visible' => true,
+                    'variation' => true,
+                    'options' => $this->extractSizeOptions($sizes)
+                ];
+            } else {
+                // Fallback to name-based attribute if global doesn't exist
+                $attributes[] = [
+                    'name' => $size_attr_config['name'],
+                    'position' => 0,
+                    'visible' => true,
+                    'variation' => true,
+                    'options' => $this->extractSizeOptions($sizes)
+                ];
+            }
+
+            return ['attributes' => $attributes];
         }
 
         // For creates: full payload with all product data
@@ -569,13 +639,58 @@ class GoldenSneakersBatchImporter
             }
         }
 
-        // Get brand category (auto-created)
-        $brand_category_id = $this->ensureBrandCategoryExists($brand);
+        // Get brand taxonomy ID (Perfect Brands plugin)
+        $brand_id = $this->ensureBrandExists($brand);
 
-        // Build categories array
+        // Build categories array (only product type category, NOT brand)
         $categories = [['id' => $category_id]];
-        if ($brand_category_id) {
-            $categories[] = ['id' => $brand_category_id];
+
+        // Build attributes array using global attribute IDs
+        $attributes = [];
+
+        // Brand attribute (only if enabled in config)
+        if ($this->config['brands']['create_attribute'] ?? false) {
+            $brand_attr_id = $this->ensureGlobalAttributeExists('brand');
+            $brand_attr_config = $this->config['attributes']['brand'];
+
+            if ($brand_attr_id && $brand) {
+                $attributes[] = [
+                    'id' => $brand_attr_id,
+                    'position' => 0,
+                    'visible' => true,
+                    'variation' => false,
+                    'options' => [$brand]
+                ];
+            } elseif ($brand) {
+                // Fallback to name-based attribute
+                $attributes[] = [
+                    'name' => $brand_attr_config['name'],
+                    'position' => 0,
+                    'visible' => true,
+                    'variation' => false,
+                    'options' => [$brand]
+                ];
+            }
+        }
+
+        // Size attribute (required for variations)
+        if ($size_attr_id) {
+            $attributes[] = [
+                'id' => $size_attr_id,
+                'position' => count($attributes),
+                'visible' => true,
+                'variation' => true,
+                'options' => $this->extractSizeOptions($sizes)
+            ];
+        } else {
+            // Fallback to name-based attribute
+            $attributes[] = [
+                'name' => $size_attr_config['name'],
+                'position' => count($attributes),
+                'visible' => true,
+                'variation' => true,
+                'options' => $this->extractSizeOptions($sizes)
+            ];
         }
 
         $template_data = [
@@ -599,23 +714,13 @@ class GoldenSneakersBatchImporter
                 $template_data
             ),
             'categories' => $categories,
-            'attributes' => [
-                [
-                    'name' => $this->config['import']['brand_attribute_name'],
-                    'position' => 0,
-                    'visible' => true,
-                    'variation' => false,
-                    'options' => [$brand]
-                ],
-                [
-                    'name' => $this->config['import']['size_attribute_name'],
-                    'position' => 1,
-                    'visible' => true,
-                    'variation' => true,
-                    'options' => $this->extractSizeOptions($sizes)
-                ]
-            ]
+            'attributes' => $attributes,
         ];
+
+        // Add brand taxonomy assignment (Perfect Brands plugin)
+        if ($brand_id) {
+            $payload['brands'] = [['id' => $brand_id]];
+        }
 
         // Add image if available
         $media_id = $this->getMediaIdForSKU($sku);
@@ -638,18 +743,21 @@ class GoldenSneakersBatchImporter
      */
     private function buildVariationPayload(array $size_data, string $variation_sku): array
     {
+        $size_attr_id = $this->attribute_cache[$this->config['attributes']['size']['slug']] ?? null;
+        $size_attr_config = $this->config['attributes']['size'];
+
+        // Build attribute reference (use ID if available, otherwise name)
+        $attribute = $size_attr_id
+            ? ['id' => $size_attr_id, 'option' => $size_data['size_eu']]
+            : ['name' => $size_attr_config['name'], 'option' => $size_data['size_eu']];
+
         return [
             'sku' => $variation_sku,
             'regular_price' => (string) $size_data['presented_price'],  // Customer price (not wholesale)
             'manage_stock' => true,
             'stock_quantity' => $size_data['available_quantity'],
             'stock_status' => $size_data['available_quantity'] > 0 ? 'instock' : 'outofstock',
-            'attributes' => [
-                [
-                    'name' => $this->config['import']['size_attribute_name'],
-                    'option' => $size_data['size_eu']
-                ]
-            ],
+            'attributes' => [$attribute],
             'meta_data' => [
                 ['key' => '_size_us', 'value' => $size_data['size_us'] ?? ''],
                 ['key' => '_barcode', 'value' => $size_data['barcode'] ?? '']
