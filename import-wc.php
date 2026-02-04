@@ -1,38 +1,57 @@
 <?php
 /**
- * WooCommerce Pass-Through Importer
+ * WooCommerce Direct Importer
  *
- * Simplified importer that receives WooCommerce-ready data from FeedProxy.
- * No transformation logic - just batch operations against WooCommerce API.
+ * Accepts WooCommerce REST API formatted JSON and pushes directly to WooCommerce.
+ * NO transformation - expects data already in WC format.
+ *
+ * Input format (each product):
+ * {
+ *   "name": "Product Name",
+ *   "sku": "SKU-123",
+ *   "type": "variable",
+ *   "status": "publish",
+ *   "short_description": "...",
+ *   "description": "...",
+ *   "categories": [{"id": 123}],
+ *   "brands": [{"id": 456}],
+ *   "images": [{"id": 789}],
+ *   "attributes": [...],
+ *   "_variations": [
+ *     {
+ *       "sku": "SKU-123-36",
+ *       "regular_price": "99.00",
+ *       "stock_quantity": 5,
+ *       "stock_status": "instock",
+ *       "attributes": [{"id": 1, "option": "36"}]
+ *     }
+ *   ]
+ * }
  *
  * Usage:
- *   php import-wc.php                      # Full import via FeedProxy
- *   php import-wc.php --feed=diff.json     # Import from pre-transformed file
- *   php import-wc.php --dry-run            # Preview without changes
- *   php import-wc.php --limit=50           # Limit products
+ *   php import-wc.php --feed=products.json     # Import from file
+ *   cat products.json | php import-wc.php      # Import from stdin
+ *   php import-wc.php --dry-run --feed=x.json  # Preview
  *
  * @package ResellPiacenza\WooImport
  */
 
 require __DIR__ . '/vendor/autoload.php';
-require __DIR__ . '/FeedProxy.php';
 
 use Automattic\WooCommerce\Client;
 use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\RotatingFileHandler;
 
-class WooCommerceImporter
+class WooCommerceDirectImporter
 {
     private $config;
     private $wc_client;
     private $logger;
-    private $proxy;
 
     // Options
     private $dry_run = false;
     private $limit = null;
-    private $feed_file = null;
     private $batch_size = 100;
 
     // Stats
@@ -43,7 +62,6 @@ class WooCommerceImporter
         'variations_updated' => 0,
         'batch_requests' => 0,
         'errors' => 0,
-        'skipped' => 0,
     ];
 
     /**
@@ -57,15 +75,10 @@ class WooCommerceImporter
         $this->config = $config;
         $this->dry_run = $options['dry_run'] ?? false;
         $this->limit = $options['limit'] ?? null;
-        $this->feed_file = $options['feed_file'] ?? null;
         $this->batch_size = min($config['import']['batch_size'] ?? 100, 100);
 
         $this->setupLogger();
         $this->setupWooCommerceClient();
-        $this->proxy = new FeedProxy($config, [
-            'dry_run' => $this->dry_run,
-            'verbose' => $options['verbose'] ?? false,
-        ]);
     }
 
     /**
@@ -100,7 +113,7 @@ class WooCommerceImporter
     }
 
     /**
-     * Fetch existing products from WooCommerce (SKU => ID mapping)
+     * Fetch existing products from WooCommerce
      *
      * @return array SKU => product data
      */
@@ -119,10 +132,7 @@ class WooCommerceImporter
 
                 foreach ($products as $product) {
                     if (!empty($product->sku)) {
-                        $existing[$product->sku] = [
-                            'id' => $product->id,
-                            'name' => $product->name,
-                        ];
+                        $existing[$product->sku] = ['id' => $product->id];
                     }
                 }
                 $page++;
@@ -170,10 +180,8 @@ class WooCommerceImporter
     /**
      * Process products in batch
      *
-     * Products come pre-formatted from FeedProxy - just send to WC API.
-     *
      * @param array $wc_products WooCommerce-formatted products
-     * @param array $existing_products Existing products (SKU => data)
+     * @param array $existing_products Existing products
      * @return array Product map (SKU => [id, variations])
      */
     private function batchProcessProducts(array $wc_products, array $existing_products): array
@@ -183,15 +191,18 @@ class WooCommerceImporter
         $product_map = [];
 
         foreach ($wc_products as $product) {
-            $sku = $product['sku'];
+            $sku = $product['sku'] ?? null;
+            if (!$sku) {
+                continue;
+            }
+
             $variations = $product['_variations'] ?? [];
 
-            // Remove internal keys before sending to API
+            // Clean internal keys before API call
             $api_payload = $product;
             unset($api_payload['_variations'], $api_payload['_sync_action'], $api_payload['_product_type']);
 
             if (isset($existing_products[$sku])) {
-                // Update: add ID to payload
                 $api_payload['id'] = $existing_products[$sku]['id'];
                 $to_update[] = $api_payload;
                 $product_map[$sku] = [
@@ -199,7 +210,6 @@ class WooCommerceImporter
                     'variations' => $variations,
                 ];
             } else {
-                // Create: full payload
                 $to_create[] = $api_payload;
                 $product_map[$sku] = [
                     'id' => null,
@@ -211,7 +221,6 @@ class WooCommerceImporter
 
         $this->logger->info("  To create: " . count($to_create) . ", to update: " . count($to_update));
 
-        // Execute batches
         if (!empty($to_create)) {
             $this->executeBatch('create', $to_create, $product_map);
         }
@@ -238,9 +247,10 @@ class WooCommerceImporter
                 $this->logger->info("  [DRY RUN] Would {$operation} " . count($chunk) . " products");
                 if ($operation === 'create') {
                     foreach ($chunk as $item) {
-                        if (isset($product_map[$item['sku']])) {
-                            $product_map[$item['sku']]['id'] = 99990000 + $this->stats['products_created'];
-                            unset($product_map[$item['sku']]['pending']);
+                        $sku = $item['sku'] ?? null;
+                        if ($sku && isset($product_map[$sku])) {
+                            $product_map[$sku]['id'] = 99990000 + $this->stats['products_created'];
+                            unset($product_map[$sku]['pending']);
                             $this->stats['products_created']++;
                         }
                     }
@@ -254,8 +264,7 @@ class WooCommerceImporter
                 $result = $this->wc_client->post('products/batch', [$operation => $chunk]);
                 $this->stats['batch_requests']++;
 
-                $result_key = $operation;
-                foreach ($result->$result_key ?? [] as $item) {
+                foreach ($result->$operation ?? [] as $item) {
                     if (isset($item->error)) {
                         $this->stats['errors']++;
                         $this->logger->error("  Error: " . ($item->error->message ?? 'Unknown'));
@@ -272,7 +281,7 @@ class WooCommerceImporter
                     }
                 }
 
-                $this->logger->info("  Batch " . ($chunk_idx + 1) . ": {$operation}d " . count($chunk) . " products");
+                $this->logger->info("  Batch " . ($chunk_idx + 1) . ": {$operation}d " . count($chunk));
 
             } catch (Exception $e) {
                 $this->stats['errors'] += count($chunk);
@@ -284,10 +293,8 @@ class WooCommerceImporter
     /**
      * Process variations for a product
      *
-     * Variations come pre-formatted from FeedProxy.
-     *
      * @param int $product_id Product ID
-     * @param array $variations WooCommerce-formatted variations
+     * @param array $variations Variations (WC format)
      */
     private function processVariations(int $product_id, array $variations): void
     {
@@ -297,7 +304,10 @@ class WooCommerceImporter
         $to_update = [];
 
         foreach ($variations as $var) {
-            $sku = $var['sku'];
+            $sku = $var['sku'] ?? null;
+            if (!$sku) {
+                continue;
+            }
 
             if (isset($existing[$sku])) {
                 $var['id'] = $existing[$sku]['id'];
@@ -307,7 +317,6 @@ class WooCommerceImporter
             }
         }
 
-        // Execute variation batches
         if (!empty($to_create)) {
             $this->executeVariationBatch($product_id, 'create', $to_create);
         }
@@ -344,8 +353,7 @@ class WooCommerceImporter
                 );
                 $this->stats['batch_requests']++;
 
-                $result_key = $operation;
-                foreach ($result->$result_key ?? [] as $item) {
+                foreach ($result->$operation ?? [] as $item) {
                     if (isset($item->error)) {
                         $this->stats['errors']++;
                     } else {
@@ -364,17 +372,18 @@ class WooCommerceImporter
     }
 
     /**
-     * Main import runner
+     * Import from WooCommerce-formatted array
      *
+     * @param array $wc_products Array of WC-formatted products
      * @return bool Success
      */
-    public function run(): bool
+    public function import(array $wc_products): bool
     {
         $start_time = microtime(true);
 
         $this->logger->info('');
         $this->logger->info('========================================');
-        $this->logger->info('  WooCommerce Pass-Through Importer');
+        $this->logger->info('  WooCommerce Direct Importer');
         $this->logger->info('========================================');
 
         if ($this->dry_run) {
@@ -382,42 +391,32 @@ class WooCommerceImporter
         }
 
         try {
-            // Phase 1: Get existing products
-            $this->logger->info('');
-            $this->logger->info('Phase 1: Fetching existing WooCommerce products...');
-            $existing_products = $this->fetchExistingProducts();
-            $this->logger->info("  Found " . count($existing_products) . " existing products");
-
-            // Phase 2: Get WooCommerce-ready data from proxy
-            $this->logger->info('');
-            $this->logger->info('Phase 2: Loading WooCommerce-formatted data...');
-
-            if ($this->feed_file) {
-                // From file (diff import)
-                $wc_products = $this->proxy->transformFromFile($this->feed_file, $existing_products);
-            } else {
-                // From API
-                $wc_products = $this->proxy->fetchAndTransform($existing_products);
+            // Apply limit
+            if ($this->limit) {
+                $wc_products = array_slice($wc_products, 0, $this->limit);
             }
 
+            $this->logger->info("  Products to import: " . count($wc_products));
+
             if (empty($wc_products)) {
-                $this->logger->warning('No products to import');
+                $this->logger->warning('  No products to import');
                 return true;
             }
 
-            if ($this->limit) {
-                $wc_products = array_slice($wc_products, 0, $this->limit);
-                $this->logger->info("  Limited to {$this->limit} products");
-            }
-
-            // Phase 3: Batch import products
+            // Fetch existing
             $this->logger->info('');
-            $this->logger->info('Phase 3: Batch importing products...');
-            $product_map = $this->batchProcessProducts($wc_products, $existing_products);
+            $this->logger->info('Fetching existing WooCommerce products...');
+            $existing = $this->fetchExistingProducts();
+            $this->logger->info("  Found " . count($existing) . " existing");
 
-            // Phase 4: Process variations
+            // Batch products
             $this->logger->info('');
-            $this->logger->info('Phase 4: Processing variations...');
+            $this->logger->info('Importing products...');
+            $product_map = $this->batchProcessProducts($wc_products, $existing);
+
+            // Variations
+            $this->logger->info('');
+            $this->logger->info('Processing variations...');
 
             $total = count($product_map);
             $current = 0;
@@ -434,7 +433,6 @@ class WooCommerceImporter
             }
             echo "\n";
 
-            // Summary
             $this->printSummary($start_time);
             return true;
 
@@ -446,8 +444,6 @@ class WooCommerceImporter
 
     /**
      * Print summary
-     *
-     * @param float $start_time Start microtime
      */
     private function printSummary(float $start_time): void
     {
@@ -474,43 +470,89 @@ class WooCommerceImporter
 
 if (in_array('--help', $argv) || in_array('-h', $argv)) {
     echo <<<HELP
-WooCommerce Pass-Through Importer
-Uses FeedProxy for transformation - zero mapping in importer.
+WooCommerce Direct Importer
+Accepts WooCommerce REST API formatted JSON - NO transformation.
 
 Usage:
-  php import-wc.php [options]
+  php import-wc.php --feed=FILE         # Import from JSON file
+  cat products.json | php import-wc.php # Import from stdin
+  php import-wc.php --dry-run --feed=x  # Preview mode
 
 Options:
-  --dry-run         Preview without changes
+  --feed=FILE       JSON file with WC-formatted products
+  --dry-run         Preview without making changes
   --limit=N         Limit to N products
-  --feed=FILE       Import from pre-transformed JSON file
-  --verbose, -v     Verbose output
   --help, -h        Show this help
 
-Examples:
-  php import-wc.php --dry-run --limit=10
-  php import-wc.php --feed=data/diff.json
+Expected JSON format:
+  [
+    {
+      "name": "Product Name",
+      "sku": "SKU-123",
+      "type": "variable",
+      "categories": [{"id": 123}],
+      "attributes": [...],
+      "_variations": [
+        {
+          "sku": "SKU-123-36",
+          "regular_price": "99.00",
+          "stock_quantity": 5,
+          "stock_status": "instock",
+          "attributes": [{"id": 1, "option": "36"}]
+        }
+      ]
+    }
+  ]
+
+Note: _variations is the only non-standard key (nested for convenience).
+      All other fields map 1:1 to WooCommerce REST API.
 
 HELP;
     exit(0);
 }
 
+// Parse options
 $options = [
     'dry_run' => in_array('--dry-run', $argv),
     'limit' => null,
-    'feed_file' => null,
-    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
 ];
+
+$feed_file = null;
 
 foreach ($argv as $arg) {
     if (strpos($arg, '--limit=') === 0) {
         $options['limit'] = (int) str_replace('--limit=', '', $arg);
     }
     if (strpos($arg, '--feed=') === 0) {
-        $options['feed_file'] = str_replace('--feed=', '', $arg);
+        $feed_file = str_replace('--feed=', '', $arg);
     }
 }
 
+// Load data from file or stdin
+$wc_products = null;
+
+if ($feed_file) {
+    if (!file_exists($feed_file)) {
+        fwrite(STDERR, "Error: File not found: {$feed_file}\n");
+        exit(1);
+    }
+    $wc_products = json_decode(file_get_contents($feed_file), true);
+} elseif (!posix_isatty(STDIN)) {
+    // Read from stdin
+    $input = stream_get_contents(STDIN);
+    $wc_products = json_decode($input, true);
+} else {
+    fwrite(STDERR, "Error: No input. Use --feed=FILE or pipe JSON to stdin.\n");
+    fwrite(STDERR, "Run with --help for usage.\n");
+    exit(1);
+}
+
+if ($wc_products === null || json_last_error() !== JSON_ERROR_NONE) {
+    fwrite(STDERR, "Error: Invalid JSON - " . json_last_error_msg() . "\n");
+    exit(1);
+}
+
+// Run importer
 $config = require __DIR__ . '/config.php';
-$importer = new WooCommerceImporter($config, $options);
-exit($importer->run() ? 0 : 1);
+$importer = new WooCommerceDirectImporter($config, $options);
+exit($importer->import($wc_products) ? 0 : 1);
