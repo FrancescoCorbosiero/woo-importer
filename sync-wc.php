@@ -7,14 +7,13 @@
  *
  * Features:
  * - Delta detection (new/updated/removed)
- * - Image uploads for new products
  * - Batch import via import-wc.php
+ * - Images handled natively by WooCommerce (via images[].src)
  *
  * Usage:
  *   php sync-wc.php                    # Full sync
  *   php sync-wc.php --dry-run          # Preview changes
  *   php sync-wc.php --check-only       # Just show diff
- *   php sync-wc.php --skip-images      # Skip image uploads
  *   php sync-wc.php --force-full       # Force full import
  *   php sync-wc.php --verbose          # Detailed output
  *
@@ -35,7 +34,6 @@ class WooCommerceDeltaSync
     // Options
     private $dry_run = false;
     private $check_only = false;
-    private $skip_images = false;
     private $force_full = false;
     private $verbose = false;
 
@@ -43,11 +41,6 @@ class WooCommerceDeltaSync
     private $data_dir;
     private $feed_file;
     private $diff_file;
-    private $image_map_file;
-
-    // Data
-    private $image_map = [];
-    private $image_map_changed = false;
 
     // Stats
     private $stats = [
@@ -55,9 +48,6 @@ class WooCommerceDeltaSync
         'products_updated' => 0,
         'products_removed' => 0,
         'products_unchanged' => 0,
-        'images_uploaded' => 0,
-        'images_skipped' => 0,
-        'images_failed' => 0,
     ];
 
     // Diff products
@@ -74,18 +64,15 @@ class WooCommerceDeltaSync
         $this->config = $config;
         $this->dry_run = $options['dry_run'] ?? false;
         $this->check_only = $options['check_only'] ?? false;
-        $this->skip_images = $options['skip_images'] ?? false;
         $this->force_full = $options['force_full'] ?? false;
         $this->verbose = $options['verbose'] ?? false;
 
         $this->data_dir = __DIR__ . '/data';
         $this->feed_file = $this->data_dir . '/feed-wc.json';
         $this->diff_file = $this->data_dir . '/diff-wc.json';
-        $this->image_map_file = __DIR__ . '/image-map.json';
 
         $this->setupLogger();
         $this->ensureDataDirectory();
-        $this->loadImageMap();
     }
 
     /**
@@ -119,31 +106,6 @@ class WooCommerceDeltaSync
     }
 
     /**
-     * Load image map
-     */
-    private function loadImageMap(): void
-    {
-        if (file_exists($this->image_map_file)) {
-            $this->image_map = json_decode(file_get_contents($this->image_map_file), true) ?: [];
-            $this->logger->debug("Loaded image map: " . count($this->image_map) . " entries");
-        }
-    }
-
-    /**
-     * Save image map
-     */
-    private function saveImageMap(): void
-    {
-        if ($this->image_map_changed && !$this->dry_run) {
-            file_put_contents(
-                $this->image_map_file,
-                json_encode($this->image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-            );
-            $this->logger->info("   Updated image-map.json");
-        }
-    }
-
-    /**
      * Generate signature for product comparison (WC format)
      *
      * @param array $product WC-formatted product
@@ -170,121 +132,6 @@ class WooCommerceDeltaSync
         sort($sig_data['variations']);
 
         return md5(json_encode($sig_data));
-    }
-
-    /**
-     * Upload image to WordPress
-     *
-     * @param string $sku Product SKU
-     * @param string $url Image URL
-     * @param string $name Product name
-     * @return int|null Media ID
-     */
-    private function uploadImage(string $sku, string $url, string $name): ?int
-    {
-        if (empty($url)) {
-            return null;
-        }
-
-        try {
-            $temp_file = tempnam(sys_get_temp_dir(), 'woo_img_');
-
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => $url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_TIMEOUT => 30,
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_USERAGENT => 'Mozilla/5.0',
-            ]);
-
-            $content = curl_exec($ch);
-            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if ($http_code !== 200 || empty($content)) {
-                throw new Exception("HTTP {$http_code}");
-            }
-
-            file_put_contents($temp_file, $content);
-
-            $info = @getimagesize($temp_file);
-            if (!$info) {
-                unlink($temp_file);
-                throw new Exception("Invalid image");
-            }
-
-            $mime = $info['mime'];
-            $ext = image_type_to_extension($info[2], false);
-
-            if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
-                unlink($temp_file);
-                throw new Exception("Unsupported type: {$mime}");
-            }
-
-            // SEO metadata
-            $store = $this->config['store']['name'] ?? 'Store';
-            $alt_text = "{$name} - {$sku} - Acquista su {$store}";
-
-            // Build multipart
-            $boundary = 'WooUpload' . time();
-            $filename = preg_replace('/[^a-zA-Z0-9._-]/', '', $sku) . '.' . $ext;
-
-            $body = "--{$boundary}\r\n";
-            $body .= "Content-Disposition: form-data; name=\"file\"; filename=\"{$filename}\"\r\n";
-            $body .= "Content-Type: {$mime}\r\n\r\n";
-            $body .= file_get_contents($temp_file) . "\r\n";
-
-            $body .= "--{$boundary}\r\n";
-            $body .= "Content-Disposition: form-data; name=\"title\"\r\n\r\n{$name}\r\n";
-
-            $body .= "--{$boundary}\r\n";
-            $body .= "Content-Disposition: form-data; name=\"alt_text\"\r\n\r\n{$alt_text}\r\n";
-
-            $body .= "--{$boundary}--\r\n";
-
-            // Upload
-            $wp_url = rtrim($this->config['woocommerce']['url'], '/') . '/wp-json/wp/v2/media';
-            $auth = base64_encode(
-                $this->config['wordpress']['username'] . ':' .
-                $this->config['wordpress']['app_password']
-            );
-
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => $wp_url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $body,
-                CURLOPT_HTTPHEADER => [
-                    "Authorization: Basic {$auth}",
-                    "Content-Type: multipart/form-data; boundary={$boundary}",
-                ],
-                CURLOPT_TIMEOUT => 60,
-            ]);
-
-            $response = curl_exec($ch);
-            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            unlink($temp_file);
-
-            if ($http_code !== 201) {
-                $error = json_decode($response, true);
-                throw new Exception($error['message'] ?? "HTTP {$http_code}");
-            }
-
-            $result = json_decode($response, true);
-            return $result['id'] ?? null;
-
-        } catch (Exception $e) {
-            if (isset($temp_file) && file_exists($temp_file)) {
-                @unlink($temp_file);
-            }
-            $this->logger->debug("   Image failed for {$sku}: " . $e->getMessage());
-            return null;
-        }
     }
 
     /**
@@ -443,100 +290,6 @@ class WooCommerceDeltaSync
     }
 
     /**
-     * Process images for diff products
-     *
-     * @param array $products Products needing images
-     */
-    private function processImages(array $products): void
-    {
-        if ($this->skip_images) {
-            $this->logger->info('   Skipping images (--skip-images)');
-            return;
-        }
-
-        $to_upload = [];
-
-        foreach ($products as $product) {
-            $sku = $product['sku'] ?? null;
-            if (!$sku) continue;
-
-            // Already have image?
-            if (isset($this->image_map[$sku])) {
-                $this->stats['images_skipped']++;
-                continue;
-            }
-
-            // Has image URL? (stored in _image_url for upload, or extract from images)
-            $image_url = $product['_image_url'] ?? null;
-            if ($image_url) {
-                $to_upload[] = $product;
-            }
-        }
-
-        if (empty($to_upload)) {
-            $this->logger->info("   All images already uploaded");
-            return;
-        }
-
-        $this->logger->info("   Uploading " . count($to_upload) . " images...");
-
-        $count = count($to_upload);
-        foreach ($to_upload as $i => $product) {
-            $sku = $product['sku'];
-            $progress = $i + 1;
-
-            echo "\r   Progress: {$progress}/{$count} - {$sku}                    ";
-
-            if ($this->dry_run) {
-                $this->stats['images_uploaded']++;
-                continue;
-            }
-
-            $media_id = $this->uploadImage(
-                $sku,
-                $product['_image_url'] ?? '',
-                $product['name'] ?? ''
-            );
-
-            if ($media_id) {
-                $this->image_map[$sku] = [
-                    'media_id' => $media_id,
-                    'url' => $product['_image_url'],
-                    'uploaded_at' => date('Y-m-d H:i:s'),
-                ];
-                $this->image_map_changed = true;
-                $this->stats['images_uploaded']++;
-
-                // Update product with image ID
-                // (handled in diff file)
-            } else {
-                $this->stats['images_failed']++;
-            }
-        }
-
-        echo "\n";
-    }
-
-    /**
-     * Inject image IDs into diff products
-     */
-    private function injectImageIds(): void
-    {
-        foreach ($this->diff_products as &$product) {
-            $sku = $product['sku'] ?? null;
-            if (!$sku) continue;
-
-            if (isset($this->image_map[$sku]['media_id'])) {
-                $media_id = $this->image_map[$sku]['media_id'];
-                $product['images'] = [['id' => $media_id]];
-            }
-
-            // Remove internal image URL key
-            unset($product['_image_url']);
-        }
-    }
-
-    /**
      * Print diff summary
      */
     private function printDiffSummary(): void
@@ -616,9 +369,6 @@ class WooCommerceDeltaSync
         if ($this->check_only) {
             $this->logger->info('  CHECK ONLY MODE');
         }
-        if ($this->skip_images) {
-            $this->logger->info('  SKIP IMAGES MODE');
-        }
         if ($this->force_full) {
             $this->logger->warning('  FORCE FULL MODE');
         }
@@ -677,18 +427,7 @@ class WooCommerceDeltaSync
                 return true;
             }
 
-            // Step 5: Images
-            if (!$this->check_only) {
-                $this->logger->info('');
-                $this->logger->info('Processing images...');
-                $this->processImages($this->diff_products);
-                $this->saveImageMap();
-
-                // Inject image IDs
-                $this->injectImageIds();
-            }
-
-            // Step 6: Import
+            // Step 5: Import
             if (!$this->check_only && !$this->dry_run) {
                 // Save current as baseline
                 $this->saveFeed($current_feed);
@@ -738,7 +477,6 @@ Usage:
 Options:
   --dry-run         Preview changes without importing
   --check-only      Check for changes, no import
-  --skip-images     Skip image processing
   --force-full      Force full import (ignore diff)
   --verbose, -v     Detailed logging
   --help, -h        Show this help
@@ -746,13 +484,23 @@ Options:
 Expected feed format: WooCommerce REST API (1:1)
   [
     {
-      "name": "Product",
+      "name": "Product Name",
       "sku": "SKU-123",
       "type": "variable",
-      "_image_url": "https://...",  (optional, for upload)
-      "_variations": [...]
+      "images": [{"src": "https://..."}],
+      "_variations": [
+        {
+          "sku": "SKU-123-36",
+          "regular_price": "99.00",
+          "stock_quantity": 5,
+          "stock_status": "instock",
+          "attributes": [{"id": 1, "option": "36"}]
+        }
+      ]
     }
   ]
+
+Images: Use "images": [{"src": "URL"}] - WooCommerce handles upload.
 
 Cron:
   */30 * * * * cd /path && php sync-wc.php >> logs/cron.log 2>&1
@@ -764,7 +512,6 @@ HELP;
 $options = [
     'dry_run' => in_array('--dry-run', $argv),
     'check_only' => in_array('--check-only', $argv),
-    'skip_images' => in_array('--skip-images', $argv),
     'force_full' => in_array('--force-full', $argv),
     'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
 ];
