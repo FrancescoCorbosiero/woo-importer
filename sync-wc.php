@@ -1,33 +1,36 @@
 <?php
 /**
- * Delta Sync v2 - Uses FeedProxy for WooCommerce-native data format
+ * WooCommerce Delta Sync
  *
- * All transformation is done by FeedProxy. This sync:
- * - Compares feeds using WooCommerce field names
- * - Passes WC-ready data to the pass-through importer
+ * Single entrypoint for syncing WC-formatted feeds.
+ * Expects feed already in WooCommerce REST API format.
+ *
+ * Features:
+ * - Delta detection (new/updated/removed)
+ * - Image uploads for new products
+ * - Batch import via import-wc.php
  *
  * Usage:
- *   php sync-v2.php                    # Full sync
- *   php sync-v2.php --dry-run          # Preview changes
- *   php sync-v2.php --check-only       # Just show diff
- *   php sync-v2.php --skip-images      # Skip image uploads
- *   php sync-v2.php --force-full       # Force full import
+ *   php sync-wc.php                    # Full sync
+ *   php sync-wc.php --dry-run          # Preview changes
+ *   php sync-wc.php --check-only       # Just show diff
+ *   php sync-wc.php --skip-images      # Skip image uploads
+ *   php sync-wc.php --force-full       # Force full import
+ *   php sync-wc.php --verbose          # Detailed output
  *
  * @package ResellPiacenza\WooImport
  */
 
 require __DIR__ . '/vendor/autoload.php';
-require __DIR__ . '/FeedProxy.php';
 
 use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\RotatingFileHandler;
 
-class DeltaSyncV2
+class WooCommerceDeltaSync
 {
     private $config;
     private $logger;
-    private $proxy;
 
     // Options
     private $dry_run = false;
@@ -42,7 +45,7 @@ class DeltaSyncV2
     private $diff_file;
     private $image_map_file;
 
-    // Image map
+    // Data
     private $image_map = [];
     private $image_map_changed = false;
 
@@ -57,7 +60,7 @@ class DeltaSyncV2
         'images_failed' => 0,
     ];
 
-    // Diff data (WooCommerce format)
+    // Diff products
     private $diff_products = [];
 
     /**
@@ -76,18 +79,13 @@ class DeltaSyncV2
         $this->verbose = $options['verbose'] ?? false;
 
         $this->data_dir = __DIR__ . '/data';
-        $this->feed_file = $this->data_dir . '/feed-wc.json';  // WC format
+        $this->feed_file = $this->data_dir . '/feed-wc.json';
         $this->diff_file = $this->data_dir . '/diff-wc.json';
         $this->image_map_file = __DIR__ . '/image-map.json';
 
         $this->setupLogger();
         $this->ensureDataDirectory();
         $this->loadImageMap();
-
-        $this->proxy = new FeedProxy($config, [
-            'dry_run' => $this->dry_run,
-            'verbose' => $this->verbose,
-        ]);
     }
 
     /**
@@ -95,7 +93,7 @@ class DeltaSyncV2
      */
     private function setupLogger(): void
     {
-        $this->logger = new Logger('SyncV2');
+        $this->logger = new Logger('SyncWC');
 
         $log_dir = __DIR__ . '/logs';
         if (!is_dir($log_dir)) {
@@ -103,7 +101,7 @@ class DeltaSyncV2
         }
 
         $this->logger->pushHandler(
-            new RotatingFileHandler($log_dir . '/sync-v2.log', 7, Logger::DEBUG)
+            new RotatingFileHandler($log_dir . '/sync-wc.log', 7, Logger::DEBUG)
         );
 
         $level = $this->verbose ? Logger::DEBUG : Logger::INFO;
@@ -127,6 +125,7 @@ class DeltaSyncV2
     {
         if (file_exists($this->image_map_file)) {
             $this->image_map = json_decode(file_get_contents($this->image_map_file), true) ?: [];
+            $this->logger->debug("Loaded image map: " . count($this->image_map) . " entries");
         }
     }
 
@@ -140,7 +139,37 @@ class DeltaSyncV2
                 $this->image_map_file,
                 json_encode($this->image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
             );
+            $this->logger->info("   Updated image-map.json");
         }
+    }
+
+    /**
+     * Generate signature for product comparison (WC format)
+     *
+     * @param array $product WC-formatted product
+     * @return string MD5 hash
+     */
+    private function getProductSignature(array $product): string
+    {
+        $sig_data = [
+            'name' => $product['name'] ?? '',
+            'variations' => [],
+        ];
+
+        foreach ($product['_variations'] ?? [] as $var) {
+            $option = '';
+            if (!empty($var['attributes'][0]['option'])) {
+                $option = $var['attributes'][0]['option'];
+            }
+            $sig_data['variations'][] = implode(':', [
+                $option,
+                $var['regular_price'] ?? '0',
+                $var['stock_quantity'] ?? 0,
+            ]);
+        }
+        sort($sig_data['variations']);
+
+        return md5(json_encode($sig_data));
     }
 
     /**
@@ -149,11 +178,14 @@ class DeltaSyncV2
      * @param string $sku Product SKU
      * @param string $url Image URL
      * @param string $name Product name
-     * @param string $brand Brand name
      * @return int|null Media ID
      */
-    private function uploadImage(string $sku, string $url, string $name, string $brand): ?int
+    private function uploadImage(string $sku, string $url, string $name): ?int
     {
+        if (empty($url)) {
+            return null;
+        }
+
         try {
             $temp_file = tempnam(sys_get_temp_dir(), 'woo_img_');
 
@@ -164,6 +196,7 @@ class DeltaSyncV2
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_TIMEOUT => 30,
                 CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_USERAGENT => 'Mozilla/5.0',
             ]);
 
             $content = curl_exec($ch);
@@ -184,10 +217,18 @@ class DeltaSyncV2
 
             $mime = $info['mime'];
             $ext = image_type_to_extension($info[2], false);
-            $store = $this->config['store']['name'] ?? 'ResellPiacenza';
+
+            if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
+                unlink($temp_file);
+                throw new Exception("Unsupported type: {$mime}");
+            }
+
+            // SEO metadata
+            $store = $this->config['store']['name'] ?? 'Store';
+            $alt_text = "{$name} - {$sku} - Acquista su {$store}";
 
             // Build multipart
-            $boundary = 'Upload' . time();
+            $boundary = 'WooUpload' . time();
             $filename = preg_replace('/[^a-zA-Z0-9._-]/', '', $sku) . '.' . $ext;
 
             $body = "--{$boundary}\r\n";
@@ -199,11 +240,11 @@ class DeltaSyncV2
             $body .= "Content-Disposition: form-data; name=\"title\"\r\n\r\n{$name}\r\n";
 
             $body .= "--{$boundary}\r\n";
-            $body .= "Content-Disposition: form-data; name=\"alt_text\"\r\n\r\n";
-            $body .= "{$name} - {$sku} - Acquista su {$store}\r\n";
+            $body .= "Content-Disposition: form-data; name=\"alt_text\"\r\n\r\n{$alt_text}\r\n";
 
             $body .= "--{$boundary}--\r\n";
 
+            // Upload
             $wp_url = rtrim($this->config['woocommerce']['url'], '/') . '/wp-json/wp/v2/media';
             $auth = base64_encode(
                 $this->config['wordpress']['username'] . ':' .
@@ -230,7 +271,8 @@ class DeltaSyncV2
             unlink($temp_file);
 
             if ($http_code !== 201) {
-                throw new Exception("Upload failed: HTTP {$http_code}");
+                $error = json_decode($response, true);
+                throw new Exception($error['message'] ?? "HTTP {$http_code}");
             }
 
             $result = json_decode($response, true);
@@ -240,64 +282,98 @@ class DeltaSyncV2
             if (isset($temp_file) && file_exists($temp_file)) {
                 @unlink($temp_file);
             }
-            $this->logger->debug("  Image upload failed for {$sku}: " . $e->getMessage());
+            $this->logger->debug("   Image failed for {$sku}: " . $e->getMessage());
             return null;
         }
     }
 
     /**
-     * Fetch feed from Golden Sneakers API (raw format)
+     * Fetch feed from REST API (expects WC format)
      *
-     * @return array|null Raw GS feed
+     * @return array|null WC-formatted products
      */
-    private function fetchRawFeed(): ?array
+    private function fetchFeedFromAPI(): ?array
     {
-        $params = http_build_query($this->config['api']['params']);
-        $url = $this->config['api']['base_url'] . '?' . $params;
+        $url = $this->config['api']['base_url'];
+        $params = $this->config['api']['params'] ?? [];
+
+        if (!empty($params)) {
+            $url .= '?' . http_build_query($params);
+        }
 
         $ch = curl_init();
+        $headers = ['Accept: application/json'];
+
+        if (!empty($this->config['api']['bearer_token'])) {
+            $headers[] = 'Authorization: Bearer ' . $this->config['api']['bearer_token'];
+        }
+
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . $this->config['api']['bearer_token'],
-                'Accept: application/json',
-            ],
+            CURLOPT_HTTPHEADER => $headers,
             CURLOPT_TIMEOUT => 60,
         ]);
 
         $response = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-        if (curl_errno($ch) || $http_code !== 200) {
+        if (curl_errno($ch)) {
+            $this->logger->error('CURL Error: ' . curl_error($ch));
             curl_close($ch);
             return null;
         }
 
         curl_close($ch);
-        return json_decode($response, true);
+
+        if ($http_code !== 200) {
+            $this->logger->error("API returned HTTP {$http_code}");
+            return null;
+        }
+
+        $data = json_decode($response, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->logger->error('JSON error: ' . json_last_error_msg());
+            return null;
+        }
+
+        return $data;
     }
 
     /**
-     * Load saved feed (WC format)
+     * Load saved feed
      *
-     * @return array|null Saved WC products
+     * @return array|null Saved products
      */
     private function loadSavedFeed(): ?array
     {
         if (!file_exists($this->feed_file)) {
             return null;
         }
-        return json_decode(file_get_contents($this->feed_file), true);
+
+        $data = json_decode(file_get_contents($this->feed_file), true);
+        return json_last_error() === JSON_ERROR_NONE ? $data : null;
+    }
+
+    /**
+     * Get saved feed timestamp
+     *
+     * @return string|null Formatted time
+     */
+    private function getSavedFeedTime(): ?string
+    {
+        if (!file_exists($this->feed_file)) {
+            return null;
+        }
+        return date('Y-m-d H:i:s', filemtime($this->feed_file));
     }
 
     /**
      * Compare feeds and build diff
      *
-     * Uses WooCommerce field names for comparison.
-     *
-     * @param array $current Current WC products
-     * @param array $saved Saved WC products
+     * @param array $current Current feed
+     * @param array $saved Saved feed
      */
     private function compareFeedsAndBuildDiff(array $current, array $saved): void
     {
@@ -319,18 +395,18 @@ class DeltaSyncV2
         // Find new and updated
         foreach ($current_by_sku as $sku => $product) {
             if (!isset($saved_by_sku[$sku])) {
-                // New product
+                // New
                 $this->stats['products_new']++;
                 $product['_sync_action'] = 'new';
                 $this->diff_products[] = $product;
 
                 if ($this->verbose) {
-                    $this->logger->debug("  + NEW: {$sku}");
+                    $this->logger->debug("   + NEW: {$sku}");
                 }
             } else {
-                // Check for changes using WC field names
-                $current_sig = FeedProxy::getProductSignature($product);
-                $saved_sig = FeedProxy::getProductSignature($saved_by_sku[$sku]);
+                // Check changes
+                $current_sig = $this->getProductSignature($product);
+                $saved_sig = $this->getProductSignature($saved_by_sku[$sku]);
 
                 if ($current_sig !== $saved_sig) {
                     $this->stats['products_updated']++;
@@ -338,7 +414,7 @@ class DeltaSyncV2
                     $this->diff_products[] = $product;
 
                     if ($this->verbose) {
-                        $this->logger->debug("  ~ CHANGED: {$sku}");
+                        $this->logger->debug("   ~ CHANGED: {$sku}");
                     }
                 } else {
                     $this->stats['products_unchanged']++;
@@ -351,7 +427,7 @@ class DeltaSyncV2
             if (!isset($current_by_sku[$sku])) {
                 $this->stats['products_removed']++;
 
-                // Zero out stock in variations
+                // Zero out stock
                 $product['_sync_action'] = 'removed';
                 foreach ($product['_variations'] ?? [] as &$var) {
                     $var['stock_quantity'] = 0;
@@ -360,7 +436,7 @@ class DeltaSyncV2
                 $this->diff_products[] = $product;
 
                 if ($this->verbose) {
-                    $this->logger->debug("  - REMOVED: {$sku}");
+                    $this->logger->debug("   - REMOVED: {$sku}");
                 }
             }
         }
@@ -369,46 +445,47 @@ class DeltaSyncV2
     /**
      * Process images for diff products
      *
-     * @param array $raw_feed Raw GS feed (for image URLs)
+     * @param array $products Products needing images
      */
-    private function processImages(array $raw_feed): void
+    private function processImages(array $products): void
     {
         if ($this->skip_images) {
-            $this->logger->info('  Skipping images (--skip-images)');
+            $this->logger->info('   Skipping images (--skip-images)');
             return;
         }
 
-        // Index raw feed by SKU for image URLs
-        $raw_by_sku = [];
-        foreach ($raw_feed as $p) {
-            if ($sku = $p['sku'] ?? null) {
-                $raw_by_sku[$sku] = $p;
-            }
-        }
-
         $to_upload = [];
-        foreach ($this->diff_products as $product) {
-            $sku = $product['sku'];
 
+        foreach ($products as $product) {
+            $sku = $product['sku'] ?? null;
+            if (!$sku) continue;
+
+            // Already have image?
             if (isset($this->image_map[$sku])) {
                 $this->stats['images_skipped']++;
                 continue;
             }
 
-            if (isset($raw_by_sku[$sku])) {
-                $to_upload[] = $raw_by_sku[$sku];
+            // Has image URL? (stored in _image_url for upload, or extract from images)
+            $image_url = $product['_image_url'] ?? null;
+            if ($image_url) {
+                $to_upload[] = $product;
             }
         }
 
         if (empty($to_upload)) {
-            $this->logger->info('  All images already uploaded');
+            $this->logger->info("   All images already uploaded");
             return;
         }
 
-        $this->logger->info("  Uploading " . count($to_upload) . " images...");
+        $this->logger->info("   Uploading " . count($to_upload) . " images...");
 
-        foreach ($to_upload as $i => $p) {
-            echo "\r  Progress: " . ($i + 1) . "/" . count($to_upload) . " - {$p['sku']}     ";
+        $count = count($to_upload);
+        foreach ($to_upload as $i => $product) {
+            $sku = $product['sku'];
+            $progress = $i + 1;
+
+            echo "\r   Progress: {$progress}/{$count} - {$sku}                    ";
 
             if ($this->dry_run) {
                 $this->stats['images_uploaded']++;
@@ -416,25 +493,106 @@ class DeltaSyncV2
             }
 
             $media_id = $this->uploadImage(
-                $p['sku'],
-                $p['image_full_url'] ?? '',
-                $p['name'] ?? '',
-                $p['brand_name'] ?? ''
+                $sku,
+                $product['_image_url'] ?? '',
+                $product['name'] ?? ''
             );
 
             if ($media_id) {
-                $this->image_map[$p['sku']] = [
+                $this->image_map[$sku] = [
                     'media_id' => $media_id,
-                    'url' => $p['image_full_url'],
+                    'url' => $product['_image_url'],
                     'uploaded_at' => date('Y-m-d H:i:s'),
                 ];
                 $this->image_map_changed = true;
                 $this->stats['images_uploaded']++;
+
+                // Update product with image ID
+                // (handled in diff file)
             } else {
                 $this->stats['images_failed']++;
             }
         }
+
         echo "\n";
+    }
+
+    /**
+     * Inject image IDs into diff products
+     */
+    private function injectImageIds(): void
+    {
+        foreach ($this->diff_products as &$product) {
+            $sku = $product['sku'] ?? null;
+            if (!$sku) continue;
+
+            if (isset($this->image_map[$sku]['media_id'])) {
+                $media_id = $this->image_map[$sku]['media_id'];
+                $product['images'] = [['id' => $media_id]];
+            }
+
+            // Remove internal image URL key
+            unset($product['_image_url']);
+        }
+    }
+
+    /**
+     * Print diff summary
+     */
+    private function printDiffSummary(): void
+    {
+        $this->logger->info('Changes Detected:');
+        $this->logger->info("   + New products:      {$this->stats['products_new']}");
+        $this->logger->info("   ~ Updated products:  {$this->stats['products_updated']}");
+        $this->logger->info("   - Removed products:  {$this->stats['products_removed']}");
+        $this->logger->info("     Unchanged:         {$this->stats['products_unchanged']}");
+        $this->logger->info("   ---------------------");
+
+        $total = $this->stats['products_new'] + $this->stats['products_updated'] + $this->stats['products_removed'];
+        $this->logger->info("   Total to sync:       {$total}");
+    }
+
+    /**
+     * Save feed
+     *
+     * @param array $feed Feed data
+     */
+    private function saveFeed(array $feed): void
+    {
+        file_put_contents(
+            $this->feed_file,
+            json_encode($feed, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        );
+    }
+
+    /**
+     * Save diff
+     */
+    private function saveDiff(): void
+    {
+        file_put_contents(
+            $this->diff_file,
+            json_encode($this->diff_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        );
+        $this->logger->info("Saved diff to {$this->diff_file}");
+    }
+
+    /**
+     * Trigger import
+     *
+     * @return bool Success
+     */
+    private function triggerImport(): bool
+    {
+        $cmd = 'php ' . escapeshellarg(__DIR__ . '/import-wc.php') .
+               ' --feed=' . escapeshellarg($this->diff_file);
+
+        $this->logger->info("Executing: {$cmd}");
+        $this->logger->info('');
+
+        passthru($cmd, $exit_code);
+
+        return $exit_code === 0;
     }
 
     /**
@@ -444,12 +602,13 @@ class DeltaSyncV2
      */
     public function run(): bool
     {
-        $start = microtime(true);
+        $start_time = microtime(true);
 
         $this->logger->info('');
         $this->logger->info('================================');
-        $this->logger->info('  Delta Sync v2 (Proxy Model)');
+        $this->logger->info('  WooCommerce Delta Sync');
         $this->logger->info('================================');
+        $this->logger->info('  Feed format: WooCommerce REST API');
 
         if ($this->dry_run) {
             $this->logger->warning('  DRY RUN MODE');
@@ -457,60 +616,64 @@ class DeltaSyncV2
         if ($this->check_only) {
             $this->logger->info('  CHECK ONLY MODE');
         }
+        if ($this->skip_images) {
+            $this->logger->info('  SKIP IMAGES MODE');
+        }
+        if ($this->force_full) {
+            $this->logger->warning('  FORCE FULL MODE');
+        }
+
+        $this->logger->info('');
 
         try {
-            // Step 1: Fetch raw feed (for image URLs)
-            $this->logger->info('');
-            $this->logger->info('Fetching from Golden Sneakers API...');
-            $raw_feed = $this->fetchRawFeed();
+            // Step 1: Fetch current feed
+            $this->logger->info('Fetching current feed from API...');
+            $current_feed = $this->fetchFeedFromAPI();
 
-            if (empty($raw_feed)) {
-                $this->logger->error('Failed to fetch feed');
+            if (empty($current_feed)) {
+                $this->logger->error('Failed to fetch feed from API');
                 return false;
             }
-            $this->logger->info("  Fetched " . count($raw_feed) . " products");
 
-            // Step 2: Transform to WC format via proxy
-            $this->logger->info('');
-            $this->logger->info('Transforming to WooCommerce format...');
-            $current_wc = $this->proxy->transformFeed($raw_feed);
+            $this->logger->info("   " . count($current_feed) . " products loaded");
 
-            // Step 3: Load saved feed (WC format)
+            // Step 2: Load saved feed
             $this->logger->info('');
             $this->logger->info('Loading saved feed...');
-            $saved_wc = $this->loadSavedFeed();
+            $saved_feed = $this->loadSavedFeed();
 
-            if ($saved_wc === null || $this->force_full) {
-                $reason = $saved_wc === null ? 'First run' : 'Force full';
-                $this->logger->info("  {$reason} - processing all products");
+            if ($saved_feed === null || $this->force_full) {
+                $reason = $saved_feed === null ? 'First run' : 'Force full requested';
+                $this->logger->info("   {$reason} - processing all products");
 
-                $this->diff_products = $current_wc;
+                $this->diff_products = $current_feed;
                 foreach ($this->diff_products as &$p) {
                     $p['_sync_action'] = 'new';
                     $this->stats['products_new']++;
                 }
+                unset($p);
             } else {
-                $this->logger->info("  Loaded " . count($saved_wc) . " saved products");
+                $saved_time = $this->getSavedFeedTime();
+                $this->logger->info("   " . count($saved_feed) . " products from last sync");
+                if ($saved_time) {
+                    $this->logger->info("   Last sync: {$saved_time}");
+                }
 
-                // Step 4: Compare
+                // Step 3: Compare
                 $this->logger->info('');
-                $this->logger->info('Comparing feeds (WC format)...');
-                $this->compareFeedsAndBuildDiff($current_wc, $saved_wc);
+                $this->logger->info('Comparing feeds...');
+                $this->compareFeedsAndBuildDiff($current_feed, $saved_feed);
             }
 
-            // Summary
+            // Step 4: Report
             $this->logger->info('');
-            $this->logger->info('Changes Detected:');
-            $this->logger->info("  + New:       {$this->stats['products_new']}");
-            $this->logger->info("  ~ Updated:   {$this->stats['products_updated']}");
-            $this->logger->info("  - Removed:   {$this->stats['products_removed']}");
-            $this->logger->info("    Unchanged: {$this->stats['products_unchanged']}");
+            $this->printDiffSummary();
 
-            $total = $this->stats['products_new'] + $this->stats['products_updated'] + $this->stats['products_removed'];
+            $total_changes = $this->stats['products_new'] + $this->stats['products_updated'] + $this->stats['products_removed'];
 
-            if ($total === 0) {
+            if ($total_changes === 0) {
                 $this->logger->info('');
-                $this->logger->info('No changes - nothing to sync');
+                $this->logger->info('No changes detected - nothing to sync');
                 return true;
             }
 
@@ -518,43 +681,39 @@ class DeltaSyncV2
             if (!$this->check_only) {
                 $this->logger->info('');
                 $this->logger->info('Processing images...');
-                $this->processImages($raw_feed);
+                $this->processImages($this->diff_products);
                 $this->saveImageMap();
+
+                // Inject image IDs
+                $this->injectImageIds();
             }
 
             // Step 6: Import
             if (!$this->check_only && !$this->dry_run) {
                 // Save current as baseline
-                file_put_contents(
-                    $this->feed_file,
-                    json_encode($current_wc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-                );
+                $this->saveFeed($current_feed);
 
                 // Save diff
-                file_put_contents(
-                    $this->diff_file,
-                    json_encode($this->diff_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-                );
+                $this->saveDiff();
 
+                // Trigger import
                 $this->logger->info('');
                 $this->logger->info('Triggering import...');
                 $this->logger->info('');
 
-                $cmd = 'php ' . escapeshellarg(__DIR__ . '/import-wc.php') .
-                       ' --feed=' . escapeshellarg($this->diff_file);
+                $success = $this->triggerImport();
 
-                passthru($cmd, $exit_code);
-
-                $duration = round(microtime(true) - $start, 1);
+                $duration = round(microtime(true) - $start_time, 2);
                 $this->logger->info('');
                 $this->logger->info("Sync complete in {$duration}s");
 
-                return $exit_code === 0;
+                return $success;
             }
 
-            $duration = round(microtime(true) - $start, 1);
+            $duration = round(microtime(true) - $start_time, 2);
             $this->logger->info('');
             $this->logger->info("Check complete in {$duration}s");
+
             return true;
 
         } catch (Exception $e) {
@@ -570,18 +729,33 @@ class DeltaSyncV2
 
 if (in_array('--help', $argv) || in_array('-h', $argv)) {
     echo <<<HELP
-Delta Sync v2 - Uses FeedProxy for WooCommerce-native format.
+WooCommerce Delta Sync
+Syncs WC-formatted feeds to WooCommerce.
 
 Usage:
-  php sync-v2.php [options]
+  php sync-wc.php [options]
 
 Options:
-  --dry-run         Preview without changes
-  --check-only      Only check for changes
+  --dry-run         Preview changes without importing
+  --check-only      Check for changes, no import
   --skip-images     Skip image processing
-  --force-full      Force full import
-  --verbose, -v     Verbose output
-  --help, -h        Show help
+  --force-full      Force full import (ignore diff)
+  --verbose, -v     Detailed logging
+  --help, -h        Show this help
+
+Expected feed format: WooCommerce REST API (1:1)
+  [
+    {
+      "name": "Product",
+      "sku": "SKU-123",
+      "type": "variable",
+      "_image_url": "https://...",  (optional, for upload)
+      "_variations": [...]
+    }
+  ]
+
+Cron:
+  */30 * * * * cd /path && php sync-wc.php >> logs/cron.log 2>&1
 
 HELP;
     exit(0);
@@ -596,5 +770,8 @@ $options = [
 ];
 
 $config = require __DIR__ . '/config.php';
-$sync = new DeltaSyncV2($config, $options);
-exit($sync->run() ? 0 : 1);
+
+$sync = new WooCommerceDeltaSync($config, $options);
+$success = $sync->run();
+
+exit($success ? 0 : 1);
