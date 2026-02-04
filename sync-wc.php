@@ -41,6 +41,10 @@ class WooCommerceDeltaSync
     private $data_dir;
     private $feed_file;
     private $diff_file;
+    private $image_map_file;
+
+    // Image map (SKU → media_id)
+    private $image_map = [];
 
     // Stats
     private $stats = [
@@ -70,9 +74,11 @@ class WooCommerceDeltaSync
         $this->data_dir = __DIR__ . '/data';
         $this->feed_file = $this->data_dir . '/feed-wc.json';
         $this->diff_file = $this->data_dir . '/diff-wc.json';
+        $this->image_map_file = __DIR__ . '/image-map.json';
 
         $this->setupLogger();
         $this->ensureDataDirectory();
+        $this->loadImageMap();
     }
 
     /**
@@ -102,6 +108,69 @@ class WooCommerceDeltaSync
     {
         if (!is_dir($this->data_dir)) {
             mkdir($this->data_dir, 0755, true);
+        }
+    }
+
+    /**
+     * Load image map from file
+     */
+    private function loadImageMap(): void
+    {
+        if (file_exists($this->image_map_file)) {
+            $this->image_map = json_decode(file_get_contents($this->image_map_file), true) ?: [];
+            $this->logger->debug("Loaded image map: " . count($this->image_map) . " entries");
+        }
+    }
+
+    /**
+     * Get map key for image lookup
+     *
+     * @param string $sku Product SKU
+     * @param int $index Image index
+     * @return string Map key
+     */
+    private function getImageMapKey(string $sku, int $index): string
+    {
+        return $index === 0 ? $sku : "{$sku}__img{$index}";
+    }
+
+    /**
+     * Inject image IDs from map into diff products
+     *
+     * Replaces images[].src with images[].id where mapping exists.
+     * Falls back to src URL if no mapping (WooCommerce will sideload).
+     */
+    private function injectImageIds(): void
+    {
+        $injected = 0;
+        $fallback = 0;
+
+        foreach ($this->diff_products as &$product) {
+            $sku = $product['sku'] ?? null;
+            if (!$sku || empty($product['images'])) {
+                continue;
+            }
+
+            $new_images = [];
+            foreach ($product['images'] as $index => $image) {
+                $map_key = $this->getImageMapKey($sku, $index);
+
+                if (isset($this->image_map[$map_key]['media_id'])) {
+                    // Use pre-uploaded media ID
+                    $new_images[] = ['id' => $this->image_map[$map_key]['media_id']];
+                    $injected++;
+                } elseif (!empty($image['src'])) {
+                    // Fallback to src URL (WooCommerce will sideload)
+                    $new_images[] = ['src' => $image['src']];
+                    $fallback++;
+                }
+            }
+
+            $product['images'] = $new_images;
+        }
+
+        if ($injected > 0 || $fallback > 0) {
+            $this->logger->info("   Images: {$injected} from map, {$fallback} will sideload");
         }
     }
 
@@ -429,6 +498,11 @@ class WooCommerceDeltaSync
 
             // Step 5: Import
             if (!$this->check_only && !$this->dry_run) {
+                // Inject image IDs from map (more robust than URL sideload)
+                $this->logger->info('');
+                $this->logger->info('Resolving images from map...');
+                $this->injectImageIds();
+
                 // Save current as baseline
                 $this->saveFeed($current_feed);
 
@@ -500,7 +574,10 @@ Expected feed format: WooCommerce REST API (1:1)
     }
   ]
 
-Images: Use "images": [{"src": "URL"}] - WooCommerce handles upload.
+Images:
+  - Run import-images-wc.php first to pre-upload (recommended)
+  - Uses image-map.json to resolve media IDs
+  - Falls back to src URL if not in map (WooCommerce sideloads)
 
 Cron:
   */30 * * * * cd /path && php sync-wc.php >> logs/cron.log 2>&1
