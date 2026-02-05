@@ -2,13 +2,13 @@
 /**
  * WooCommerce Delta Sync
  *
- * Single entrypoint for syncing WC-formatted feeds.
- * Expects feed already in WooCommerce REST API format.
+ * Pure pass-through sync for WC-formatted feeds.
+ * Feed is source of truth - must contain all resolved IDs.
  *
  * Features:
  * - Delta detection (new/updated/removed)
  * - Batch import via import-wc.php
- * - Images handled natively by WooCommerce (via images[].src)
+ * - Zero transformation logic
  *
  * Usage:
  *   php sync-wc.php                    # Full sync
@@ -41,10 +41,6 @@ class WooCommerceDeltaSync
     private $data_dir;
     private $feed_file;
     private $diff_file;
-    private $image_map_file;
-
-    // Image map (SKU → media_id)
-    private $image_map = [];
 
     // Stats
     private $stats = [
@@ -59,9 +55,6 @@ class WooCommerceDeltaSync
 
     /**
      * Constructor
-     *
-     * @param array $config Configuration
-     * @param array $options CLI options
      */
     public function __construct(array $config, array $options = [])
     {
@@ -74,11 +67,9 @@ class WooCommerceDeltaSync
         $this->data_dir = __DIR__ . '/data';
         $this->feed_file = $this->data_dir . '/feed-wc.json';
         $this->diff_file = $this->data_dir . '/diff-wc.json';
-        $this->image_map_file = __DIR__ . '/image-map.json';
 
         $this->setupLogger();
         $this->ensureDataDirectory();
-        $this->loadImageMap();
     }
 
     /**
@@ -112,73 +103,7 @@ class WooCommerceDeltaSync
     }
 
     /**
-     * Load image map from file
-     */
-    private function loadImageMap(): void
-    {
-        if (file_exists($this->image_map_file)) {
-            $this->image_map = json_decode(file_get_contents($this->image_map_file), true) ?: [];
-            $this->logger->debug("Loaded image map: " . count($this->image_map) . " entries");
-        }
-    }
-
-    /**
-     * Get map key for image lookup
-     *
-     * @param string $sku Product SKU
-     * @param int $index Image index
-     * @return string Map key
-     */
-    private function getImageMapKey(string $sku, int $index): string
-    {
-        return $index === 0 ? $sku : "{$sku}__img{$index}";
-    }
-
-    /**
-     * Inject image IDs from map into diff products
-     *
-     * Replaces images[].src with images[].id where mapping exists.
-     * Falls back to src URL if no mapping (WooCommerce will sideload).
-     */
-    private function injectImageIds(): void
-    {
-        $injected = 0;
-        $fallback = 0;
-
-        foreach ($this->diff_products as &$product) {
-            $sku = $product['sku'] ?? null;
-            if (!$sku || empty($product['images'])) {
-                continue;
-            }
-
-            $new_images = [];
-            foreach ($product['images'] as $index => $image) {
-                $map_key = $this->getImageMapKey($sku, $index);
-
-                if (isset($this->image_map[$map_key]['media_id'])) {
-                    // Use pre-uploaded media ID
-                    $new_images[] = ['id' => $this->image_map[$map_key]['media_id']];
-                    $injected++;
-                } elseif (!empty($image['src'])) {
-                    // Fallback to src URL (WooCommerce will sideload)
-                    $new_images[] = ['src' => $image['src']];
-                    $fallback++;
-                }
-            }
-
-            $product['images'] = $new_images;
-        }
-
-        if ($injected > 0 || $fallback > 0) {
-            $this->logger->info("   Images: {$injected} from map, {$fallback} will sideload");
-        }
-    }
-
-    /**
-     * Generate signature for product comparison (WC format)
-     *
-     * @param array $product WC-formatted product
-     * @return string MD5 hash
+     * Generate signature for product comparison
      */
     private function getProductSignature(array $product): string
     {
@@ -188,10 +113,7 @@ class WooCommerceDeltaSync
         ];
 
         foreach ($product['_variations'] ?? [] as $var) {
-            $option = '';
-            if (!empty($var['attributes'][0]['option'])) {
-                $option = $var['attributes'][0]['option'];
-            }
+            $option = $var['attributes'][0]['option'] ?? '';
             $sig_data['variations'][] = implode(':', [
                 $option,
                 $var['regular_price'] ?? '0',
@@ -204,9 +126,7 @@ class WooCommerceDeltaSync
     }
 
     /**
-     * Fetch feed from REST API (expects WC format)
-     *
-     * @return array|null WC-formatted products
+     * Fetch feed from REST API
      */
     private function fetchFeedFromAPI(): ?array
     {
@@ -259,8 +179,6 @@ class WooCommerceDeltaSync
 
     /**
      * Load saved feed
-     *
-     * @return array|null Saved products
      */
     private function loadSavedFeed(): ?array
     {
@@ -274,8 +192,6 @@ class WooCommerceDeltaSync
 
     /**
      * Get saved feed timestamp
-     *
-     * @return string|null Formatted time
      */
     private function getSavedFeedTime(): ?string
     {
@@ -287,13 +203,9 @@ class WooCommerceDeltaSync
 
     /**
      * Compare feeds and build diff
-     *
-     * @param array $current Current feed
-     * @param array $saved Saved feed
      */
     private function compareFeedsAndBuildDiff(array $current, array $saved): void
     {
-        // Index by SKU
         $current_by_sku = [];
         foreach ($current as $product) {
             if ($sku = $product['sku'] ?? null) {
@@ -308,10 +220,9 @@ class WooCommerceDeltaSync
             }
         }
 
-        // Find new and updated
+        // New and updated
         foreach ($current_by_sku as $sku => $product) {
             if (!isset($saved_by_sku[$sku])) {
-                // New
                 $this->stats['products_new']++;
                 $product['_sync_action'] = 'new';
                 $this->diff_products[] = $product;
@@ -320,7 +231,6 @@ class WooCommerceDeltaSync
                     $this->logger->debug("   + NEW: {$sku}");
                 }
             } else {
-                // Check changes
                 $current_sig = $this->getProductSignature($product);
                 $saved_sig = $this->getProductSignature($saved_by_sku[$sku]);
 
@@ -338,12 +248,10 @@ class WooCommerceDeltaSync
             }
         }
 
-        // Find removed
+        // Removed
         foreach ($saved_by_sku as $sku => $product) {
             if (!isset($current_by_sku[$sku])) {
                 $this->stats['products_removed']++;
-
-                // Zero out stock
                 $product['_sync_action'] = 'removed';
                 foreach ($product['_variations'] ?? [] as &$var) {
                     $var['stock_quantity'] = 0;
@@ -364,20 +272,18 @@ class WooCommerceDeltaSync
     private function printDiffSummary(): void
     {
         $this->logger->info('Changes Detected:');
-        $this->logger->info("   + New products:      {$this->stats['products_new']}");
-        $this->logger->info("   ~ Updated products:  {$this->stats['products_updated']}");
-        $this->logger->info("   - Removed products:  {$this->stats['products_removed']}");
-        $this->logger->info("     Unchanged:         {$this->stats['products_unchanged']}");
+        $this->logger->info("   + New:       {$this->stats['products_new']}");
+        $this->logger->info("   ~ Updated:   {$this->stats['products_updated']}");
+        $this->logger->info("   - Removed:   {$this->stats['products_removed']}");
+        $this->logger->info("     Unchanged: {$this->stats['products_unchanged']}");
         $this->logger->info("   ---------------------");
 
         $total = $this->stats['products_new'] + $this->stats['products_updated'] + $this->stats['products_removed'];
-        $this->logger->info("   Total to sync:       {$total}");
+        $this->logger->info("   Total:       {$total}");
     }
 
     /**
      * Save feed
-     *
-     * @param array $feed Feed data
      */
     private function saveFeed(array $feed): void
     {
@@ -401,8 +307,6 @@ class WooCommerceDeltaSync
 
     /**
      * Trigger import
-     *
-     * @return bool Success
      */
     private function triggerImport(): bool
     {
@@ -419,8 +323,6 @@ class WooCommerceDeltaSync
 
     /**
      * Main run
-     *
-     * @return bool Success
      */
     public function run(): bool
     {
@@ -430,40 +332,40 @@ class WooCommerceDeltaSync
         $this->logger->info('================================');
         $this->logger->info('  WooCommerce Delta Sync');
         $this->logger->info('================================');
-        $this->logger->info('  Feed format: WooCommerce REST API');
+        $this->logger->info('  Mode: Pass-through (IDs only)');
 
         if ($this->dry_run) {
-            $this->logger->warning('  DRY RUN MODE');
+            $this->logger->warning('  DRY RUN');
         }
         if ($this->check_only) {
-            $this->logger->info('  CHECK ONLY MODE');
+            $this->logger->info('  CHECK ONLY');
         }
         if ($this->force_full) {
-            $this->logger->warning('  FORCE FULL MODE');
+            $this->logger->warning('  FORCE FULL');
         }
 
         $this->logger->info('');
 
         try {
-            // Step 1: Fetch current feed
-            $this->logger->info('Fetching current feed from API...');
+            // Fetch
+            $this->logger->info('Fetching feed...');
             $current_feed = $this->fetchFeedFromAPI();
 
             if (empty($current_feed)) {
-                $this->logger->error('Failed to fetch feed from API');
+                $this->logger->error('Failed to fetch feed');
                 return false;
             }
 
-            $this->logger->info("   " . count($current_feed) . " products loaded");
+            $this->logger->info("   {$this->countProducts($current_feed)} products");
 
-            // Step 2: Load saved feed
+            // Load saved
             $this->logger->info('');
-            $this->logger->info('Loading saved feed...');
+            $this->logger->info('Loading baseline...');
             $saved_feed = $this->loadSavedFeed();
 
             if ($saved_feed === null || $this->force_full) {
-                $reason = $saved_feed === null ? 'First run' : 'Force full requested';
-                $this->logger->info("   {$reason} - processing all products");
+                $reason = $saved_feed === null ? 'First run' : 'Force full';
+                $this->logger->info("   {$reason} - all products");
 
                 $this->diff_products = $current_feed;
                 foreach ($this->diff_products as &$p) {
@@ -473,59 +375,46 @@ class WooCommerceDeltaSync
                 unset($p);
             } else {
                 $saved_time = $this->getSavedFeedTime();
-                $this->logger->info("   " . count($saved_feed) . " products from last sync");
-                if ($saved_time) {
-                    $this->logger->info("   Last sync: {$saved_time}");
-                }
+                $this->logger->info("   {$this->countProducts($saved_feed)} from {$saved_time}");
 
-                // Step 3: Compare
                 $this->logger->info('');
-                $this->logger->info('Comparing feeds...');
+                $this->logger->info('Comparing...');
                 $this->compareFeedsAndBuildDiff($current_feed, $saved_feed);
             }
 
-            // Step 4: Report
+            // Report
             $this->logger->info('');
             $this->printDiffSummary();
 
-            $total_changes = $this->stats['products_new'] + $this->stats['products_updated'] + $this->stats['products_removed'];
+            $total = $this->stats['products_new'] + $this->stats['products_updated'] + $this->stats['products_removed'];
 
-            if ($total_changes === 0) {
+            if ($total === 0) {
                 $this->logger->info('');
-                $this->logger->info('No changes detected - nothing to sync');
+                $this->logger->info('Nothing to sync');
                 return true;
             }
 
-            // Step 5: Import
+            // Import
             if (!$this->check_only && !$this->dry_run) {
-                // Inject image IDs from map (more robust than URL sideload)
-                $this->logger->info('');
-                $this->logger->info('Resolving images from map...');
-                $this->injectImageIds();
-
-                // Save current as baseline
                 $this->saveFeed($current_feed);
-
-                // Save diff
                 $this->saveDiff();
 
-                // Trigger import
                 $this->logger->info('');
-                $this->logger->info('Triggering import...');
+                $this->logger->info('Importing...');
                 $this->logger->info('');
 
                 $success = $this->triggerImport();
 
-                $duration = round(microtime(true) - $start_time, 2);
+                $duration = round(microtime(true) - $start_time, 1);
                 $this->logger->info('');
-                $this->logger->info("Sync complete in {$duration}s");
+                $this->logger->info("Done in {$duration}s");
 
                 return $success;
             }
 
-            $duration = round(microtime(true) - $start_time, 2);
+            $duration = round(microtime(true) - $start_time, 1);
             $this->logger->info('');
-            $this->logger->info("Check complete in {$duration}s");
+            $this->logger->info("Done in {$duration}s");
 
             return true;
 
@@ -533,6 +422,11 @@ class WooCommerceDeltaSync
             $this->logger->error('Error: ' . $e->getMessage());
             return false;
         }
+    }
+
+    private function countProducts(array $feed): int
+    {
+        return count($feed);
     }
 }
 
@@ -542,42 +436,37 @@ class WooCommerceDeltaSync
 
 if (in_array('--help', $argv) || in_array('-h', $argv)) {
     echo <<<HELP
-WooCommerce Delta Sync
-Syncs WC-formatted feeds to WooCommerce.
+WooCommerce Delta Sync (Pass-through)
 
 Usage:
   php sync-wc.php [options]
 
 Options:
-  --dry-run         Preview changes without importing
-  --check-only      Check for changes, no import
-  --force-full      Force full import (ignore diff)
-  --verbose, -v     Detailed logging
-  --help, -h        Show this help
+  --dry-run         Preview changes
+  --check-only      Show diff only
+  --force-full      Force full import
+  --verbose, -v     Detailed output
+  --help, -h        Show help
 
-Expected feed format: WooCommerce REST API (1:1)
-  [
-    {
-      "name": "Product Name",
-      "sku": "SKU-123",
-      "type": "variable",
-      "images": [{"src": "https://..."}],
-      "_variations": [
-        {
-          "sku": "SKU-123-36",
-          "regular_price": "99.00",
-          "stock_quantity": 5,
-          "stock_status": "instock",
-          "attributes": [{"id": 1, "option": "36"}]
-        }
-      ]
-    }
-  ]
-
-Images:
-  - Run import-images-wc.php first to pre-upload (recommended)
-  - Uses image-map.json to resolve media IDs
-  - Falls back to src URL if not in map (WooCommerce sideloads)
+Feed must provide ALL resolved IDs:
+  {
+    "sku": "SKU-123",
+    "name": "Product",
+    "type": "variable",
+    "categories": [{"id": 15}],
+    "brands": [{"id": 8}],
+    "images": [{"id": 234}],
+    "attributes": [{"id": 1, "options": ["36", "37"]}],
+    "_variations": [
+      {
+        "sku": "SKU-123-36",
+        "regular_price": "99.00",
+        "stock_quantity": 5,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "36"}]
+      }
+    ]
+  }
 
 Cron:
   */30 * * * * cd /path && php sync-wc.php >> logs/cron.log 2>&1
@@ -596,6 +485,4 @@ $options = [
 $config = require __DIR__ . '/config.php';
 
 $sync = new WooCommerceDeltaSync($config, $options);
-$success = $sync->run();
-
-exit($success ? 0 : 1);
+exit($sync->run() ? 0 : 1);
