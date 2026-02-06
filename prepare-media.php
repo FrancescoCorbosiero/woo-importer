@@ -1,20 +1,20 @@
 <?php
 /**
- * Media Preparation
+ * Media Preparation (Source-Agnostic)
  *
- * Downloads product images from Golden Sneakers API and uploads them
- * to the WordPress media library with Italian SEO metadata.
- * Maintains image-map.json for use by the transform step.
+ * Downloads product images and uploads them to the WordPress media
+ * library with Italian SEO metadata.
+ * Maintains image-map.json for use by the transform/import steps.
  *
  * Outputs: image-map.json (SKU => {media_id, url, uploaded_at})
  *
  * Usage:
- *   php prepare-media.php                      # Upload new images only
- *   php prepare-media.php --limit=10           # Process first 10 only
- *   php prepare-media.php --force              # Re-upload all images
- *   php prepare-media.php --update-metadata    # Update SEO metadata only
- *   php prepare-media.php --dry-run            # Preview without uploading
- *   php prepare-media.php --verbose            # Detailed output
+ *   php prepare-media.php --from-gs                   # Images from GS API
+ *   php prepare-media.php --urls-file=images.json     # Images from JSON file
+ *   php prepare-media.php --from-gs --limit=10        # First 10 only
+ *   php prepare-media.php --from-gs --force           # Re-upload all
+ *   php prepare-media.php --update-metadata           # Update SEO only
+ *   php prepare-media.php --dry-run --verbose
  *
  * @package ResellPiacenza\WooImport
  */
@@ -37,6 +37,10 @@ class MediaPreparer
     private $force = false;
     private $update_metadata = false;
 
+    // Image source
+    private $image_source = null; // 'gs', 'file', or null
+    private $urls_file = null;
+
     private $stats = [
         'total' => 0,
         'uploaded' => 0,
@@ -57,6 +61,8 @@ class MediaPreparer
         $this->limit = $options['limit'] ?? null;
         $this->force = $options['force'] ?? false;
         $this->update_metadata = $options['update_metadata'] ?? false;
+        $this->image_source = $options['image_source'] ?? null;
+        $this->urls_file = $options['urls_file'] ?? null;
 
         $this->setupLogger();
         $this->loadExistingMap();
@@ -125,13 +131,28 @@ class MediaPreparer
     }
 
     /**
-     * Fetch products from Golden Sneakers API
+     * Resolve image list from the configured source
      *
-     * @return array Products
+     * @return array Image entries [{sku, url, product_name, brand_name}, ...]
      */
-    private function fetchProducts(): array
+    private function resolveImages(): array
     {
-        $this->logger->info('Fetching feed from API...');
+        switch ($this->image_source) {
+            case 'gs':
+                return $this->fetchImagesFromGS();
+            case 'file':
+                return $this->loadImagesFromFile($this->urls_file);
+            default:
+                throw new Exception('No image source specified (use --from-gs or --urls-file=FILE)');
+        }
+    }
+
+    /**
+     * Fetch images from Golden Sneakers API
+     */
+    private function fetchImagesFromGS(): array
+    {
+        $this->logger->info('Fetching GS feed for image discovery...');
 
         $params = http_build_query($this->config['api']['params']);
         $url = $this->config['api']['base_url'] . '?' . $params;
@@ -166,37 +187,64 @@ class MediaPreparer
         }
 
         $this->logger->info("  " . count($products) . " products");
-        return $products;
+
+        // Extract unique images
+        $images = [];
+        $seen = [];
+        foreach ($products as $product) {
+            $sku = $product['sku'] ?? null;
+            $img_url = $product['image_full_url'] ?? null;
+            if (!$sku || !$img_url || isset($seen[$img_url])) {
+                continue;
+            }
+            $images[] = [
+                'sku' => $sku,
+                'url' => $img_url,
+                'product_name' => $product['name'] ?? '',
+                'brand_name' => $product['brand_name'] ?? '',
+            ];
+            $seen[$img_url] = true;
+        }
+
+        return $images;
     }
 
     /**
-     * Extract unique images from product list
+     * Load images from a JSON file
      *
-     * @param array $products GS products
-     * @return array Image data entries
+     * Accepts formats:
+     *   [{"sku": "X", "url": "https://...", "product_name": "...", "brand_name": "..."}]
+     *   [{"sku": "X", "image_url": "https://...", "name": "...", "brand": "..."}]
      */
-    private function extractUniqueImages(array $products): array
+    private function loadImagesFromFile(string $path): array
     {
+        if (!file_exists($path)) {
+            throw new Exception("URLs file not found: {$path}");
+        }
+
+        $data = json_decode(file_get_contents($path), true);
+        if (!is_array($data)) {
+            throw new Exception("Invalid JSON in URLs file");
+        }
+
         $images = [];
         $seen = [];
-
-        foreach ($products as $product) {
-            $sku = $product['sku'] ?? null;
-            $url = $product['image_full_url'] ?? null;
-
+        foreach ($data as $item) {
+            $sku = $item['sku'] ?? null;
+            $url = $item['url'] ?? $item['image_url'] ?? null;
             if (!$sku || !$url || isset($seen[$url])) {
                 continue;
             }
-
             $images[] = [
                 'sku' => $sku,
                 'url' => $url,
-                'product_name' => $product['name'] ?? '',
-                'brand_name' => $product['brand_name'] ?? '',
+                'product_name' => $item['product_name'] ?? $item['name'] ?? '',
+                'brand_name' => $item['brand_name'] ?? $item['brand'] ?? '',
             ];
             $seen[$url] = true;
         }
 
+        $this->logger->info("  Loaded " . count($images) . " images from {$path}");
         return $images;
     }
 
@@ -479,8 +527,7 @@ class MediaPreparer
         $this->logger->info('');
 
         try {
-            $products = $this->fetchProducts();
-            $images = $this->extractUniqueImages($products);
+            $images = $this->resolveImages();
             $this->stats['total'] = count($images);
 
             $this->logger->info("{$this->stats['total']} unique images to process");
@@ -545,18 +592,27 @@ Media Preparation
 Downloads and uploads product images to WordPress with Italian SEO metadata.
 
 Usage:
-  php prepare-media.php [options]
+  php prepare-media.php <source> [options]
+
+Image sources (pick one):
+  --from-gs               Get image URLs from Golden Sneakers API
+  --urls-file=FILE        Load from JSON file (see docs/bulk-upload-images.json)
 
 Options:
-  --dry-run             Preview without uploading
-  --limit=N             Process first N images only
-  --force               Re-upload all images (replaces existing)
-  --update-metadata     Update SEO metadata only (no re-upload)
-  --verbose, -v         Detailed output
-  --help, -h            Show help
+  --dry-run               Preview without uploading
+  --limit=N               Process first N images only
+  --force                 Re-upload all images (replaces existing)
+  --update-metadata       Update SEO metadata only (no re-upload)
+  --verbose, -v           Detailed output
+  --help, -h              Show help
 
 Output:
   image-map.json - SKU to WordPress media ID mapping
+
+Examples:
+  php prepare-media.php --from-gs                        # GS pipeline
+  php prepare-media.php --from-gs --limit=10 --dry-run   # Preview 10
+  php prepare-media.php --urls-file=my-images.json       # Custom source
 
 HELP;
     exit(0);
@@ -567,12 +623,22 @@ $options = [
     'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
     'force' => in_array('--force', $argv),
     'update_metadata' => in_array('--update-metadata', $argv),
+    'image_source' => null,
+    'urls_file' => null,
     'limit' => null,
 ];
+
+if (in_array('--from-gs', $argv)) {
+    $options['image_source'] = 'gs';
+}
 
 foreach ($argv as $arg) {
     if (strpos($arg, '--limit=') === 0) {
         $options['limit'] = (int) str_replace('--limit=', '', $arg);
+    }
+    if (strpos($arg, '--urls-file=') === 0) {
+        $options['image_source'] = 'file';
+        $options['urls_file'] = str_replace('--urls-file=', '', $arg);
     }
 }
 

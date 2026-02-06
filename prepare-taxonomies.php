@@ -1,18 +1,20 @@
 <?php
 /**
- * Taxonomy Preparation
+ * Taxonomy Preparation (Source-Agnostic)
  *
  * Ensures all required WooCommerce taxonomies exist before import:
- * - Categories (Sneakers, Abbigliamento - auto-detected by size format)
- * - Global attributes (Taglia, Marca)
- * - Brands (extracted from Golden Sneakers feed)
+ * - Categories (from config: Sneakers, Abbigliamento)
+ * - Global attributes (from config: Taglia, Marca)
+ * - Brands (from Golden Sneakers API, a JSON file, or CLI list)
  *
  * Outputs: data/taxonomy-map.json
  *
  * Usage:
- *   php prepare-taxonomies.php                # Ensure all taxonomies
- *   php prepare-taxonomies.php --dry-run      # Preview without creating
- *   php prepare-taxonomies.php --verbose      # Detailed output
+ *   php prepare-taxonomies.php --from-gs              # Brands from GS API
+ *   php prepare-taxonomies.php --brands-file=b.json   # Brands from JSON file
+ *   php prepare-taxonomies.php --brands=Nike,Adidas   # Brands from CLI
+ *   php prepare-taxonomies.php                        # Categories + attributes only
+ *   php prepare-taxonomies.php --dry-run --verbose
  *
  * @package ResellPiacenza\WooImport
  */
@@ -32,6 +34,11 @@ class TaxonomyPreparer
 
     private $dry_run = false;
     private $verbose = false;
+
+    // Brand source
+    private $brand_source = null; // 'gs', 'file', 'list', or null
+    private $brands_file = null;
+    private $brands_list = [];
 
     private $map = [
         'categories' => [],
@@ -57,6 +64,9 @@ class TaxonomyPreparer
         $this->config = $config;
         $this->dry_run = $options['dry_run'] ?? false;
         $this->verbose = $options['verbose'] ?? false;
+        $this->brand_source = $options['brand_source'] ?? null;
+        $this->brands_file = $options['brands_file'] ?? null;
+        $this->brands_list = $options['brands_list'] ?? [];
 
         $this->setupLogger();
         $this->setupWooCommerceClient();
@@ -91,10 +101,6 @@ class TaxonomyPreparer
 
     /**
      * Ensure a category exists in WooCommerce
-     *
-     * @param string $name Display name
-     * @param string $slug URL slug
-     * @return int|null Category ID
      */
     private function ensureCategory(string $name, string $slug): ?int
     {
@@ -131,11 +137,6 @@ class TaxonomyPreparer
 
     /**
      * Ensure a global attribute exists in WooCommerce
-     *
-     * @param string $name Display name
-     * @param string $slug Attribute slug
-     * @param array $extra Extra attribute properties
-     * @return int|null Attribute ID
      */
     private function ensureAttribute(string $name, string $slug, array $extra = []): ?int
     {
@@ -178,9 +179,6 @@ class TaxonomyPreparer
 
     /**
      * Ensure a brand exists in WooCommerce brands taxonomy
-     *
-     * @param string $name Brand name
-     * @return int|null Brand term ID
      */
     private function ensureBrand(string $name): ?int
     {
@@ -230,13 +228,35 @@ class TaxonomyPreparer
     }
 
     /**
-     * Fetch Golden Sneakers feed and extract unique brand names
+     * Resolve brand names from the configured source
      *
      * @return array List of brand names
      */
-    private function fetchBrandNames(): array
+    private function resolveBrandNames(): array
     {
-        $this->logger->info('Fetching feed for brand discovery...');
+        switch ($this->brand_source) {
+            case 'gs':
+                return $this->fetchBrandNamesFromGS();
+
+            case 'file':
+                return $this->loadBrandNamesFromFile($this->brands_file);
+
+            case 'list':
+                $this->logger->info("  " . count($this->brands_list) . " brands from CLI");
+                return $this->brands_list;
+
+            default:
+                $this->logger->info('  No brand source specified (use --from-gs, --brands-file, or --brands)');
+                return [];
+        }
+    }
+
+    /**
+     * Fetch brand names from Golden Sneakers API
+     */
+    private function fetchBrandNamesFromGS(): array
+    {
+        $this->logger->info('Fetching GS feed for brand discovery...');
 
         $params = http_build_query($this->config['api']['params']);
         $url = $this->config['api']['base_url'] . '?' . $params;
@@ -288,9 +308,38 @@ class TaxonomyPreparer
     }
 
     /**
+     * Load brand names from a JSON file
+     * Accepts: ["Nike", "Adidas", ...] or [{"brand": "Nike"}, ...]
+     */
+    private function loadBrandNamesFromFile(string $path): array
+    {
+        if (!file_exists($path)) {
+            $this->logger->error("Brands file not found: {$path}");
+            return [];
+        }
+
+        $data = json_decode(file_get_contents($path), true);
+        if (!is_array($data)) {
+            $this->logger->error("Invalid JSON in brands file");
+            return [];
+        }
+
+        $brands = [];
+        foreach ($data as $item) {
+            $name = is_string($item) ? $item : ($item['brand'] ?? $item['brand_name'] ?? $item['name'] ?? null);
+            if ($name && !in_array($name, $brands)) {
+                $brands[] = $name;
+            }
+        }
+
+        sort($brands);
+        $this->logger->info("  Loaded " . count($brands) . " brands from {$path}");
+
+        return $brands;
+    }
+
+    /**
      * Main entry point
-     *
-     * @return bool Success
      */
     public function run(): bool
     {
@@ -308,6 +357,19 @@ class TaxonomyPreparer
         $this->logger->info('');
 
         try {
+            // Load existing map to preserve entries from other sources
+            $map_file = __DIR__ . '/data/taxonomy-map.json';
+            if (file_exists($map_file)) {
+                $existing = json_decode(file_get_contents($map_file), true) ?: [];
+                $this->map['categories'] = $existing['categories'] ?? [];
+                $this->map['attributes'] = $existing['attributes'] ?? [];
+                $this->map['brands'] = $existing['brands'] ?? [];
+                $this->logger->debug("Loaded existing map: " .
+                    count($this->map['categories']) . " categories, " .
+                    count($this->map['brands']) . " brands"
+                );
+            }
+
             // Categories
             $this->logger->info('Ensuring categories...');
             foreach ($this->config['categories'] as $type => $cat_config) {
@@ -335,16 +397,19 @@ class TaxonomyPreparer
                 }
             }
 
-            // Brands (from feed)
+            // Brands
             if ($this->config['brands']['enabled'] ?? true) {
                 $this->logger->info('');
-                $brand_names = $this->fetchBrandNames();
+                $this->logger->info('Resolving brands...');
+                $brand_names = $this->resolveBrandNames();
 
-                $this->logger->info('Ensuring brands...');
-                foreach ($brand_names as $name) {
-                    $id = $this->ensureBrand($name);
-                    if ($id) {
-                        $this->map['brands'][$this->sanitizeSlug($name)] = $id;
+                if (!empty($brand_names)) {
+                    $this->logger->info('Ensuring brands...');
+                    foreach ($brand_names as $name) {
+                        $id = $this->ensureBrand($name);
+                        if ($id) {
+                            $this->map['brands'][$this->sanitizeSlug($name)] = $id;
+                        }
                     }
                 }
             }
@@ -357,7 +422,6 @@ class TaxonomyPreparer
                 mkdir($data_dir, 0755, true);
             }
 
-            $map_file = $data_dir . '/taxonomy-map.json';
             file_put_contents(
                 $map_file,
                 json_encode($this->map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
@@ -372,6 +436,7 @@ class TaxonomyPreparer
             $this->logger->info("  Categories: {$this->stats['categories_existing']} existing, {$this->stats['categories_created']} created");
             $this->logger->info("  Attributes: {$this->stats['attributes_existing']} existing, {$this->stats['attributes_created']} created");
             $this->logger->info("  Brands:     {$this->stats['brands_existing']} existing, {$this->stats['brands_created']} created");
+            $this->logger->info("  Total in map: " . count($this->map['brands']) . " brands");
             $this->logger->info("  Duration:   {$duration}s");
             $this->logger->info("  Saved to:   {$map_file}");
             $this->logger->info('================================');
@@ -395,15 +460,27 @@ Taxonomy Preparation
 Ensures all WooCommerce taxonomies exist before import.
 
 Usage:
-  php prepare-taxonomies.php [options]
+  php prepare-taxonomies.php [brand-source] [options]
+
+Brand sources (pick one):
+  --from-gs               Discover brands from Golden Sneakers API
+  --brands-file=FILE      Load brands from JSON file (["Nike", "Adidas", ...])
+  --brands=Nike,Adidas    Provide brands as comma-separated list
+  (none)                  Only ensure categories + attributes, no brands
 
 Options:
-  --dry-run         Preview without creating anything
-  --verbose, -v     Detailed output
-  --help, -h        Show help
+  --dry-run               Preview without creating anything
+  --verbose, -v           Detailed output
+  --help, -h              Show help
 
 Output:
   data/taxonomy-map.json - Category, attribute, and brand ID mappings
+  (Merges with existing map - safe to run from multiple sources)
+
+Examples:
+  php prepare-taxonomies.php --from-gs                    # GS pipeline
+  php prepare-taxonomies.php --brands=Nike,Adidas,Puma    # Manual brands
+  php prepare-taxonomies.php --brands-file=my-brands.json # From file
 
 HELP;
     exit(0);
@@ -412,7 +489,25 @@ HELP;
 $options = [
     'dry_run' => in_array('--dry-run', $argv),
     'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
+    'brand_source' => null,
+    'brands_file' => null,
+    'brands_list' => [],
 ];
+
+if (in_array('--from-gs', $argv)) {
+    $options['brand_source'] = 'gs';
+}
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--brands-file=') === 0) {
+        $options['brand_source'] = 'file';
+        $options['brands_file'] = str_replace('--brands-file=', '', $arg);
+    }
+    if (strpos($arg, '--brands=') === 0) {
+        $options['brand_source'] = 'list';
+        $options['brands_list'] = array_map('trim', explode(',', str_replace('--brands=', '', $arg)));
+    }
+}
 
 $config = require __DIR__ . '/config.php';
 $preparer = new TaxonomyPreparer($config, $options);

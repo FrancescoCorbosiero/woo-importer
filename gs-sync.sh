@@ -1,19 +1,20 @@
 #!/bin/bash
 # =============================================================================
-# WooCommerce Product Sync - Crontab Entrypoint
+# Golden Sneakers Sync Pipeline - Crontab Entrypoint
 # =============================================================================
 #
 # Full pipeline: taxonomies → media → transform → delta sync → import
+# Source: Golden Sneakers API
 #
 # Usage:
-#   ./sync.sh                     # Full sync
-#   ./sync.sh --dry-run           # Preview everything
-#   ./sync.sh --skip-media        # Skip image upload step
-#   ./sync.sh --force-full        # Force full import (ignore delta)
-#   ./sync.sh --verbose           # Detailed output from all steps
+#   ./gs-sync.sh                     # Full sync
+#   ./gs-sync.sh --dry-run           # Preview everything
+#   ./gs-sync.sh --skip-media        # Skip image upload step
+#   ./gs-sync.sh --force-full        # Force full import (ignore delta)
+#   ./gs-sync.sh --verbose           # Detailed output from all steps
 #
 # Crontab example (every 30 minutes):
-#   */30 * * * * cd /path/to/woo-importer && ./sync.sh >> logs/cron.log 2>&1
+#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh >> logs/cron.log 2>&1
 #
 # =============================================================================
 
@@ -33,7 +34,7 @@ for arg in "$@"; do
         --skip-media)  SKIP_MEDIA="1" ;;
         --force-full)  FORCE_FULL="--force-full" ;;
         --help|-h)
-            echo "Usage: ./sync.sh [options]"
+            echo "Usage: ./gs-sync.sh [options]"
             echo ""
             echo "Options:"
             echo "  --dry-run       Preview all changes without writing"
@@ -43,7 +44,7 @@ for arg in "$@"; do
             echo "  --help, -h      Show this help"
             echo ""
             echo "Crontab:"
-            echo "  */30 * * * * cd /path/to/woo-importer && ./sync.sh >> logs/cron.log 2>&1"
+            echo "  */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh >> logs/cron.log 2>&1"
             exit 0
             ;;
     esac
@@ -54,20 +55,20 @@ mkdir -p logs
 
 echo ""
 echo "========================================"
-echo "  WooCommerce Sync Pipeline"
+echo "  Golden Sneakers Sync Pipeline"
 echo "  $(date '+%Y-%m-%d %H:%M:%S')"
 echo "========================================"
 echo ""
 
-# Step 1: Ensure taxonomies exist (categories, attributes, brands)
+# Step 1: Ensure taxonomies exist (categories, attributes, brands from GS feed)
 echo "[Step 1/4] Preparing taxonomies..."
-php prepare-taxonomies.php $DRY_RUN $VERBOSE
+php prepare-taxonomies.php --from-gs $DRY_RUN $VERBOSE
 echo ""
 
 # Step 2: Upload new images to WordPress media library
 if [ -z "$SKIP_MEDIA" ]; then
     echo "[Step 2/4] Preparing media..."
-    php prepare-media.php $DRY_RUN $VERBOSE
+    php prepare-media.php --from-gs $DRY_RUN $VERBOSE
     echo ""
 else
     echo "[Step 2/4] Skipping media (--skip-media)"
@@ -76,7 +77,7 @@ fi
 
 # Step 3: Transform GS feed → WooCommerce format
 echo "[Step 3/4] Transforming feed..."
-php transform-feed.php $VERBOSE
+php gs-transform.php $VERBOSE
 echo ""
 
 # Step 4: Delta sync + import
