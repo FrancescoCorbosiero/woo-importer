@@ -11,11 +11,12 @@
  * - Zero transformation logic
  *
  * Usage:
- *   php sync-wc.php                    # Full sync
- *   php sync-wc.php --dry-run          # Preview changes
- *   php sync-wc.php --check-only       # Just show diff
- *   php sync-wc.php --force-full       # Force full import
- *   php sync-wc.php --verbose          # Detailed output
+ *   php sync-wc.php                              # Full sync (fetch from API)
+ *   php sync-wc.php --feed=data/feed-wc-latest.json  # Sync from local file
+ *   php sync-wc.php --dry-run                    # Preview changes
+ *   php sync-wc.php --check-only                 # Just show diff
+ *   php sync-wc.php --force-full                 # Force full import
+ *   php sync-wc.php --verbose                    # Detailed output
  *
  * @package ResellPiacenza\WooImport
  */
@@ -36,6 +37,7 @@ class WooCommerceDeltaSync
     private $check_only = false;
     private $force_full = false;
     private $verbose = false;
+    private $feed_file_input = null;
 
     // Paths
     private $data_dir;
@@ -63,6 +65,7 @@ class WooCommerceDeltaSync
         $this->check_only = $options['check_only'] ?? false;
         $this->force_full = $options['force_full'] ?? false;
         $this->verbose = $options['verbose'] ?? false;
+        $this->feed_file_input = $options['feed_file'] ?? null;
 
         $this->data_dir = __DIR__ . '/data';
         $this->feed_file = $this->data_dir . '/feed-wc.json';
@@ -123,6 +126,29 @@ class WooCommerceDeltaSync
         sort($sig_data['variations']);
 
         return md5(json_encode($sig_data));
+    }
+
+    /**
+     * Load feed from a local JSON file
+     *
+     * @param string $path File path
+     * @return array|null Feed data or null on error
+     */
+    private function loadFeedFromFile(string $path): ?array
+    {
+        if (!file_exists($path)) {
+            $this->logger->error("Feed file not found: {$path}");
+            return null;
+        }
+
+        $data = json_decode(file_get_contents($path), true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->logger->error('JSON error: ' . json_last_error_msg());
+            return null;
+        }
+
+        return $data;
     }
 
     /**
@@ -332,7 +358,11 @@ class WooCommerceDeltaSync
         $this->logger->info('================================');
         $this->logger->info('  WooCommerce Delta Sync');
         $this->logger->info('================================');
-        $this->logger->info('  Mode: Pass-through (IDs only)');
+        if ($this->feed_file_input) {
+            $this->logger->info('  Source: ' . $this->feed_file_input);
+        } else {
+            $this->logger->info('  Source: API');
+        }
 
         if ($this->dry_run) {
             $this->logger->warning('  DRY RUN');
@@ -347,9 +377,14 @@ class WooCommerceDeltaSync
         $this->logger->info('');
 
         try {
-            // Fetch
-            $this->logger->info('Fetching feed...');
-            $current_feed = $this->fetchFeedFromAPI();
+            // Fetch current feed (from file or API)
+            if ($this->feed_file_input) {
+                $this->logger->info("Loading feed from {$this->feed_file_input}...");
+                $current_feed = $this->loadFeedFromFile($this->feed_file_input);
+            } else {
+                $this->logger->info('Fetching feed from API...');
+                $current_feed = $this->fetchFeedFromAPI();
+            }
 
             if (empty($current_feed)) {
                 $this->logger->error('Failed to fetch feed');
@@ -436,40 +471,27 @@ class WooCommerceDeltaSync
 
 if (in_array('--help', $argv) || in_array('-h', $argv)) {
     echo <<<HELP
-WooCommerce Delta Sync (Pass-through)
+WooCommerce Delta Sync
 
 Usage:
   php sync-wc.php [options]
 
 Options:
+  --feed=FILE       Read WC-formatted feed from local file
+                    (default: fetch from API)
   --dry-run         Preview changes
   --check-only      Show diff only
   --force-full      Force full import
   --verbose, -v     Detailed output
   --help, -h        Show help
 
-Feed must provide ALL resolved IDs:
-  {
-    "sku": "SKU-123",
-    "name": "Product",
-    "type": "variable",
-    "categories": [{"id": 15}],
-    "brands": [{"id": 8}],
-    "images": [{"id": 234}],
-    "attributes": [{"id": 1, "options": ["36", "37"]}],
-    "_variations": [
-      {
-        "sku": "SKU-123-36",
-        "regular_price": "99.00",
-        "stock_quantity": 5,
-        "stock_status": "instock",
-        "attributes": [{"id": 1, "option": "36"}]
-      }
-    ]
-  }
+Examples:
+  php sync-wc.php                                    # Fetch from API
+  php sync-wc.php --feed=data/feed-wc-latest.json    # From local file
+  php sync-wc.php --feed=data/feed-wc-latest.json --dry-run
 
-Cron:
-  */30 * * * * cd /path && php sync-wc.php >> logs/cron.log 2>&1
+Cron (with full pipeline):
+  */30 * * * * cd /path && ./sync.sh >> logs/cron.log 2>&1
 
 HELP;
     exit(0);
@@ -480,7 +502,14 @@ $options = [
     'check_only' => in_array('--check-only', $argv),
     'force_full' => in_array('--force-full', $argv),
     'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
+    'feed_file' => null,
 ];
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--feed=') === 0) {
+        $options['feed_file'] = str_replace('--feed=', '', $arg);
+    }
+}
 
 $config = require __DIR__ . '/config.php';
 
