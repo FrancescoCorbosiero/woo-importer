@@ -1,0 +1,55 @@
+[
+  {
+    "sku": "MY-AF1-001",
+    "name": "Nike Air Force 1 Low White",
+    "brand": "Nike",
+    "category": "sneakers",
+    "image_url": "https://example.com/images/AF1-white.jpg",
+    "sizes": [
+      {"size": "38", "price": 120.00, "stock": 2},
+      {"size": "39", "price": 120.00, "stock": 4},
+      {"size": "40", "price": 120.00, "stock": 3},
+      {"size": "41", "price": 125.00, "stock": 5},
+      {"size": "42", "price": 125.00, "stock": 1},
+      {"size": "43", "price": 130.00, "stock": 0}
+    ]
+  },
+  {
+    "sku": "MY-DUNK-002",
+    "name": "Nike Dunk Low Panda",
+    "brand": "Nike",
+    "category": "sneakers",
+    "image_url": "https://example.com/images/dunk-panda.jpg",
+    "sizes": [
+      {"size": "36", "price": 140.00, "stock": 1},
+      {"size": "37.5", "price": 140.00, "stock": 3},
+      {"size": "38.5", "price": 145.00, "stock": 2}
+    ]
+  },
+  {
+    "sku": "MY-SAMBA-003",
+    "name": "Adidas Samba OG White Black",
+    "brand": "Adidas",
+    "category": "sneakers",
+    "image_url": "https://example.com/images/samba-og.jpg",
+    "sizes": [
+      {"size": "40", "price": 110.00, "stock": 6},
+      {"size": "41", "price": 110.00, "stock": 4},
+      {"size": "42", "price": 110.00, "stock": 2},
+      {"size": "43", "price": 115.00, "stock": 3}
+    ]
+  },
+  {
+    "sku": "MY-HOODIE-004",
+    "name": "Nike Tech Fleece Hoodie Black",
+    "brand": "Nike",
+    "category": "clothing",
+    "image_url": "https://example.com/images/tech-fleece.jpg",
+    "sizes": [
+      {"size": "S", "price": 95.00, "stock": 3},
+      {"size": "M", "price": 95.00, "stock": 5},
+      {"size": "L", "price": 95.00, "stock": 4},
+      {"size": "XL", "price": 95.00, "stock": 2}
+    ]
+  }
+]
