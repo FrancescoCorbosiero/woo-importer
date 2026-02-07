@@ -25,16 +25,19 @@
         "sort-packages": true
     },
     "scripts": {
-        "import": "php import.php",
-        "import:dry": "php import.php --dry-run",
-        "import:test": "php import.php --dry-run --limit=5",
-        "images": "php import-images.php",
-        "images:test": "php import-images.php --limit=5",
-        "kicksdb:import": "php import-kicksdb.php",
-        "kicksdb:import:dry": "php import-kicksdb.php --dry-run",
-        "kicksdb:transform": "php import-kicksdb.php --transform-only --save-feed",
-        "pricing:reconcile": "php pricing/reconcile.php",
-        "pricing:reconcile:dry": "php pricing/reconcile.php --dry-run",
-        "pricing:reconcile:verbose": "php pricing/reconcile.php --verbose"
+        "import-wc": "php bin/import-wc",
+        "import-wc:dry": "php bin/import-wc --dry-run",
+        "gs:sync": "./gs-sync.sh",
+        "gs:sync:dry": "./gs-sync.sh --dry-run",
+        "gs:transform": "php bin/gs-transform",
+        "gs:taxonomies": "php bin/prepare-taxonomies --from-gs",
+        "gs:media": "php bin/prepare-media --from-gs",
+        "kicksdb:import": "php bin/import-kicksdb",
+        "kicksdb:import:dry": "php bin/import-kicksdb --dry-run",
+        "kicksdb:transform": "php bin/import-kicksdb --transform-only --save-feed",
+        "bulk-upload": "php bin/bulk-upload",
+        "pricing:reconcile": "php bin/pricing-reconcile",
+        "pricing:reconcile:dry": "php bin/pricing-reconcile --dry-run",
+        "pricing:reconcile:verbose": "php bin/pricing-reconcile --verbose"
     }
 }

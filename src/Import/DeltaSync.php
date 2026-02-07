@@ -1,4 +1,11 @@
 <?php
+
+namespace ResellPiacenza\Import;
+
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+
 /**
  * WooCommerce Delta Sync
  *
@@ -10,24 +17,9 @@
  * - Batch import via import-wc.php
  * - Zero transformation logic
  *
- * Usage:
- *   php sync-wc.php                              # Full sync (fetch from API)
- *   php sync-wc.php --feed=data/feed-wc-latest.json  # Sync from local file
- *   php sync-wc.php --dry-run                    # Preview changes
- *   php sync-wc.php --check-only                 # Just show diff
- *   php sync-wc.php --force-full                 # Force full import
- *   php sync-wc.php --verbose                    # Detailed output
- *
- * @package ResellPiacenza\WooImport
+ * @package ResellPiacenza\Import
  */
-
-require __DIR__ . '/vendor/autoload.php';
-
-use Monolog\Logger;
-use Monolog\Handler\StreamHandler;
-use Monolog\Handler\RotatingFileHandler;
-
-class WooCommerceDeltaSync
+class DeltaSync
 {
     private $config;
     private $logger;
@@ -67,7 +59,7 @@ class WooCommerceDeltaSync
         $this->verbose = $options['verbose'] ?? false;
         $this->feed_file_input = $options['feed_file'] ?? null;
 
-        $this->data_dir = __DIR__ . '/data';
+        $this->data_dir = Config::projectRoot() . '/data';
         $this->feed_file = $this->data_dir . '/feed-wc.json';
         $this->diff_file = $this->data_dir . '/diff-wc.json';
 
@@ -80,19 +72,10 @@ class WooCommerceDeltaSync
      */
     private function setupLogger(): void
     {
-        $this->logger = new Logger('SyncWC');
-
-        $log_dir = __DIR__ . '/logs';
-        if (!is_dir($log_dir)) {
-            mkdir($log_dir, 0755, true);
-        }
-
-        $this->logger->pushHandler(
-            new RotatingFileHandler($log_dir . '/sync-wc.log', 7, Logger::DEBUG)
-        );
-
-        $level = $this->verbose ? Logger::DEBUG : Logger::INFO;
-        $this->logger->pushHandler(new StreamHandler('php://stdout', $level));
+        $this->logger = LoggerFactory::create('SyncWC', [
+            'file' => Config::projectRoot() . '/logs/sync-wc.log',
+            'console_level' => $this->verbose ? Logger::DEBUG : Logger::INFO,
+        ]);
     }
 
     /**
@@ -336,7 +319,7 @@ class WooCommerceDeltaSync
      */
     private function triggerImport(): bool
     {
-        $cmd = 'php ' . escapeshellarg(__DIR__ . '/import-wc.php') .
+        $cmd = 'php ' . escapeshellarg(Config::projectRoot() . '/bin/import-wc') .
                ' --feed=' . escapeshellarg($this->diff_file);
 
         $this->logger->info("Executing: {$cmd}");
@@ -453,7 +436,7 @@ class WooCommerceDeltaSync
 
             return true;
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->logger->error('Error: ' . $e->getMessage());
             return false;
         }
@@ -464,54 +447,3 @@ class WooCommerceDeltaSync
         return count($feed);
     }
 }
-
-// ============================================================================
-// CLI
-// ============================================================================
-
-if (in_array('--help', $argv) || in_array('-h', $argv)) {
-    echo <<<HELP
-WooCommerce Delta Sync
-
-Usage:
-  php sync-wc.php [options]
-
-Options:
-  --feed=FILE       Read WC-formatted feed from local file
-                    (default: fetch from API)
-  --dry-run         Preview changes
-  --check-only      Show diff only
-  --force-full      Force full import
-  --verbose, -v     Detailed output
-  --help, -h        Show help
-
-Examples:
-  php sync-wc.php                                    # Fetch from API
-  php sync-wc.php --feed=data/feed-wc-latest.json    # From local file
-  php sync-wc.php --feed=data/feed-wc-latest.json --dry-run
-
-Cron (with full pipeline):
-  */30 * * * * cd /path && ./sync.sh >> logs/cron.log 2>&1
-
-HELP;
-    exit(0);
-}
-
-$options = [
-    'dry_run' => in_array('--dry-run', $argv),
-    'check_only' => in_array('--check-only', $argv),
-    'force_full' => in_array('--force-full', $argv),
-    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
-    'feed_file' => null,
-];
-
-foreach ($argv as $arg) {
-    if (strpos($arg, '--feed=') === 0) {
-        $options['feed_file'] = str_replace('--feed=', '', $arg);
-    }
-}
-
-$config = require __DIR__ . '/config.php';
-
-$sync = new WooCommerceDeltaSync($config, $options);
-exit($sync->run() ? 0 : 1);

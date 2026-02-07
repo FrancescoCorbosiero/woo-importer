@@ -1,29 +1,20 @@
 <?php
+
+namespace ResellPiacenza\Import;
+
+use Automattic\WooCommerce\Client;
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+
 /**
  * Bulk Upload Utility
  *
  * Self-contained tool for importing your own products from JSON or CSV files.
  * Handles the full pipeline: taxonomy creation, image upload, WC import.
  *
- * Usage:
- *   php bulk-upload.php --file=products.json              # Import from JSON
- *   php bulk-upload.php --file=products.csv               # Import from CSV
- *   php bulk-upload.php --file=products.json --dry-run    # Preview only
- *   php bulk-upload.php --file=products.json --skip-media # Skip image upload
- *   php bulk-upload.php --file=products.json --verbose
- *
- * See docs/bulk-upload-example.json and docs/bulk-upload-example.csv for formats.
- *
- * @package ResellPiacenza\WooImport
+ * @package ResellPiacenza\Import
  */
-
-require __DIR__ . '/vendor/autoload.php';
-
-use Automattic\WooCommerce\Client;
-use Monolog\Logger;
-use Monolog\Handler\StreamHandler;
-use Monolog\Handler\RotatingFileHandler;
-
 class BulkUploader
 {
     private $config;
@@ -38,8 +29,8 @@ class BulkUploader
     // Resolved ID caches
     private $taxonomy_map = [];
     private $image_map = [];
-    private $brand_cache = [];    // runtime brand slug → ID
-    private $category_cache = []; // runtime category slug → ID
+    private $brand_cache = [];    // runtime brand slug -> ID
+    private $category_cache = []; // runtime category slug -> ID
 
     private $stats = [
         'products_parsed' => 0,
@@ -66,19 +57,10 @@ class BulkUploader
 
     private function setupLogger(): void
     {
-        $this->logger = new Logger('BulkUpload');
-
-        $log_dir = __DIR__ . '/logs';
-        if (!is_dir($log_dir)) {
-            mkdir($log_dir, 0755, true);
-        }
-
-        $this->logger->pushHandler(
-            new RotatingFileHandler($log_dir . '/bulk-upload.log', 7, Logger::DEBUG)
-        );
-
-        $level = $this->verbose ? Logger::DEBUG : Logger::INFO;
-        $this->logger->pushHandler(new StreamHandler('php://stdout', $level));
+        $this->logger = LoggerFactory::create('BulkUpload', [
+            'file' => Config::projectRoot() . '/logs/bulk-upload.log',
+            'console_level' => $this->verbose ? Logger::DEBUG : Logger::INFO,
+        ]);
     }
 
     private function setupWooCommerceClient(): void
@@ -96,12 +78,12 @@ class BulkUploader
      */
     private function loadExistingMaps(): void
     {
-        $tax_file = __DIR__ . '/data/taxonomy-map.json';
+        $tax_file = Config::projectRoot() . '/data/taxonomy-map.json';
         if (file_exists($tax_file)) {
             $this->taxonomy_map = json_decode(file_get_contents($tax_file), true) ?: [];
         }
 
-        $img_file = __DIR__ . '/image-map.json';
+        $img_file = Config::projectRoot() . '/image-map.json';
         if (file_exists($img_file)) {
             $this->image_map = json_decode(file_get_contents($img_file), true) ?: [];
         }
@@ -130,7 +112,7 @@ class BulkUploader
             return $this->parseCSV($this->input_file);
         }
 
-        throw new Exception("Unsupported file format: .{$ext} (use .json or .csv)");
+        throw new \Exception("Unsupported file format: .{$ext} (use .json or .csv)");
     }
 
     /**
@@ -156,7 +138,7 @@ class BulkUploader
         $data = json_decode(file_get_contents($path), true);
 
         if (!is_array($data)) {
-            throw new Exception('Invalid JSON: ' . json_last_error_msg());
+            throw new \Exception('Invalid JSON: ' . json_last_error_msg());
         }
 
         $products = [];
@@ -199,14 +181,14 @@ class BulkUploader
     {
         $handle = fopen($path, 'r');
         if (!$handle) {
-            throw new Exception("Cannot open CSV file: {$path}");
+            throw new \Exception("Cannot open CSV file: {$path}");
         }
 
         // Read header
         $header = fgetcsv($handle);
         if (!$header) {
             fclose($handle);
-            throw new Exception('Empty CSV file');
+            throw new \Exception('Empty CSV file');
         }
 
         $header = array_map('trim', array_map('strtolower', $header));
@@ -234,7 +216,7 @@ class BulkUploader
 
         if ($i_sku === null) {
             fclose($handle);
-            throw new Exception('CSV must have a "sku" column');
+            throw new \Exception('CSV must have a "sku" column');
         }
 
         // Group rows by SKU
@@ -314,7 +296,7 @@ class BulkUploader
                     $this->category_cache[$slug] = $result->id;
                     $this->logger->info("  Created category: {$cat['name']} (ID: {$result->id})");
                     return $result->id;
-                } catch (Exception $e) {
+                } catch (\Exception $e) {
                     $this->logger->error("  Category error: " . $e->getMessage());
                     return null;
                 }
@@ -341,7 +323,7 @@ class BulkUploader
             $this->category_cache[$slug] = $result->id;
             $this->logger->info("  Created category: {$slug} (ID: {$result->id})");
             return $result->id;
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             return null;
         }
     }
@@ -379,7 +361,7 @@ class BulkUploader
             $this->stats['brands_created']++;
             $this->logger->info("  Created brand: {$name} (ID: {$result->id})");
             return $result->id;
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->logger->debug("  Brand error ({$name}): " . $e->getMessage());
             return null;
         }
@@ -409,7 +391,7 @@ class BulkUploader
                 }
             }
 
-            // Not found — create it if we have config and not dry-run
+            // Not found -- create it if we have config and not dry-run
             if ($this->dry_run) {
                 return null;
             }
@@ -438,7 +420,7 @@ class BulkUploader
                 $this->logger->info("  Created attribute: {$attr_config['name']} (ID: {$result->id})");
                 return $result->id;
             }
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->logger->debug("  Attribute resolve error ({$slug}): " . $e->getMessage());
         }
 
@@ -498,7 +480,7 @@ class BulkUploader
             curl_close($ch);
 
             if ($http_code !== 200 || empty($content)) {
-                throw new Exception("Download failed: HTTP {$http_code}");
+                throw new \Exception("Download failed: HTTP {$http_code}");
             }
 
             // Write to temp file
@@ -508,7 +490,7 @@ class BulkUploader
             $info = @getimagesize($temp);
             if ($info === false) {
                 @unlink($temp);
-                throw new Exception('Not a valid image');
+                throw new \Exception('Not a valid image');
             }
 
             $mime = $info['mime'];
@@ -563,7 +545,7 @@ class BulkUploader
 
             if ($http_code !== 201) {
                 $err = json_decode($response, true);
-                throw new Exception($err['message'] ?? "HTTP {$http_code}");
+                throw new \Exception($err['message'] ?? "HTTP {$http_code}");
             }
 
             $result = json_decode($response, true);
@@ -579,7 +561,7 @@ class BulkUploader
 
             return $media_id;
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->stats['images_failed']++;
             $this->logger->debug("  Image failed ({$sku}): " . $e->getMessage());
             return null;
@@ -651,7 +633,7 @@ class BulkUploader
             $wc['attributes'][] = $brand_attr;
         }
 
-        // Size attribute (pa_taglia) — always add for variations to work
+        // Size attribute (pa_taglia) -- always add for variations to work
         if (!empty($size_options)) {
             $size_attr = [
                 'position' => count($wc['attributes']),
@@ -714,7 +696,7 @@ class BulkUploader
      */
     private function importProducts(array $wc_products): bool
     {
-        $data_dir = __DIR__ . '/data';
+        $data_dir = Config::projectRoot() . '/data';
         if (!is_dir($data_dir)) {
             mkdir($data_dir, 0755, true);
         }
@@ -733,7 +715,7 @@ class BulkUploader
             return true;
         }
 
-        $cmd = 'php ' . escapeshellarg(__DIR__ . '/import-wc.php') .
+        $cmd = 'php ' . escapeshellarg(Config::projectRoot() . '/bin/import-wc') .
                ' --feed=' . escapeshellarg($feed_file);
 
         $this->logger->info("Executing: {$cmd}");
@@ -754,7 +736,7 @@ class BulkUploader
     {
         // Save image map
         file_put_contents(
-            __DIR__ . '/image-map.json',
+            Config::projectRoot() . '/image-map.json',
             json_encode($this->image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
 
@@ -763,7 +745,7 @@ class BulkUploader
         $this->taxonomy_map['brands'] = $this->brand_cache;
         $this->taxonomy_map['updated_at'] = date('Y-m-d H:i:s');
 
-        $data_dir = __DIR__ . '/data';
+        $data_dir = Config::projectRoot() . '/data';
         if (!is_dir($data_dir)) {
             mkdir($data_dir, 0755, true);
         }
@@ -799,7 +781,7 @@ class BulkUploader
 
         try {
             if (!$this->input_file || !file_exists($this->input_file)) {
-                throw new Exception("Input file not found: {$this->input_file}");
+                throw new \Exception("Input file not found: {$this->input_file}");
             }
 
             // Step 1: Parse
@@ -869,76 +851,9 @@ class BulkUploader
 
             return $success;
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->logger->error('Error: ' . $e->getMessage());
             return false;
         }
     }
 }
-
-// ============================================================================
-// CLI
-// ============================================================================
-
-if (in_array('--help', $argv) || in_array('-h', $argv)) {
-    echo <<<HELP
-Bulk Upload Utility
-Import your own products from JSON or CSV files into WooCommerce.
-
-Usage:
-  php bulk-upload.php --file=FILE [options]
-
-Options:
-  --file=FILE           Input file (JSON or CSV) - required
-  --dry-run             Preview without importing
-  --skip-media          Don't upload images (use URLs directly)
-  --verbose, -v         Detailed output
-  --help, -h            Show help
-
-JSON format:
-  [
-    {
-      "sku": "MY-001",
-      "name": "Product Name",
-      "brand": "Nike",
-      "category": "sneakers",
-      "image_url": "https://example.com/image.jpg",
-      "sizes": [
-        {"size": "40", "price": 120.00, "stock": 3},
-        {"size": "41", "price": 120.00, "stock": 5}
-      ]
-    }
-  ]
-
-CSV format (rows with same SKU = one product, multiple sizes):
-  sku,name,brand,category,image_url,size,price,stock
-  MY-001,Product Name,Nike,sneakers,https://...,40,120.00,3
-  MY-001,Product Name,Nike,sneakers,https://...,41,120.00,5
-
-See docs/bulk-upload-example.json and docs/bulk-upload-example.csv
-
-HELP;
-    exit(0);
-}
-
-$options = [
-    'dry_run' => in_array('--dry-run', $argv),
-    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
-    'skip_media' => in_array('--skip-media', $argv),
-    'file' => null,
-];
-
-foreach ($argv as $arg) {
-    if (strpos($arg, '--file=') === 0) {
-        $options['file'] = str_replace('--file=', '', $arg);
-    }
-}
-
-if (!$options['file']) {
-    echo "Error: --file=FILE is required. Use --help for usage.\n";
-    exit(1);
-}
-
-$config = require __DIR__ . '/config.php';
-$uploader = new BulkUploader($config, $options);
-exit($uploader->run() ? 0 : 1);

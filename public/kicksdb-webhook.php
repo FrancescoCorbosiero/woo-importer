@@ -6,7 +6,7 @@
  * Deploy this as a publicly accessible URL (e.g. https://resellpiacenza.it/api/kicksdb-webhook).
  *
  * Flow:
- *   KicksDB detects price change → POST to this endpoint → validate → update WC variation prices
+ *   KicksDB detects price change -> POST to this endpoint -> validate -> update WC variation prices
  *
  * Security:
  * - Validates webhook secret (shared secret or signature verification)
@@ -21,32 +21,32 @@
  */
 
 // Bootstrap
-$base_dir = dirname(__DIR__);
-require $base_dir . '/vendor/autoload.php';
-require_once __DIR__ . '/kicksdb-client.php';
-require_once __DIR__ . '/price-updater.php';
+require __DIR__ . '/../vendor/autoload.php';
 
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\KicksDb\Client as KicksDbClient;
+use ResellPiacenza\Pricing\PriceUpdater;
 use Automattic\WooCommerce\Client;
 use Monolog\Logger;
-use Monolog\Handler\RotatingFileHandler;
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-$config = require $base_dir . '/config.php';
+$root = Config::projectRoot();
+$config = Config::load();
 $pricing = $config['pricing'] ?? [];
 
 // ============================================================================
 // Logger Setup
 // ============================================================================
 
-$logger = new Logger('WebhookReceiver');
-$log_dir = $base_dir . '/logs';
-if (!is_dir($log_dir)) {
-    mkdir($log_dir, 0755, true);
-}
-$logger->pushHandler(new RotatingFileHandler($log_dir . '/webhook-receiver.log', 14, Logger::DEBUG));
+$logger = LoggerFactory::create('WebhookReceiver', [
+    'file' => Config::projectRoot() . '/logs/webhook-receiver.log',
+    'max_files' => 14,
+    'console' => false,
+]);
 
 // ============================================================================
 // Request Validation

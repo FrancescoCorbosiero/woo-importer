@@ -1,33 +1,23 @@
+#!/usr/bin/env php
 <?php
 /**
- * KicksDB Product Importer
+ * CLI wrapper for KicksDB Product Importer
  *
  * Complete import pipeline: given a list of SKUs, fetches product data
  * from KicksDB (StockX), transforms to WooCommerce format with margin
  * pricing, and imports into WooCommerce.
  *
  * Pipeline:
- *   SKU list → KicksDB API → transform → (optional: save feed) → import-wc.php
- *
- * Input: SKU list from file, CLI argument, or stdin
- * Output: Products created/updated in WooCommerce
- *
- * Usage:
- *   php import-kicksdb.php --skus=DD1873-102,CW2288-111
- *   php import-kicksdb.php --skus-file=my-skus.json
- *   echo "DD1873-102" | php import-kicksdb.php
- *   php import-kicksdb.php --skus-file=skus.txt --dry-run
- *   php import-kicksdb.php --skus=DD1873-102 --transform-only
+ *   SKU list -> KicksDB API -> transform -> (optional: save feed) -> import-wc
  *
  * @package ResellPiacenza\Import
  */
 
-require __DIR__ . '/vendor/autoload.php';
-require_once __DIR__ . '/kicksdb-transform.php';
+require __DIR__ . '/../vendor/autoload.php';
 
-use Monolog\Logger;
-use Monolog\Handler\StreamHandler;
-use Monolog\Handler\RotatingFileHandler;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Import\KicksDbTransformer;
 
 // ============================================================================
 // CLI Options
@@ -39,10 +29,10 @@ KicksDB Product Importer
 Fetches products from KicksDB (StockX) and imports into WooCommerce.
 
 Usage:
-  php import-kicksdb.php --skus=SKU1,SKU2,...       # SKUs from CLI
-  php import-kicksdb.php --skus-file=FILE            # SKUs from file
-  echo "DD1873-102" | php import-kicksdb.php         # SKU from stdin
-  php import-kicksdb.php --skus-file=FILE --dry-run  # Preview
+  bin/import-kicksdb --skus=SKU1,SKU2,...       # SKUs from CLI
+  bin/import-kicksdb --skus-file=FILE            # SKUs from file
+  echo "DD1873-102" | bin/import-kicksdb         # SKU from stdin
+  bin/import-kicksdb --skus-file=FILE --dry-run  # Preview
 
 Options:
   --skus=SKU1,SKU2     Comma-separated list of SKUs/style codes
@@ -64,25 +54,25 @@ Pipeline:
   1. Read SKU list
   2. For each SKU: fetch product + variants from KicksDB (StockX)
   3. Transform to WC REST format (prices with margin, Italian descriptions)
-  4. Import via import-wc.php (batch create/update)
+  4. Import via bin/import-wc (batch create/update)
 
 Requires:
   - KICKSDB_API_KEY in .env
-  - data/taxonomy-map.json (from prepare-taxonomies.php)
-  - Optionally: image-map.json (from prepare-media.php)
+  - data/taxonomy-map.json (from prepare-taxonomies)
+  - Optionally: image-map.json (from prepare-media)
 
 Examples:
   # Import 3 specific sneakers
-  php import-kicksdb.php --skus=DD1873-102,CW2288-111,CT8527-100
+  bin/import-kicksdb --skus=DD1873-102,CW2288-111,CT8527-100
 
   # Import from a curated list, preview first
-  php import-kicksdb.php --skus-file=my-collection.json --dry-run
+  bin/import-kicksdb --skus-file=my-collection.json --dry-run
 
   # Just generate the WC feed, don't import yet
-  php import-kicksdb.php --skus-file=skus.txt --transform-only --save-feed
+  bin/import-kicksdb --skus-file=skus.txt --transform-only --save-feed
 
   # Pipe a single SKU
-  echo "DD1873-102" | php import-kicksdb.php --dry-run
+  echo "DD1873-102" | bin/import-kicksdb --dry-run
 
 HELP;
     exit(0);
@@ -117,7 +107,7 @@ foreach ($argv as $arg) {
 // Setup
 // ============================================================================
 
-$config = require __DIR__ . '/config.php';
+$config = Config::load();
 
 // Override market if specified
 if ($opt_market) {
@@ -125,14 +115,9 @@ if ($opt_market) {
 }
 
 // Logger
-$logger = new Logger('ImportKicksDB');
-$log_dir = __DIR__ . '/logs';
-if (!is_dir($log_dir)) {
-    mkdir($log_dir, 0755, true);
-}
-$logger->pushHandler(new RotatingFileHandler($log_dir . '/import-kicksdb.log', 7, Logger::DEBUG));
-$console_level = $opt_verbose ? Logger::DEBUG : Logger::INFO;
-$logger->pushHandler(new StreamHandler('php://stdout', $console_level));
+$logger = LoggerFactory::create('ImportKicksDB', [
+    'console_level' => $opt_verbose ? \Monolog\Logger::DEBUG : \Monolog\Logger::INFO,
+]);
 
 $start_time = microtime(true);
 
@@ -253,7 +238,7 @@ if (empty($wc_products)) {
 // ============================================================================
 
 if ($opt_save_feed) {
-    $data_dir = __DIR__ . '/data';
+    $data_dir = Config::projectRoot() . '/data';
     if (!is_dir($data_dir)) {
         mkdir($data_dir, 0755, true);
     }
@@ -271,7 +256,7 @@ if ($opt_transform_only) {
     $duration = round(microtime(true) - $start_time, 1);
     $logger->info('');
     $logger->info("Transform-only mode. Done in {$duration}s.");
-    $logger->info("To import: php import-wc.php --feed=data/feed-kicksdb.json" . ($opt_dry_run ? ' --dry-run' : ''));
+    $logger->info("To import: bin/import-wc --feed=data/feed-kicksdb.json" . ($opt_dry_run ? ' --dry-run' : ''));
     exit(0);
 }
 
@@ -283,14 +268,14 @@ $logger->info('');
 $logger->info('Step 3: Importing to WooCommerce...');
 $logger->info('');
 
-// Write temp feed and pipe to import-wc.php
+// Write temp feed and pipe to bin/import-wc
 $temp_feed = tempnam(sys_get_temp_dir(), 'kicksdb_feed_');
 file_put_contents(
     $temp_feed,
     json_encode($wc_products, JSON_UNESCAPED_UNICODE)
 );
 
-$import_cmd = 'php ' . escapeshellarg(__DIR__ . '/import-wc.php') .
+$import_cmd = escapeshellarg(__DIR__ . '/import-wc') .
     ' --feed=' . escapeshellarg($temp_feed);
 
 if ($opt_dry_run) {

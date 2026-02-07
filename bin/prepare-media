@@ -1,0 +1,82 @@
+#!/usr/bin/env php
+<?php
+/**
+ * CLI wrapper for Media Preparation
+ *
+ * Downloads product images and uploads them to the WordPress media
+ * library with Italian SEO metadata.
+ * Maintains image-map.json for use by the transform/import steps.
+ *
+ * Outputs: image-map.json (SKU => {media_id, url, uploaded_at})
+ *
+ * @package ResellPiacenza\Media
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Media\MediaUploader;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Media Preparation
+Downloads and uploads product images to WordPress with Italian SEO metadata.
+
+Usage:
+  bin/prepare-media <source> [options]
+
+Image sources (pick one):
+  --from-gs               Get image URLs from Golden Sneakers API
+  --urls-file=FILE        Load from JSON file (see docs/bulk-upload-images.json)
+
+Options:
+  --dry-run               Preview without uploading
+  --limit=N               Process first N images only
+  --force                 Re-upload all images (replaces existing)
+  --update-metadata       Update SEO metadata only (no re-upload)
+  --verbose, -v           Detailed output
+  --help, -h              Show help
+
+Output:
+  image-map.json - SKU to WordPress media ID mapping
+
+Examples:
+  bin/prepare-media --from-gs                        # GS pipeline
+  bin/prepare-media --from-gs --limit=10 --dry-run   # Preview 10
+  bin/prepare-media --urls-file=my-images.json       # Custom source
+
+HELP;
+    exit(0);
+}
+
+$options = [
+    'dry_run' => in_array('--dry-run', $argv),
+    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
+    'force' => in_array('--force', $argv),
+    'update_metadata' => in_array('--update-metadata', $argv),
+    'image_source' => null,
+    'urls_file' => null,
+    'limit' => null,
+];
+
+if (in_array('--from-gs', $argv)) {
+    $options['image_source'] = 'gs';
+}
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--limit=') === 0) {
+        $options['limit'] = (int) str_replace('--limit=', '', $arg);
+    }
+    if (strpos($arg, '--urls-file=') === 0) {
+        $options['image_source'] = 'file';
+        $options['urls_file'] = str_replace('--urls-file=', '', $arg);
+    }
+}
+
+$config = Config::load();
+$preparer = new MediaUploader($config, $options);
+exit($preparer->run() ? 0 : 1);

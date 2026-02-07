@@ -7,7 +7,7 @@
  * auto-registers/unregisters the SKU with KicksDB price tracking.
  *
  * WooCommerce Webhook Setup:
- *   WP Admin → WooCommerce → Settings → Advanced → Webhooks → Add webhook
+ *   WP Admin -> WooCommerce -> Settings -> Advanced -> Webhooks -> Add webhook
  *   - Name: "KicksDB SKU Registry"
  *   - Status: Active
  *   - Topic: "Product created" (add another for "Product deleted")
@@ -18,32 +18,31 @@
  */
 
 // Bootstrap
-$base_dir = dirname(__DIR__);
-require $base_dir . '/vendor/autoload.php';
-require_once __DIR__ . '/kicksdb-client.php';
-require_once __DIR__ . '/sku-registry.php';
+require __DIR__ . '/../vendor/autoload.php';
 
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\KicksDb\Client as KicksDbClient;
+use ResellPiacenza\Pricing\SkuRegistry;
 use Automattic\WooCommerce\Client;
 use Monolog\Logger;
-use Monolog\Handler\RotatingFileHandler;
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-$config = require $base_dir . '/config.php';
+$root = Config::projectRoot();
+$config = Config::load();
 $pricing = $config['pricing'] ?? [];
 
 // ============================================================================
 // Logger
 // ============================================================================
 
-$logger = new Logger('WcProductListener');
-$log_dir = $base_dir . '/logs';
-if (!is_dir($log_dir)) {
-    mkdir($log_dir, 0755, true);
-}
-$logger->pushHandler(new RotatingFileHandler($log_dir . '/wc-product-listener.log', 7, Logger::DEBUG));
+$logger = LoggerFactory::create('WcProductListener', [
+    'file' => Config::projectRoot() . '/logs/wc-product-listener.log',
+    'console' => false,
+]);
 
 // ============================================================================
 // Request Validation
@@ -153,7 +152,7 @@ try {
     $registry = new SkuRegistry($wc_client, $kicksdb, [
         'webhook_id' => $pricing['kicksdb_webhook_id'] ?? null,
         'callback_url' => $pricing['webhook_callback_url'] ?? '',
-        'registry_file' => $base_dir . '/data/sku-registry.json',
+        'registry_file' => $root . '/data/sku-registry.json',
     ], $logger);
 
     switch ($event) {

@@ -1,6 +1,13 @@
 <?php
+
+namespace ResellPiacenza\Import;
+
+use ResellPiacenza\KicksDb\Client as KicksDbClient;
+use ResellPiacenza\Pricing\PriceCalculator;
+use ResellPiacenza\Support\Config;
+
 /**
- * KicksDB → WooCommerce Feed Transformer
+ * KicksDB -> WooCommerce Feed Transformer
  *
  * Fetches product data from KicksDB (StockX) for a list of SKUs and
  * transforms it to WooCommerce REST API format, identical to the output
@@ -18,10 +25,6 @@
  *
  * @package ResellPiacenza\Import
  */
-
-require_once __DIR__ . '/pricing/kicksdb-client.php';
-require_once __DIR__ . '/pricing/price-calculator.php';
-
 class KicksDbTransformer
 {
     private $config;
@@ -77,7 +80,7 @@ class KicksDbTransformer
      */
     private function loadMaps(): void
     {
-        $tax_file = __DIR__ . '/data/taxonomy-map.json';
+        $tax_file = Config::projectRoot() . '/data/taxonomy-map.json';
         if (file_exists($tax_file)) {
             $this->taxonomy_map = json_decode(file_get_contents($tax_file), true) ?: [];
             $this->log('info', "Loaded taxonomy map: " .
@@ -89,7 +92,7 @@ class KicksDbTransformer
             $this->log('warning', "No taxonomy-map.json found - run prepare-taxonomies.php first");
         }
 
-        $img_file = __DIR__ . '/image-map.json';
+        $img_file = Config::projectRoot() . '/image-map.json';
         if (file_exists($img_file)) {
             $this->image_map = json_decode(file_get_contents($img_file), true) ?: [];
             $this->log('info', "Loaded image map: " . count($this->image_map) . " entries");
@@ -203,7 +206,7 @@ class KicksDbTransformer
             'sku' => $sku,
         ];
 
-        // Resolve category ID — sneakers by default
+        // Resolve category ID -- sneakers by default
         $cat_slug = $this->config['categories']['sneakers']['slug'] ?? 'sneakers';
         $category_id = $this->taxonomy_map['categories'][$cat_slug] ?? null;
 
@@ -406,7 +409,7 @@ class KicksDbTransformer
 
     /**
      * Extract EU size from a KicksDB variant title
-     * e.g. "Men's US 10 / EU 44" → "44"
+     * e.g. "Men's US 10 / EU 44" -> "44"
      */
     private function extractEuSize(string $title): ?string
     {

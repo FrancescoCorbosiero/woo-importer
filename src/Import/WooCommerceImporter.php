@@ -1,4 +1,12 @@
 <?php
+
+namespace ResellPiacenza\Import;
+
+use Automattic\WooCommerce\Client;
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+
 /**
  * WooCommerce Direct Importer
  *
@@ -28,22 +36,9 @@
  *   ]
  * }
  *
- * Usage:
- *   php import-wc.php --feed=products.json     # Import from file
- *   cat products.json | php import-wc.php      # Import from stdin
- *   php import-wc.php --dry-run --feed=x.json  # Preview
- *
- * @package ResellPiacenza\WooImport
+ * @package ResellPiacenza\Import
  */
-
-require __DIR__ . '/vendor/autoload.php';
-
-use Automattic\WooCommerce\Client;
-use Monolog\Logger;
-use Monolog\Handler\StreamHandler;
-use Monolog\Handler\RotatingFileHandler;
-
-class WooCommerceDirectImporter
+class WooCommerceImporter
 {
     private $config;
     private $wc_client;
@@ -86,17 +81,9 @@ class WooCommerceDirectImporter
      */
     private function setupLogger(): void
     {
-        $this->logger = new Logger('WooImporter');
-
-        $log_dir = __DIR__ . '/logs';
-        if (!is_dir($log_dir)) {
-            mkdir($log_dir, 0755, true);
-        }
-
-        $this->logger->pushHandler(
-            new RotatingFileHandler($log_dir . '/import-wc.log', 7, Logger::DEBUG)
-        );
-        $this->logger->pushHandler(new StreamHandler('php://stdout', Logger::INFO));
+        $this->logger = LoggerFactory::create('WooImporter', [
+            'file' => Config::projectRoot() . '/logs/import-wc.log',
+        ]);
     }
 
     /**
@@ -136,7 +123,7 @@ class WooCommerceDirectImporter
                     }
                 }
                 $page++;
-            } catch (Exception $e) {
+            } catch (\Exception $e) {
                 $this->logger->error("Error fetching products page {$page}: " . $e->getMessage());
                 break;
             }
@@ -169,7 +156,7 @@ class WooCommerceDirectImporter
                     }
                 }
                 $page++;
-            } catch (Exception $e) {
+            } catch (\Exception $e) {
                 break;
             }
         } while (count($variations) === 100);
@@ -285,7 +272,7 @@ class WooCommerceDirectImporter
 
                 $this->logger->info("  Batch " . ($chunk_idx + 1) . ": {$operation}d " . count($chunk));
 
-            } catch (Exception $e) {
+            } catch (\Exception $e) {
                 $this->stats['errors'] += count($chunk);
                 $this->logger->error("  Batch failed: " . $e->getMessage());
             }
@@ -369,7 +356,7 @@ class WooCommerceDirectImporter
                     }
                 }
 
-            } catch (Exception $e) {
+            } catch (\Exception $e) {
                 $this->stats['errors'] += count($chunk);
                 $this->logger->error("  Variation batch failed [product:{$product_id}]: " . $e->getMessage());
             }
@@ -441,7 +428,7 @@ class WooCommerceDirectImporter
             $this->printSummary($start_time);
             return true;
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->logger->error('Fatal error: ' . $e->getMessage());
             return false;
         }
@@ -468,96 +455,3 @@ class WooCommerceDirectImporter
         $this->logger->info('========================================');
     }
 }
-
-// ============================================================================
-// CLI
-// ============================================================================
-
-if (in_array('--help', $argv) || in_array('-h', $argv)) {
-    echo <<<HELP
-WooCommerce Direct Importer
-Accepts WooCommerce REST API formatted JSON - NO transformation.
-
-Usage:
-  php import-wc.php --feed=FILE         # Import from JSON file
-  cat products.json | php import-wc.php # Import from stdin
-  php import-wc.php --dry-run --feed=x  # Preview mode
-
-Options:
-  --feed=FILE       JSON file with WC-formatted products
-  --dry-run         Preview without making changes
-  --limit=N         Limit to N products
-  --help, -h        Show this help
-
-Expected JSON format:
-  [
-    {
-      "name": "Product Name",
-      "sku": "SKU-123",
-      "type": "variable",
-      "categories": [{"id": 123}],
-      "attributes": [...],
-      "_variations": [
-        {
-          "sku": "SKU-123-36",
-          "regular_price": "99.00",
-          "stock_quantity": 5,
-          "stock_status": "instock",
-          "attributes": [{"id": 1, "option": "36"}]
-        }
-      ]
-    }
-  ]
-
-Note: _variations is the only non-standard key (nested for convenience).
-      All other fields map 1:1 to WooCommerce REST API.
-
-HELP;
-    exit(0);
-}
-
-// Parse options
-$options = [
-    'dry_run' => in_array('--dry-run', $argv),
-    'limit' => null,
-];
-
-$feed_file = null;
-
-foreach ($argv as $arg) {
-    if (strpos($arg, '--limit=') === 0) {
-        $options['limit'] = (int) str_replace('--limit=', '', $arg);
-    }
-    if (strpos($arg, '--feed=') === 0) {
-        $feed_file = str_replace('--feed=', '', $arg);
-    }
-}
-
-// Load data from file or stdin
-$wc_products = null;
-
-if ($feed_file) {
-    if (!file_exists($feed_file)) {
-        fwrite(STDERR, "Error: File not found: {$feed_file}\n");
-        exit(1);
-    }
-    $wc_products = json_decode(file_get_contents($feed_file), true);
-} elseif (!posix_isatty(STDIN)) {
-    // Read from stdin
-    $input = stream_get_contents(STDIN);
-    $wc_products = json_decode($input, true);
-} else {
-    fwrite(STDERR, "Error: No input. Use --feed=FILE or pipe JSON to stdin.\n");
-    fwrite(STDERR, "Run with --help for usage.\n");
-    exit(1);
-}
-
-if ($wc_products === null || json_last_error() !== JSON_ERROR_NONE) {
-    fwrite(STDERR, "Error: Invalid JSON - " . json_last_error_msg() . "\n");
-    exit(1);
-}
-
-// Run importer
-$config = require __DIR__ . '/config.php';
-$importer = new WooCommerceDirectImporter($config, $options);
-exit($importer->import($wc_products) ? 0 : 1);

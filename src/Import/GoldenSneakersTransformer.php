@@ -1,4 +1,11 @@
 <?php
+
+namespace ResellPiacenza\Import;
+
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+
 /**
  * Feed Transformer
  *
@@ -8,21 +15,9 @@
  *
  * Outputs: data/feed-wc-latest.json
  *
- * Usage:
- *   php transform-feed.php                # Transform full feed
- *   php transform-feed.php --verbose      # Detailed output
- *   php transform-feed.php --limit=10     # Transform first 10 products
- *
- * @package ResellPiacenza\WooImport
+ * @package ResellPiacenza\Import
  */
-
-require __DIR__ . '/vendor/autoload.php';
-
-use Monolog\Logger;
-use Monolog\Handler\StreamHandler;
-use Monolog\Handler\RotatingFileHandler;
-
-class FeedTransformer
+class GoldenSneakersTransformer
 {
     private $config;
     private $logger;
@@ -60,19 +55,10 @@ class FeedTransformer
 
     private function setupLogger(): void
     {
-        $this->logger = new Logger('Transform');
-
-        $log_dir = __DIR__ . '/logs';
-        if (!is_dir($log_dir)) {
-            mkdir($log_dir, 0755, true);
-        }
-
-        $this->logger->pushHandler(
-            new RotatingFileHandler($log_dir . '/transform-feed.log', 7, Logger::DEBUG)
-        );
-
-        $level = $this->verbose ? Logger::DEBUG : Logger::INFO;
-        $this->logger->pushHandler(new StreamHandler('php://stdout', $level));
+        $this->logger = LoggerFactory::create('Transform', [
+            'file' => Config::projectRoot() . '/logs/transform-feed.log',
+            'console_level' => $this->verbose ? Logger::DEBUG : Logger::INFO,
+        ]);
     }
 
     /**
@@ -81,7 +67,7 @@ class FeedTransformer
     private function loadMaps(): void
     {
         // Taxonomy map
-        $tax_file = __DIR__ . '/data/taxonomy-map.json';
+        $tax_file = Config::projectRoot() . '/data/taxonomy-map.json';
         if (file_exists($tax_file)) {
             $this->taxonomy_map = json_decode(file_get_contents($tax_file), true) ?: [];
             $this->logger->info("Loaded taxonomy map: " .
@@ -94,7 +80,7 @@ class FeedTransformer
         }
 
         // Image map
-        $img_file = __DIR__ . '/image-map.json';
+        $img_file = Config::projectRoot() . '/image-map.json';
         if (file_exists($img_file)) {
             $this->image_map = json_decode(file_get_contents($img_file), true) ?: [];
             $this->logger->info("Loaded image map: " . count($this->image_map) . " entries");
@@ -106,8 +92,8 @@ class FeedTransformer
     /**
      * Detect product type from sizes
      *
-     * Numeric EU sizes (36, 37.5, 42) → sneakers
-     * Letter sizes (S, M, L, XL) → clothing
+     * Numeric EU sizes (36, 37.5, 42) -> sneakers
+     * Letter sizes (S, M, L, XL) -> clothing
      *
      * @param array $sizes Size data from GS feed
      * @return string 'sneakers' or 'clothing'
@@ -282,7 +268,7 @@ class FeedTransformer
             $wc_product['attributes'][] = $brand_attr;
         }
 
-        // Size attribute (pa_taglia) — always add for variations to work
+        // Size attribute (pa_taglia) -- always add for variations to work
         if (!empty($size_options)) {
             $size_attr = [
                 'position' => count($wc_product['attributes']),
@@ -379,18 +365,18 @@ class FeedTransformer
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
         if (curl_errno($ch)) {
-            throw new Exception('CURL Error: ' . curl_error($ch));
+            throw new \Exception('CURL Error: ' . curl_error($ch));
         }
 
         curl_close($ch);
 
         if ($http_code !== 200) {
-            throw new Exception("API returned HTTP {$http_code}");
+            throw new \Exception("API returned HTTP {$http_code}");
         }
 
         $data = json_decode($response, true);
         if (!is_array($data)) {
-            throw new Exception('Invalid JSON: ' . json_last_error_msg());
+            throw new \Exception('Invalid JSON: ' . json_last_error_msg());
         }
 
         $this->logger->info("  " . count($data) . " products fetched");
@@ -434,7 +420,7 @@ class FeedTransformer
             }
 
             // Write output
-            $data_dir = __DIR__ . '/data';
+            $data_dir = Config::projectRoot() . '/data';
             if (!is_dir($data_dir)) {
                 mkdir($data_dir, 0755, true);
             }
@@ -464,52 +450,9 @@ class FeedTransformer
 
             return true;
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->logger->error('Error: ' . $e->getMessage());
             return false;
         }
     }
 }
-
-// ============================================================================
-// CLI
-// ============================================================================
-
-if (in_array('--help', $argv) || in_array('-h', $argv)) {
-    echo <<<HELP
-Feed Transformer
-Transforms Golden Sneakers API feed to WooCommerce REST format.
-
-Usage:
-  php transform-feed.php [options]
-
-Options:
-  --limit=N         Transform first N products only
-  --verbose, -v     Detailed output
-  --help, -h        Show help
-
-Requires:
-  data/taxonomy-map.json   (from prepare-taxonomies.php)
-  image-map.json           (from prepare-media.php)
-
-Output:
-  data/feed-wc-latest.json - WooCommerce REST API formatted products
-
-HELP;
-    exit(0);
-}
-
-$options = [
-    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
-    'limit' => null,
-];
-
-foreach ($argv as $arg) {
-    if (strpos($arg, '--limit=') === 0) {
-        $options['limit'] = (int) str_replace('--limit=', '', $arg);
-    }
-}
-
-$config = require __DIR__ . '/config.php';
-$transformer = new FeedTransformer($config, $options);
-exit($transformer->run() ? 0 : 1);
