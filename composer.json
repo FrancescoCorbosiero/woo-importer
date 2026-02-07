@@ -29,6 +29,9 @@
         "import:dry": "php import.php --dry-run",
         "import:test": "php import.php --dry-run --limit=5",
         "images": "php import-images.php",
-        "images:test": "php import-images.php --limit=5"
+        "images:test": "php import-images.php --limit=5",
+        "pricing:reconcile": "php pricing/reconcile.php",
+        "pricing:reconcile:dry": "php pricing/reconcile.php --dry-run",
+        "pricing:reconcile:verbose": "php pricing/reconcile.php --verbose"
     }
 }

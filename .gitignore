@@ -22,6 +22,9 @@ image-map.json
 # ===========================================
 /data/feed.json
 /data/diff.json
+/data/feed-wc.json
+/data/diff-wc.json
+/data/sku-registry.json
 !/data/.gitkeep
 
 # ===========================================
