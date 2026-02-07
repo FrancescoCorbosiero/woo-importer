@@ -1,0 +1,82 @@
+#!/usr/bin/env php
+<?php
+/**
+ * CLI wrapper for Taxonomy Preparation
+ *
+ * Ensures all required WooCommerce taxonomies exist before import:
+ * - Categories (from config: Sneakers, Abbigliamento)
+ * - Global attributes (from config: Taglia, Marca)
+ * - Brands (from Golden Sneakers API, a JSON file, or CLI list)
+ *
+ * Outputs: data/taxonomy-map.json
+ *
+ * @package ResellPiacenza\Taxonomy
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Taxonomy\TaxonomyManager;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Taxonomy Preparation
+Ensures all WooCommerce taxonomies exist before import.
+
+Usage:
+  bin/prepare-taxonomies [brand-source] [options]
+
+Brand sources (pick one):
+  --from-gs               Discover brands from Golden Sneakers API
+  --brands-file=FILE      Load brands from JSON file (["Nike", "Adidas", ...])
+  --brands=Nike,Adidas    Provide brands as comma-separated list
+  (none)                  Only ensure categories + attributes, no brands
+
+Options:
+  --dry-run               Preview without creating anything
+  --verbose, -v           Detailed output
+  --help, -h              Show help
+
+Output:
+  data/taxonomy-map.json - Category, attribute, and brand ID mappings
+  (Merges with existing map - safe to run from multiple sources)
+
+Examples:
+  bin/prepare-taxonomies --from-gs                    # GS pipeline
+  bin/prepare-taxonomies --brands=Nike,Adidas,Puma    # Manual brands
+  bin/prepare-taxonomies --brands-file=my-brands.json # From file
+
+HELP;
+    exit(0);
+}
+
+$options = [
+    'dry_run' => in_array('--dry-run', $argv),
+    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
+    'brand_source' => null,
+    'brands_file' => null,
+    'brands_list' => [],
+];
+
+if (in_array('--from-gs', $argv)) {
+    $options['brand_source'] = 'gs';
+}
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--brands-file=') === 0) {
+        $options['brand_source'] = 'file';
+        $options['brands_file'] = str_replace('--brands-file=', '', $arg);
+    }
+    if (strpos($arg, '--brands=') === 0) {
+        $options['brand_source'] = 'list';
+        $options['brands_list'] = array_map('trim', explode(',', str_replace('--brands=', '', $arg)));
+    }
+}
+
+$config = Config::load();
+$preparer = new TaxonomyManager($config, $options);
+exit($preparer->run() ? 0 : 1);

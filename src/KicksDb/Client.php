@@ -1,4 +1,7 @@
 <?php
+
+namespace ResellPiacenza\KicksDb;
+
 /**
  * KicksDB API Client
  *
@@ -10,10 +13,9 @@
  * Requires KicksDB PRO plan for webhook support.
  *
  * @see https://docs.kicks.dev/introduction
- * @package ResellPiacenza\Pricing
+ * @package ResellPiacenza\KicksDb
  */
-
-class KicksDbClient
+class Client
 {
     private string $api_key;
     private string $base_url;
@@ -40,24 +42,11 @@ class KicksDbClient
     // StockX Product Endpoints
     // =========================================================================
 
-    /**
-     * Get StockX product by slug or style ID (SKU)
-     *
-     * @param string $identifier Product slug or style ID (e.g. "DD1873-102")
-     * @return array|null Product data with variants/prices, null on failure
-     */
     public function getStockXProduct(string $identifier): ?array
     {
         return $this->request('GET', "/stockx/products/{$identifier}");
     }
 
-    /**
-     * Search StockX products
-     *
-     * @param string $query Search term (SKU, name, etc.)
-     * @param int $limit Max results
-     * @return array|null Array of products
-     */
     public function searchStockX(string $query, int $limit = 10): ?array
     {
         return $this->request('GET', '/stockx/products', [
@@ -66,13 +55,6 @@ class KicksDbClient
         ]);
     }
 
-    /**
-     * Get StockX product variants (sizes) with current market prices
-     *
-     * @param string $product_id KicksDB product ID or slug
-     * @param string $market Market code (default: US)
-     * @return array|null Variant array with size + price data
-     */
     public function getStockXVariants(string $product_id, string $market = 'US'): ?array
     {
         return $this->request('GET', "/stockx/products/{$product_id}/variants", [
@@ -80,13 +62,6 @@ class KicksDbClient
         ]);
     }
 
-    /**
-     * Get StockX price for a specific variant
-     *
-     * @param string $variant_id Variant ID
-     * @param string $market Market code
-     * @return array|null Price data (lowest_ask, highest_bid, last_sale, etc.)
-     */
     public function getStockXVariantPrice(string $variant_id, string $market = 'US'): ?array
     {
         return $this->request('GET', "/stockx/variants/{$variant_id}", [
@@ -98,14 +73,6 @@ class KicksDbClient
     // Webhook Management
     // =========================================================================
 
-    /**
-     * Register a webhook for price tracking
-     *
-     * @param string $callback_url Your endpoint URL
-     * @param array $product_ids KicksDB product IDs to track
-     * @param array $events Event types (e.g. ['price_change', 'out_of_stock'])
-     * @return array|null Webhook registration response
-     */
     public function registerWebhook(string $callback_url, array $product_ids, array $events = ['price_change']): ?array
     {
         return $this->request('POST', '/webhooks', [], [
@@ -115,58 +82,27 @@ class KicksDbClient
         ]);
     }
 
-    /**
-     * List active webhooks
-     *
-     * @return array|null Webhook list
-     */
     public function listWebhooks(): ?array
     {
         return $this->request('GET', '/webhooks');
     }
 
-    /**
-     * Get webhook details
-     *
-     * @param string $webhook_id Webhook ID
-     * @return array|null Webhook data
-     */
     public function getWebhook(string $webhook_id): ?array
     {
         return $this->request('GET', "/webhooks/{$webhook_id}");
     }
 
-    /**
-     * Update webhook (add/remove tracked products)
-     *
-     * @param string $webhook_id Webhook ID
-     * @param array $data Update payload
-     * @return array|null Updated webhook
-     */
     public function updateWebhook(string $webhook_id, array $data): ?array
     {
         return $this->request('PUT', "/webhooks/{$webhook_id}", [], $data);
     }
 
-    /**
-     * Delete a webhook
-     *
-     * @param string $webhook_id Webhook ID
-     * @return bool Success
-     */
     public function deleteWebhook(string $webhook_id): bool
     {
         $result = $this->request('DELETE', "/webhooks/{$webhook_id}");
         return $result !== null;
     }
 
-    /**
-     * Add products to an existing webhook
-     *
-     * @param string $webhook_id Webhook ID
-     * @param array $product_ids Product IDs to add
-     * @return array|null Updated webhook
-     */
     public function addProductsToWebhook(string $webhook_id, array $product_ids): ?array
     {
         return $this->request('POST', "/webhooks/{$webhook_id}/products", [], [
@@ -174,13 +110,6 @@ class KicksDbClient
         ]);
     }
 
-    /**
-     * Remove products from a webhook
-     *
-     * @param string $webhook_id Webhook ID
-     * @param array $product_ids Product IDs to remove
-     * @return array|null Updated webhook
-     */
     public function removeProductsFromWebhook(string $webhook_id, array $product_ids): ?array
     {
         return $this->request('DELETE', "/webhooks/{$webhook_id}/products", [], [
@@ -192,16 +121,6 @@ class KicksDbClient
     // Batch Price Lookup (for reconciliation)
     // =========================================================================
 
-    /**
-     * Fetch current prices for multiple SKUs
-     *
-     * Performs sequential lookups (KicksDB doesn't have a batch endpoint).
-     * Use this for reconciliation, not real-time.
-     *
-     * @param array $skus Array of SKUs/style codes
-     * @param string $market Market code
-     * @return array SKU => variant prices array
-     */
     public function batchGetPrices(array $skus, string $market = 'US'): array
     {
         $results = [];
@@ -224,7 +143,6 @@ class KicksDbClient
                 ];
             }
 
-            // Respect rate limits
             usleep(200000); // 200ms between requests
         }
 
@@ -235,15 +153,6 @@ class KicksDbClient
     // Internal HTTP Client
     // =========================================================================
 
-    /**
-     * Make an API request with retry logic
-     *
-     * @param string $method HTTP method
-     * @param string $path API path (appended to base_url)
-     * @param array $query Query parameters
-     * @param array|null $body Request body (JSON)
-     * @return array|null Decoded response or null on failure
-     */
     private function request(string $method, string $path, array $query = [], ?array $body = null): ?array
     {
         $url = $this->base_url . $path;
@@ -295,46 +204,38 @@ class KicksDbClient
             $curl_error = curl_error($ch);
             curl_close($ch);
 
-            // Network error - retry
             if ($response === false) {
                 $this->log('warning', "KicksDB request failed (attempt {$attempt}): {$curl_error}");
                 if ($attempt < $this->max_retries) {
-                    $delay = pow(2, $attempt);
-                    sleep($delay);
+                    sleep(pow(2, $attempt));
                     continue;
                 }
                 return null;
             }
 
-            // Rate limited - retry with backoff
             if ($http_code === 429) {
                 $this->log('warning', "KicksDB rate limited (attempt {$attempt})");
                 if ($attempt < $this->max_retries) {
-                    $delay = pow(2, $attempt);
-                    sleep($delay);
+                    sleep(pow(2, $attempt));
                     continue;
                 }
                 return null;
             }
 
-            // Server error - retry
             if ($http_code >= 500) {
                 $this->log('warning', "KicksDB server error {$http_code} (attempt {$attempt})");
                 if ($attempt < $this->max_retries) {
-                    $delay = pow(2, $attempt);
-                    sleep($delay);
+                    sleep(pow(2, $attempt));
                     continue;
                 }
                 return null;
             }
 
-            // Client error - don't retry
             if ($http_code >= 400) {
                 $this->log('error', "KicksDB API error {$http_code}: {$response}");
                 return null;
             }
 
-            // Success (2xx) or 204 No Content
             if ($http_code === 204) {
                 return [];
             }
@@ -351,9 +252,6 @@ class KicksDbClient
         return null;
     }
 
-    /**
-     * Log helper
-     */
     private function log(string $level, string $message): void
     {
         if ($this->logger && method_exists($this->logger, $level)) {

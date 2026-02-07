@@ -1,20 +1,31 @@
 # Pricing Module Reference
 
-Technical reference for the variant pricing system in `pricing/`.
+Technical reference for the variant pricing system.
+
+**Namespace:** `ResellPiacenza\Pricing\*`, `ResellPiacenza\KicksDb\Client`
 
 ---
 
 ## Module Architecture
 
 ```
-pricing/
-├── kicksdb-client.php        # KicksDB v3 API wrapper
-├── price-calculator.php       # Margin engine
-├── price-updater.php          # WC variation price patcher
-├── sku-registry.php           # WC SKU ↔ KicksDB tracking sync
-├── webhook-receiver.php       # HTTP endpoint (KicksDB → price update)
-├── wc-product-listener.php    # HTTP endpoint (WC → auto-register SKU)
-└── reconcile.php              # Cron job (polling fallback)
+src/
+├── KicksDb/
+│   └── Client.php             # KicksDB v3 API wrapper
+├── Pricing/
+│   ├── PriceCalculator.php    # Margin engine
+│   ├── PriceUpdater.php       # WC variation price patcher
+│   └── SkuRegistry.php        # WC SKU ↔ KicksDB tracking sync
+└── Support/
+    ├── Config.php             # Configuration singleton
+    └── LoggerFactory.php      # Logger factory
+
+bin/
+└── pricing-reconcile          # CLI: Cron job (polling fallback)
+
+public/
+├── kicksdb-webhook.php        # HTTP endpoint (KicksDB → price update)
+└── wc-product-listener.php    # HTTP endpoint (WC → auto-register SKU)
 ```
 
 ---
@@ -231,29 +242,29 @@ KicksDB webhook automatically and saves the ID.
 
 ```bash
 # Full reconciliation (recommended: every 6h)
-php pricing/reconcile.php
+php bin/pricing-reconcile
 
 # Dry run
-php pricing/reconcile.php --dry-run --verbose
+php bin/pricing-reconcile --dry-run --verbose
 
 # Single product debug
-php pricing/reconcile.php --sku=DD1873-102 --verbose
+php bin/pricing-reconcile --sku=DD1873-102 --verbose
 
 # Batch with limit
-php pricing/reconcile.php --limit=50
+php bin/pricing-reconcile --limit=50
 
 # Skip registry sync (prices only)
-php pricing/reconcile.php --skip-registry
+php bin/pricing-reconcile --skip-registry
 ```
 
 ### Cron Setup
 
 ```cron
 # Reconcile every 6 hours
-0 */6 * * * cd /path/to/woo-importer && php pricing/reconcile.php >> logs/cron.log 2>&1
+0 */6 * * * cd /path/to/woo-importer && php bin/pricing-reconcile >> logs/cron.log 2>&1
 
 # Or every 12 hours if API quota is limited
-0 0,12 * * * cd /path/to/woo-importer && php pricing/reconcile.php >> logs/cron.log 2>&1
+0 0,12 * * * cd /path/to/woo-importer && php bin/pricing-reconcile >> logs/cron.log 2>&1
 ```
 
 ### API Usage

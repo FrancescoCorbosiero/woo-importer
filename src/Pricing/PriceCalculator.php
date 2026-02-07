@@ -1,4 +1,7 @@
 <?php
+
+namespace ResellPiacenza\Pricing;
+
 /**
  * Price Calculator Engine
  *
@@ -12,24 +15,13 @@
  *
  * @package ResellPiacenza\Pricing
  */
-
 class PriceCalculator
 {
-    /** @var float Default flat margin percentage (e.g. 25 = +25%) */
     private float $flat_margin;
-
-    /** @var array Tiered margin rules: [['min' => 0, 'max' => 100, 'margin' => 30], ...] */
     private array $tiers;
-
-    /** @var float Absolute minimum selling price (0 = disabled) */
     private float $floor_price;
-
-    /** @var string Rounding strategy: 'whole', 'half', 'none' */
     private string $rounding;
 
-    /**
-     * @param array $config Pricing configuration
-     */
     public function __construct(array $config)
     {
         $this->flat_margin = (float) ($config['flat_margin'] ?? 25);
@@ -37,22 +29,9 @@ class PriceCalculator
         $this->floor_price = (float) ($config['floor_price'] ?? 0);
         $this->rounding = $config['rounding'] ?? 'whole';
 
-        // Sort tiers by min price ascending
         usort($this->tiers, fn($a, $b) => ($a['min'] ?? 0) <=> ($b['min'] ?? 0));
     }
 
-    /**
-     * Calculate selling price from market price
-     *
-     * Strategy priority:
-     * 1. If tiered margins configured and a tier matches → use tier margin
-     * 2. Otherwise → use flat margin
-     * 3. Always enforce floor price as minimum
-     * 4. Apply rounding
-     *
-     * @param float $market_price Source price (e.g. StockX lowest ask)
-     * @return float Final selling price
-     */
     public function calculate(float $market_price): float
     {
         if ($market_price <= 0) {
@@ -62,7 +41,6 @@ class PriceCalculator
         $margin = $this->resolveMargin($market_price);
         $price = $market_price * (1 + $margin / 100);
 
-        // Enforce floor price
         if ($this->floor_price > 0 && $price < $this->floor_price) {
             $price = $this->floor_price;
         }
@@ -70,12 +48,6 @@ class PriceCalculator
         return $this->applyRounding($price);
     }
 
-    /**
-     * Calculate price with full breakdown (for logging/audit)
-     *
-     * @param float $market_price Source price
-     * @return array ['market_price', 'margin_pct', 'margin_type', 'raw_price', 'floor_applied', 'final_price']
-     */
     public function calculateWithBreakdown(float $market_price): array
     {
         if ($market_price <= 0) {
@@ -111,12 +83,8 @@ class PriceCalculator
         ];
     }
 
-    /**
-     * Resolve which margin percentage to apply
-     */
     private function resolveMargin(float $price): float
     {
-        // Check tiered margins first
         if (!empty($this->tiers)) {
             foreach ($this->tiers as $tier) {
                 $min = $tier['min'] ?? 0;
@@ -131,9 +99,6 @@ class PriceCalculator
         return $this->flat_margin;
     }
 
-    /**
-     * Resolve margin type label for audit logging
-     */
     private function resolveMarginType(float $price): string
     {
         if (!empty($this->tiers)) {
@@ -150,9 +115,6 @@ class PriceCalculator
         return 'flat';
     }
 
-    /**
-     * Apply rounding strategy
-     */
     private function applyRounding(float $price): float
     {
         switch ($this->rounding) {
@@ -166,9 +128,6 @@ class PriceCalculator
         }
     }
 
-    /**
-     * Get current configuration summary
-     */
     public function getConfigSummary(): array
     {
         return [

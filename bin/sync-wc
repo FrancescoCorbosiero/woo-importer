@@ -1,0 +1,71 @@
+#!/usr/bin/env php
+<?php
+/**
+ * CLI wrapper for WooCommerce Delta Sync
+ *
+ * Pure pass-through sync for WC-formatted feeds.
+ * Feed is source of truth - must contain all resolved IDs.
+ *
+ * Features:
+ * - Delta detection (new/updated/removed)
+ * - Batch import via import-wc
+ * - Zero transformation logic
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Import\DeltaSync;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+WooCommerce Delta Sync
+
+Usage:
+  bin/sync-wc [options]
+
+Options:
+  --feed=FILE       Read WC-formatted feed from local file
+                    (default: fetch from API)
+  --dry-run         Preview changes
+  --check-only      Show diff only
+  --force-full      Force full import
+  --verbose, -v     Detailed output
+  --help, -h        Show help
+
+Examples:
+  bin/sync-wc                                    # Fetch from API
+  bin/sync-wc --feed=data/feed-wc-latest.json    # From local file
+  bin/sync-wc --feed=data/feed-wc-latest.json --dry-run
+
+Cron (with full pipeline):
+  */30 * * * * cd /path && ./sync.sh >> logs/cron.log 2>&1
+
+HELP;
+    exit(0);
+}
+
+$options = [
+    'dry_run' => in_array('--dry-run', $argv),
+    'check_only' => in_array('--check-only', $argv),
+    'force_full' => in_array('--force-full', $argv),
+    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
+    'feed_file' => null,
+];
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--feed=') === 0) {
+        $options['feed_file'] = str_replace('--feed=', '', $arg);
+    }
+}
+
+$config = Config::load();
+
+$sync = new DeltaSync($config, $options);
+exit($sync->run() ? 0 : 1);

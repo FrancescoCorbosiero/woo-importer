@@ -1,21 +1,15 @@
 <?php
+
+namespace ResellPiacenza\Pricing;
+
 /**
  * WooCommerce Price Updater
  *
  * Takes market price data (from KicksDB webhook or reconciliation),
  * applies margin via PriceCalculator, and patches WooCommerce variations.
  *
- * Features:
- * - Idempotent: skips updates if price hasn't actually changed
- * - Email alerting on anomalous price swings
- * - Batch-friendly: groups variation updates per product
- * - Full audit logging of every price change
- *
  * @package ResellPiacenza\Pricing
  */
-
-require_once __DIR__ . '/price-calculator.php';
-
 class PriceUpdater
 {
     private $wc_client;
@@ -23,22 +17,12 @@ class PriceUpdater
     private $logger;
     private array $config;
 
-    /** @var int Batch size for WC variation batch API */
     private int $batch_size;
-
-    /** @var float Price change threshold (%) to trigger alert. 0 = disabled */
     private float $alert_threshold;
-
-    /** @var string|null Email address for price alerts */
     private ?string $alert_email;
-
-    /** @var string Store name for email subjects */
     private string $store_name;
-
-    /** @var bool Dry run mode */
     private bool $dry_run;
 
-    // Stats
     private array $stats = [
         'variations_checked' => 0,
         'variations_updated' => 0,
@@ -48,12 +32,6 @@ class PriceUpdater
         'batch_requests' => 0,
     ];
 
-    /**
-     * @param object $wc_client WooCommerce REST API client
-     * @param array $pricing_config Pricing section of config
-     * @param object|null $logger PSR-3 logger
-     * @param bool $dry_run Preview mode
-     */
     public function __construct($wc_client, array $pricing_config, $logger = null, bool $dry_run = false)
     {
         $this->wc_client = $wc_client;
@@ -68,20 +46,10 @@ class PriceUpdater
         $this->store_name = $pricing_config['store_name'] ?? 'Store';
     }
 
-    /**
-     * Update prices for a single product's variants from KicksDB data
-     *
-     * This is the main entry point called by both webhook receiver and reconciliation.
-     *
-     * @param string $sku Product SKU (base SKU, e.g. "DD1873-102")
-     * @param array $kicksdb_variants KicksDB variant data with size + price
-     * @return array Update results ['updated' => int, 'skipped' => int, 'errors' => int]
-     */
     public function updateProductPrices(string $sku, array $kicksdb_variants): array
     {
         $result = ['updated' => 0, 'skipped' => 0, 'errors' => 0];
 
-        // Find WC product by SKU
         $wc_product = $this->findWcProduct($sku);
         if ($wc_product === null) {
             $this->log('warning', "Product not found in WC: {$sku}");
@@ -92,7 +60,6 @@ class PriceUpdater
         $product_id = $wc_product->id;
         $product_name = $wc_product->name ?? $sku;
 
-        // Fetch current WC variations
         $wc_variations = $this->fetchWcVariations($product_id);
         if (empty($wc_variations)) {
             $this->log('warning', "No variations found for product {$sku} (ID: {$product_id})");
@@ -100,22 +67,18 @@ class PriceUpdater
             return $result;
         }
 
-        // Build size → KicksDB price map
         $kicksdb_price_map = $this->buildKicksDbPriceMap($kicksdb_variants);
 
-        // Calculate updates needed
         $to_update = [];
 
         foreach ($wc_variations as $wc_var) {
             $this->stats['variations_checked']++;
 
-            // Extract size from variation attributes
             $size = $this->extractSizeFromVariation($wc_var);
             if ($size === null) {
                 continue;
             }
 
-            // Match with KicksDB price
             $market_price = $kicksdb_price_map[$size] ?? null;
             if ($market_price === null) {
                 $this->log('debug', "  No KicksDB price for size {$size} of {$sku}");
@@ -124,19 +87,16 @@ class PriceUpdater
                 continue;
             }
 
-            // Calculate new selling price
             $breakdown = $this->calculator->calculateWithBreakdown($market_price);
             $new_price = $breakdown['final_price'];
             $current_price = (float) ($wc_var->regular_price ?? 0);
 
-            // Skip if price hasn't changed (idempotent)
             if (abs($current_price - $new_price) < 0.01) {
                 $result['skipped']++;
                 $this->stats['variations_skipped']++;
                 continue;
             }
 
-            // Check for anomalous price swing
             if ($current_price > 0 && $this->alert_threshold > 0) {
                 $change_pct = abs(($new_price - $current_price) / $current_price) * 100;
                 if ($change_pct >= $this->alert_threshold) {
@@ -160,7 +120,6 @@ class PriceUpdater
             return $result;
         }
 
-        // Batch update WC variations
         $updated = $this->batchUpdateVariations($product_id, $to_update);
         $result['updated'] = $updated;
         $result['errors'] += count($to_update) - $updated;
@@ -168,12 +127,6 @@ class PriceUpdater
         return $result;
     }
 
-    /**
-     * Bulk update prices for multiple products
-     *
-     * @param array $products_data Array of ['sku' => string, 'variants' => array]
-     * @return array Aggregate stats
-     */
     public function bulkUpdatePrices(array $products_data): array
     {
         $totals = ['updated' => 0, 'skipped' => 0, 'errors' => 0, 'products' => 0];
@@ -198,13 +151,6 @@ class PriceUpdater
         return $totals;
     }
 
-    // =========================================================================
-    // WooCommerce API Interactions
-    // =========================================================================
-
-    /**
-     * Find a WC product by SKU
-     */
     private function findWcProduct(string $sku): ?object
     {
         try {
@@ -221,9 +167,6 @@ class PriceUpdater
         }
     }
 
-    /**
-     * Fetch all variations for a product
-     */
     private function fetchWcVariations(int $product_id): array
     {
         $all_variations = [];
@@ -247,11 +190,6 @@ class PriceUpdater
         return $all_variations;
     }
 
-    /**
-     * Batch update variations via WC REST API
-     *
-     * @return int Number of successfully updated variations
-     */
     private function batchUpdateVariations(int $product_id, array $updates): int
     {
         if ($this->dry_run) {
@@ -289,38 +227,22 @@ class PriceUpdater
         return $updated;
     }
 
-    // =========================================================================
-    // Price Mapping
-    // =========================================================================
-
-    /**
-     * Build a size → price map from KicksDB variant data
-     *
-     * Normalizes sizes to EU format for matching with WC variations.
-     * Uses 'lowest_ask' from StockX as the market price.
-     *
-     * @param array $kicksdb_variants Raw variant data from KicksDB
-     * @return array ['38' => 119.0, '39' => 125.0, ...]
-     */
     private function buildKicksDbPriceMap(array $kicksdb_variants): array
     {
         $map = [];
 
         foreach ($kicksdb_variants as $variant) {
-            // KicksDB variant may have different field names depending on endpoint
             $size = $variant['size_eu']
                 ?? $variant['size']
                 ?? $this->extractSizeFromTitle($variant['title'] ?? '')
                 ?? null;
 
-            // Price priority: lowest_ask → price → amount
             $price = $variant['lowest_ask']
                 ?? $variant['price']
                 ?? $variant['amount']
                 ?? null;
 
             if ($size !== null && $price !== null && $price > 0) {
-                // Normalize size: "38.5" stays as-is, "EU 38.5" → "38.5"
                 $size = preg_replace('/^(EU\s*)/i', '', trim($size));
                 $map[$size] = (float) $price;
             }
@@ -329,11 +251,6 @@ class PriceUpdater
         return $map;
     }
 
-    /**
-     * Extract EU size from variant title string
-     *
-     * KicksDB titles often contain: "Men's US 10 / Women's US 11.5 / UK 9 / EU 44 / JP 28"
-     */
     private function extractSizeFromTitle(string $title): ?string
     {
         if (preg_match('/EU\s+([\d.]+)/i', $title, $matches)) {
@@ -342,20 +259,15 @@ class PriceUpdater
         return null;
     }
 
-    /**
-     * Extract size value from a WC variation's attributes
-     */
     private function extractSizeFromVariation(object $variation): ?string
     {
         foreach ($variation->attributes ?? [] as $attr) {
             $slug = $attr->slug ?? $attr->name ?? '';
-            // Match pa_taglia or taglia
             if (stripos($slug, 'taglia') !== false || stripos($slug, 'size') !== false) {
                 return $attr->option ?? null;
             }
         }
 
-        // Fallback: try to extract from variation SKU (e.g. "DD1873-102-38")
         $sku = $variation->sku ?? '';
         if (preg_match('/-(\d+\.?\d*)$/', $sku, $matches)) {
             return $matches[1];
@@ -364,13 +276,6 @@ class PriceUpdater
         return null;
     }
 
-    // =========================================================================
-    // Alerting
-    // =========================================================================
-
-    /**
-     * Send email alert for anomalous price swing
-     */
     private function sendPriceAlert(
         string $sku,
         string $product_name,
@@ -417,29 +322,16 @@ class PriceUpdater
         }
     }
 
-    // =========================================================================
-    // Stats & Logging
-    // =========================================================================
-
-    /**
-     * Get execution stats
-     */
     public function getStats(): array
     {
         return $this->stats;
     }
 
-    /**
-     * Reset stats
-     */
     public function resetStats(): void
     {
         $this->stats = array_map(fn() => 0, $this->stats);
     }
 
-    /**
-     * Log helper
-     */
     private function log(string $level, string $message): void
     {
         if ($this->logger && method_exists($this->logger, $level)) {

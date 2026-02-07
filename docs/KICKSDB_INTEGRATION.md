@@ -16,11 +16,11 @@ KicksDB (StockX market data) into WooCommerce.
           │  (one-time/batch) │              │  (continuous loop)   │
           └────────┬──────────┘              └──────────┬───────────┘
                    │                                    │
-    import-kicksdb.php                      ┌───────────┴──────────┐
+    bin/import-kicksdb                      ┌───────────┴──────────┐
           │                                 │                      │
-    kicksdb-transform.php           Webhook (real-time)    Cron (fallback)
+    KicksDbTransformer              Webhook (real-time)    Cron (fallback)
           │                                 │                      │
-    import-wc.php                  webhook-receiver.php   reconcile.php
+    WooCommerceImporter          kicksdb-webhook.php   pricing-reconcile
           │                                 │                      │
           └────────────┬────────────────────┘──────────────────────┘
                        │
@@ -47,7 +47,7 @@ Two separate flows:
 - WC REST API credentials (`ck_` / `cs_` keys)
 - Global attributes created: `pa_taglia` (Size), `pa_marca` (Brand)
 - Category created: `Sneakers`
-- Run `php prepare-taxonomies.php` to set up all taxonomies
+- Run `php bin/prepare-taxonomies` to set up all taxonomies
 
 ### 3. Environment Variables
 Copy `.env.example` to `.env` and fill in:
@@ -76,41 +76,41 @@ WC_PRODUCT_WEBHOOK_SECRET=another_random_secret
 
 ```bash
 # 1. Ensure taxonomies exist
-php prepare-taxonomies.php --brands=Nike,Adidas,Jordan --verbose
+php bin/prepare-taxonomies --brands=Nike,Adidas,Jordan --verbose
 
 # 2. Import 3 products (dry run first)
-php import-kicksdb.php --skus=DD1873-102,CW2288-111,CT8527-100 --dry-run
+php bin/import-kicksdb --skus=DD1873-102,CW2288-111,CT8527-100 --dry-run
 
 # 3. Real import
-php import-kicksdb.php --skus=DD1873-102,CW2288-111,CT8527-100
+php bin/import-kicksdb --skus=DD1873-102,CW2288-111,CT8527-100
 ```
 
 ### Input Formats
 
 **CLI argument:**
 ```bash
-php import-kicksdb.php --skus=DD1873-102,CW2288-111
+php bin/import-kicksdb --skus=DD1873-102,CW2288-111
 ```
 
 **JSON file:**
 ```bash
-php import-kicksdb.php --skus-file=samples/kicksdb-skus.json
+php bin/import-kicksdb --skus-file=samples/kicksdb-skus.json
 ```
 
 **Plain text file (one SKU per line):**
 ```bash
-php import-kicksdb.php --skus-file=samples/kicksdb-skus.txt
+php bin/import-kicksdb --skus-file=samples/kicksdb-skus.txt
 ```
 
 **CSV file (first column = SKU):**
 ```bash
-php import-kicksdb.php --skus-file=samples/kicksdb-skus.csv
+php bin/import-kicksdb --skus-file=samples/kicksdb-skus.csv
 ```
 
 **Pipe from stdin:**
 ```bash
-echo "DD1873-102" | php import-kicksdb.php
-cat my-skus.txt | php import-kicksdb.php --dry-run
+echo "DD1873-102" | php bin/import-kicksdb
+cat my-skus.txt | php bin/import-kicksdb --dry-run
 ```
 
 ### What Happens
@@ -125,18 +125,18 @@ For each SKU, the importer:
    - Image sideloaded from StockX CDN
    - EU sizes extracted from variant data
    - Prices calculated: `StockX lowest_ask * margin → selling price`
-4. **Imports** via `import-wc.php` (batch create/update)
+4. **Imports** via `WooCommerceImporter` (batch create/update)
 
 ### Transform-Only Mode
 
 Generate the WC feed without importing (useful for review):
 
 ```bash
-php import-kicksdb.php --skus-file=skus.json --transform-only --save-feed
+php bin/import-kicksdb --skus-file=skus.json --transform-only --save-feed
 # Output: data/feed-kicksdb.json
 
 # Review the feed, then import manually:
-php import-wc.php --feed=data/feed-kicksdb.json
+php bin/import-wc --feed=data/feed-kicksdb.json
 ```
 
 ### CLI Options
@@ -160,20 +160,20 @@ php import-wc.php --feed=data/feed-kicksdb.json
 
 #### Step 1: Deploy Webhook Receiver
 
-Point your web server to `pricing/webhook-receiver.php`:
+Point your web server to `public/kicksdb-webhook.php`:
 
 **Nginx:**
 ```nginx
 location /api/kicksdb-webhook {
     fastcgi_pass unix:/var/run/php/php-fpm.sock;
-    fastcgi_param SCRIPT_FILENAME /path/to/woo-importer/pricing/webhook-receiver.php;
+    fastcgi_param SCRIPT_FILENAME /path/to/woo-importer/public/kicksdb-webhook.php;
     include fastcgi_params;
 }
 ```
 
 **Apache (.htaccess):**
 ```apache
-RewriteRule ^api/kicksdb-webhook$ pricing/webhook-receiver.php [L]
+RewriteRule ^api/kicksdb-webhook$ public/kicksdb-webhook.php [L]
 ```
 
 #### Step 2: Register Initial SKUs
@@ -181,7 +181,7 @@ RewriteRule ^api/kicksdb-webhook$ pricing/webhook-receiver.php [L]
 ```bash
 # Run reconciliation — this syncs your WC inventory with KicksDB
 # and creates the webhook automatically on first run
-php pricing/reconcile.php --verbose
+php bin/pricing-reconcile --verbose
 ```
 
 #### Step 3: Verify
@@ -233,12 +233,12 @@ its SKU with KicksDB for price tracking.
    - **Secret:** Same as `WC_PRODUCT_WEBHOOK_SECRET` in `.env`
 3. Add another webhook for **Product deleted** (same URL)
 
-Deploy `pricing/wc-product-listener.php`:
+Deploy `public/wc-product-listener.php`:
 
 ```nginx
 location /api/wc-product-listener {
     fastcgi_pass unix:/var/run/php/php-fpm.sock;
-    fastcgi_param SCRIPT_FILENAME /path/to/woo-importer/pricing/wc-product-listener.php;
+    fastcgi_param SCRIPT_FILENAME /path/to/woo-importer/public/wc-product-listener.php;
     include fastcgi_params;
 }
 ```
@@ -246,7 +246,7 @@ location /api/wc-product-listener {
 ### What Happens
 
 ```
-You import a product (via import-kicksdb.php or WC admin)
+You import a product (via bin/import-kicksdb or WC admin)
         │
         ▼ WC fires product.created webhook
 ┌──────────────────────────┐
@@ -268,22 +268,22 @@ Periodic job to catch missed webhooks and verify data integrity.
 
 ```bash
 # Full reconciliation
-php pricing/reconcile.php
+php bin/pricing-reconcile
 
 # Dry run
-php pricing/reconcile.php --dry-run --verbose
+php bin/pricing-reconcile --dry-run --verbose
 
 # Single product
-php pricing/reconcile.php --sku=DD1873-102
+php bin/pricing-reconcile --sku=DD1873-102
 
 # First 10 only
-php pricing/reconcile.php --limit=10 --verbose
+php bin/pricing-reconcile --limit=10 --verbose
 ```
 
 **Recommended cron schedule:**
 ```cron
 # Every 6 hours
-0 */6 * * * cd /path/to/woo-importer && php pricing/reconcile.php >> logs/cron.log 2>&1
+0 */6 * * * cd /path/to/woo-importer && php bin/pricing-reconcile >> logs/cron.log 2>&1
 ```
 
 ### What It Does
@@ -360,7 +360,7 @@ php pricing/reconcile.php --limit=10 --verbose
 1. Check `logs/webhook-receiver.log` for incoming events
 2. Check `logs/reconcile.log` for cron output
 3. Verify webhook is registered: check `data/sku-registry.json`
-4. Run manual reconciliation: `php pricing/reconcile.php --sku=DD1873-102 --verbose`
+4. Run manual reconciliation: `php bin/pricing-reconcile --sku=DD1873-102 --verbose`
 
 ### Webhook signature errors
 - Ensure `KICKSDB_WEBHOOK_SECRET` matches what KicksDB has on file

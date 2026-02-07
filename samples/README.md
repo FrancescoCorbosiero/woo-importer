@@ -8,19 +8,19 @@ All samples use the `TEST-` SKU prefix for easy identification and cleanup.
 
 | File | Used by | Description |
 |------|---------|-------------|
-| `brands.json` | `prepare-taxonomies.php` | Simple brand list |
-| `image-urls.json` | `prepare-media.php` | SKU → image URL mapping |
-| `gs-api-response.json` | `gs-transform.php` | Simulated GS API response |
-| `bulk-upload-products.json` | `bulk-upload.php` | JSON format (6 products) |
-| `bulk-upload-products.csv` | `bulk-upload.php` | CSV format (4 products) |
-| `wc-formatted-feed.json` | `import-wc.php`, `sync-wc.php` | Pre-resolved WC REST format |
-| `kicksdb-skus.json` | `import-kicksdb.php` | JSON array of 5 real SKUs |
-| `kicksdb-skus.txt` | `import-kicksdb.php` | Plain text, one SKU per line |
-| `kicksdb-skus.csv` | `import-kicksdb.php` | CSV with SKU + name + notes |
+| `brands.json` | `bin/prepare-taxonomies` | Simple brand list |
+| `image-urls.json` | `bin/prepare-media` | SKU → image URL mapping |
+| `gs-api-response.json` | `bin/gs-transform` | Simulated GS API response |
+| `bulk-upload-products.json` | `bin/bulk-upload` | JSON format (6 products) |
+| `bulk-upload-products.csv` | `bin/bulk-upload` | CSV format (4 products) |
+| `wc-formatted-feed.json` | `bin/import-wc`, `bin/sync-wc` | Pre-resolved WC REST format |
+| `kicksdb-skus.json` | `bin/import-kicksdb` | JSON array of 5 real SKUs |
+| `kicksdb-skus.txt` | `bin/import-kicksdb` | Plain text, one SKU per line |
+| `kicksdb-skus.csv` | `bin/import-kicksdb` | CSV with SKU + name + notes |
 | `kicksdb-api-response.json` | Reference | Mock KicksDB StockX product response |
 | `kicksdb-variants-response.json` | Reference | Mock KicksDB variants (11 sizes + prices) |
 | `kicksdb-webhook-payload.json` | Reference | Mock price_change webhook payload |
-| `wc-feed-from-kicksdb.json` | `import-wc.php` | Expected WC output from KicksDB transform |
+| `wc-feed-from-kicksdb.json` | `bin/import-wc` | Expected WC output from KicksDB transform |
 
 ---
 
@@ -31,13 +31,13 @@ images, transforms to WC format, imports.
 
 ```bash
 # Dry run first — preview what would happen
-php bulk-upload.php --file=samples/bulk-upload-products.json --dry-run --verbose
+php bin/bulk-upload --file=samples/bulk-upload-products.json --dry-run --verbose
 
 # Real import
-php bulk-upload.php --file=samples/bulk-upload-products.json --verbose
+php bin/bulk-upload --file=samples/bulk-upload-products.json --verbose
 
 # Skip image upload (WooCommerce will sideload from URLs)
-php bulk-upload.php --file=samples/bulk-upload-products.json --skip-media --verbose
+php bin/bulk-upload --file=samples/bulk-upload-products.json --skip-media --verbose
 ```
 
 ---
@@ -49,10 +49,10 @@ one product with multiple size variations.
 
 ```bash
 # Dry run
-php bulk-upload.php --file=samples/bulk-upload-products.csv --dry-run --verbose
+php bin/bulk-upload --file=samples/bulk-upload-products.csv --dry-run --verbose
 
 # Real import
-php bulk-upload.php --file=samples/bulk-upload-products.csv --verbose
+php bin/bulk-upload --file=samples/bulk-upload-products.csv --verbose
 ```
 
 ---
@@ -63,24 +63,24 @@ Run each tool individually. Useful when you want control over each step.
 
 ```bash
 # Step 1: Ensure taxonomies (categories + attributes + brands from file)
-php prepare-taxonomies.php --brands-file=samples/brands.json --dry-run --verbose
-php prepare-taxonomies.php --brands-file=samples/brands.json --verbose
+php bin/prepare-taxonomies --brands-file=samples/brands.json --dry-run --verbose
+php bin/prepare-taxonomies --brands-file=samples/brands.json --verbose
 
 # Step 2: Upload images from URL list
-php prepare-media.php --urls-file=samples/image-urls.json --dry-run --verbose
-php prepare-media.php --urls-file=samples/image-urls.json --verbose
+php bin/prepare-media --urls-file=samples/image-urls.json --dry-run --verbose
+php bin/prepare-media --urls-file=samples/image-urls.json --verbose
 
 # Step 3: Check the generated maps
 cat data/taxonomy-map.json
 cat image-map.json
 
 # Step 4: Direct WC import (feed already in WC format)
-php import-wc.php --feed=samples/wc-formatted-feed.json --dry-run
-php import-wc.php --feed=samples/wc-formatted-feed.json
+php bin/import-wc --feed=samples/wc-formatted-feed.json --dry-run
+php bin/import-wc --feed=samples/wc-formatted-feed.json
 
 # Step 5: Delta sync from a local file
-php sync-wc.php --feed=samples/wc-formatted-feed.json --dry-run --verbose
-php sync-wc.php --feed=samples/wc-formatted-feed.json --verbose
+php bin/sync-wc --feed=samples/wc-formatted-feed.json --dry-run --verbose
+php bin/sync-wc --feed=samples/wc-formatted-feed.json --verbose
 ```
 
 ---
@@ -91,19 +91,19 @@ Full Golden Sneakers pipeline. Requires valid `.env` credentials.
 
 ```bash
 # Step 1: Discover brands from GS feed and create in WC
-php prepare-taxonomies.php --from-gs --dry-run --verbose
-php prepare-taxonomies.php --from-gs --verbose
+php bin/prepare-taxonomies --from-gs --dry-run --verbose
+php bin/prepare-taxonomies --from-gs --verbose
 
 # Step 2: Upload images from GS feed
-php prepare-media.php --from-gs --dry-run --verbose
-php prepare-media.php --from-gs --limit=5 --verbose    # first 5 only
+php bin/prepare-media --from-gs --dry-run --verbose
+php bin/prepare-media --from-gs --limit=5 --verbose    # first 5 only
 
 # Step 3: Transform GS feed → WC format
-php gs-transform.php --verbose
+php bin/gs-transform --verbose
 
 # Step 4: Delta sync + import
-php sync-wc.php --feed=data/feed-wc-latest.json --dry-run --verbose
-php sync-wc.php --feed=data/feed-wc-latest.json --verbose
+php bin/sync-wc --feed=data/feed-wc-latest.json --dry-run --verbose
+php bin/sync-wc --feed=data/feed-wc-latest.json --verbose
 
 # Or run the full pipeline in one shot:
 ./gs-sync.sh --dry-run --verbose
@@ -117,14 +117,14 @@ php sync-wc.php --feed=data/feed-wc-latest.json --verbose
 
 ```bash
 # From a comma-separated list
-php prepare-taxonomies.php --brands=Nike,Adidas,Puma,Jordan --dry-run --verbose
-php prepare-taxonomies.php --brands=Nike,Adidas,Puma,Jordan --verbose
+php bin/prepare-taxonomies --brands=Nike,Adidas,Puma,Jordan --dry-run --verbose
+php bin/prepare-taxonomies --brands=Nike,Adidas,Puma,Jordan --verbose
 
 # From a JSON file
-php prepare-taxonomies.php --brands-file=samples/brands.json --verbose
+php bin/prepare-taxonomies --brands-file=samples/brands.json --verbose
 
 # Just categories + attributes (no brands)
-php prepare-taxonomies.php --verbose
+php bin/prepare-taxonomies --verbose
 ```
 
 ---
@@ -135,13 +135,13 @@ When you already have data in WooCommerce REST format with resolved IDs.
 
 ```bash
 # Preview
-php import-wc.php --feed=samples/wc-formatted-feed.json --dry-run
+php bin/import-wc --feed=samples/wc-formatted-feed.json --dry-run
 
 # Import first 1 product
-php import-wc.php --feed=samples/wc-formatted-feed.json --limit=1
+php bin/import-wc --feed=samples/wc-formatted-feed.json --limit=1
 
 # Full import
-php import-wc.php --feed=samples/wc-formatted-feed.json
+php bin/import-wc --feed=samples/wc-formatted-feed.json
 ```
 
 ---
@@ -153,30 +153,30 @@ Requires `KICKSDB_API_KEY` in `.env`.
 
 ```bash
 # From CLI argument (dry run)
-php import-kicksdb.php --skus=DD1873-102,CW2288-111 --dry-run --verbose
+php bin/import-kicksdb --skus=DD1873-102,CW2288-111 --dry-run --verbose
 
 # From JSON file
-php import-kicksdb.php --skus-file=samples/kicksdb-skus.json --dry-run
+php bin/import-kicksdb --skus-file=samples/kicksdb-skus.json --dry-run
 
 # From plain text file
-php import-kicksdb.php --skus-file=samples/kicksdb-skus.txt --dry-run
+php bin/import-kicksdb --skus-file=samples/kicksdb-skus.txt --dry-run
 
 # From CSV file
-php import-kicksdb.php --skus-file=samples/kicksdb-skus.csv --dry-run
+php bin/import-kicksdb --skus-file=samples/kicksdb-skus.csv --dry-run
 
 # Real import (limit to first 2)
-php import-kicksdb.php --skus-file=samples/kicksdb-skus.json --limit=2
+php bin/import-kicksdb --skus-file=samples/kicksdb-skus.json --limit=2
 
 # Full import
-php import-kicksdb.php --skus-file=samples/kicksdb-skus.json
+php bin/import-kicksdb --skus-file=samples/kicksdb-skus.json
 
 # Transform only (generate WC feed without importing)
-php import-kicksdb.php --skus-file=samples/kicksdb-skus.json --transform-only --save-feed
+php bin/import-kicksdb --skus-file=samples/kicksdb-skus.json --transform-only --save-feed
 # Then import manually:
-php import-wc.php --feed=data/feed-kicksdb.json
+php bin/import-wc --feed=data/feed-kicksdb.json
 
 # Pipe a single SKU
-echo "DD1873-102" | php import-kicksdb.php --dry-run
+echo "DD1873-102" | php bin/import-kicksdb --dry-run
 ```
 
 ---
@@ -187,14 +187,14 @@ Update existing WC product prices from current StockX market data.
 
 ```bash
 # Full reconciliation (all tracked SKUs)
-php pricing/reconcile.php --dry-run --verbose
-php pricing/reconcile.php --verbose
+php bin/pricing-reconcile --dry-run --verbose
+php bin/pricing-reconcile --verbose
 
 # Single product
-php pricing/reconcile.php --sku=DD1873-102 --verbose
+php bin/pricing-reconcile --sku=DD1873-102 --verbose
 
 # First 5 products only
-php pricing/reconcile.php --limit=5 --dry-run --verbose
+php bin/pricing-reconcile --limit=5 --dry-run --verbose
 ```
 
 ---
@@ -202,14 +202,14 @@ php pricing/reconcile.php --limit=5 --dry-run --verbose
 ## Flow 9: Pre-formatted KicksDB WC Feed
 
 Import the sample WC feed that simulates KicksDB transform output.
-Useful for testing `import-wc.php` without a live KicksDB API key.
+Useful for testing `bin/import-wc` without a live KicksDB API key.
 
 ```bash
 # Preview
-php import-wc.php --feed=samples/wc-feed-from-kicksdb.json --dry-run
+php bin/import-wc --feed=samples/wc-feed-from-kicksdb.json --dry-run
 
 # Import
-php import-wc.php --feed=samples/wc-feed-from-kicksdb.json
+php bin/import-wc --feed=samples/wc-feed-from-kicksdb.json
 ```
 
 ---
@@ -268,7 +268,7 @@ barcode, size_us, size_eu, size_uk.
 Simulated `price_change` webhook payload with 3 variant price updates.
 
 ### wc-feed-from-kicksdb.json
-Expected output of `kicksdb-transform.php` for DD1873-102. Shows tiered
+Expected output of KicksDbTransformer for DD1873-102. Shows tiered
 margin pricing applied to StockX asks:
 - $82 (size 35.5) → +35% tier → €111
 - $105 (size 40) → +28% tier → €135

@@ -1,0 +1,61 @@
+#!/usr/bin/env php
+<?php
+/**
+ * CLI wrapper for Golden Sneakers Feed Transformer
+ *
+ * Fetches the Golden Sneakers API feed and transforms it to WooCommerce
+ * REST API format, using resolved IDs from taxonomy-map.json and
+ * image-map.json.
+ *
+ * Outputs: data/feed-wc-latest.json
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Import\GoldenSneakersTransformer;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Feed Transformer
+Transforms Golden Sneakers API feed to WooCommerce REST format.
+
+Usage:
+  bin/gs-transform [options]
+
+Options:
+  --limit=N         Transform first N products only
+  --verbose, -v     Detailed output
+  --help, -h        Show help
+
+Requires:
+  data/taxonomy-map.json   (from prepare-taxonomies)
+  image-map.json           (from prepare-media)
+
+Output:
+  data/feed-wc-latest.json - WooCommerce REST API formatted products
+
+HELP;
+    exit(0);
+}
+
+$options = [
+    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
+    'limit' => null,
+];
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--limit=') === 0) {
+        $options['limit'] = (int) str_replace('--limit=', '', $arg);
+    }
+}
+
+$config = Config::load();
+$transformer = new GoldenSneakersTransformer($config, $options);
+exit($transformer->run() ? 0 : 1);

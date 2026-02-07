@@ -1,38 +1,27 @@
+#!/usr/bin/env php
 <?php
 /**
- * Price Reconciliation (Polling Fallback)
+ * CLI wrapper for Price Reconciliation (Polling Fallback)
  *
  * Cron job that periodically:
- * 1. Syncs the SKU registry (WC inventory ↔ KicksDB tracking)
+ * 1. Syncs the SKU registry (WC inventory <-> KicksDB tracking)
  * 2. Fetches current StockX prices from KicksDB for all tracked SKUs
  * 3. Updates WC variation prices where they differ
  *
  * This acts as a safety net for missed webhooks, KicksDB downtime,
  * and initial price backfill when new products are first imported.
  *
- * Usage:
- *   php pricing/reconcile.php                    # Full reconciliation
- *   php pricing/reconcile.php --dry-run          # Preview changes
- *   php pricing/reconcile.php --skip-registry    # Skip SKU sync, prices only
- *   php pricing/reconcile.php --sku=DD1873-102   # Single product only
- *   php pricing/reconcile.php --limit=10         # Process first N products
- *
- * Cron (recommended: every 6-12 hours):
- *   0 */6 * * * cd /path/to/woo-importer && php pricing/reconcile.php >> logs/cron.log 2>&1
- *
  * @package ResellPiacenza\Pricing
  */
 
-$base_dir = dirname(__DIR__);
-require $base_dir . '/vendor/autoload.php';
-require_once __DIR__ . '/kicksdb-client.php';
-require_once __DIR__ . '/price-updater.php';
-require_once __DIR__ . '/sku-registry.php';
+require __DIR__ . '/../vendor/autoload.php';
 
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\KicksDb\Client as KicksDbClient;
+use ResellPiacenza\Pricing\PriceUpdater;
+use ResellPiacenza\Pricing\SkuRegistry;
 use Automattic\WooCommerce\Client;
-use Monolog\Logger;
-use Monolog\Handler\StreamHandler;
-use Monolog\Handler\RotatingFileHandler;
 
 // ============================================================================
 // CLI Options
@@ -43,7 +32,7 @@ if (in_array('--help', $argv ?? []) || in_array('-h', $argv ?? [])) {
 Price Reconciliation (Polling Fallback)
 
 Usage:
-  php pricing/reconcile.php [options]
+  bin/pricing-reconcile [options]
 
 Options:
   --dry-run           Preview changes without updating WooCommerce
@@ -55,13 +44,13 @@ Options:
   --help, -h          Show this help
 
 Examples:
-  php pricing/reconcile.php                          # Full reconciliation
-  php pricing/reconcile.php --dry-run                # Preview all changes
-  php pricing/reconcile.php --sku=DD1873-102         # Single product
-  php pricing/reconcile.php --limit=10 --verbose     # First 10, detailed
+  bin/pricing-reconcile                          # Full reconciliation
+  bin/pricing-reconcile --dry-run                # Preview all changes
+  bin/pricing-reconcile --sku=DD1873-102         # Single product
+  bin/pricing-reconcile --limit=10 --verbose     # First 10, detailed
 
 Cron (every 6 hours):
-  0 */6 * * * cd /path/to/woo-importer && php pricing/reconcile.php >> logs/cron.log 2>&1
+  0 */6 * * * cd /path/to/woo-importer && bin/pricing-reconcile >> logs/cron.log 2>&1
 
 HELP;
     exit(0);
@@ -90,18 +79,13 @@ foreach ($argv as $arg) {
 // Setup
 // ============================================================================
 
-$config = require $base_dir . '/config.php';
+$config = Config::load();
 $pricing = $config['pricing'] ?? [];
 
 // Logger
-$logger = new Logger('Reconcile');
-$log_dir = $base_dir . '/logs';
-if (!is_dir($log_dir)) {
-    mkdir($log_dir, 0755, true);
-}
-$logger->pushHandler(new RotatingFileHandler($log_dir . '/reconcile.log', 7, Logger::DEBUG));
-$console_level = $verbose ? Logger::DEBUG : Logger::INFO;
-$logger->pushHandler(new StreamHandler('php://stdout', $console_level));
+$logger = LoggerFactory::create('Reconcile', [
+    'console_level' => $verbose ? \Monolog\Logger::DEBUG : \Monolog\Logger::INFO,
+]);
 
 $logger->info('');
 $logger->info('========================================');
@@ -150,7 +134,7 @@ if ($single_sku) {
     $registry = new SkuRegistry($wc_client, $kicksdb, [
         'webhook_id' => $pricing['kicksdb_webhook_id'] ?? null,
         'callback_url' => $pricing['webhook_callback_url'] ?? '',
-        'registry_file' => $base_dir . '/data/sku-registry.json',
+        'registry_file' => Config::projectRoot() . '/data/sku-registry.json',
     ], $logger);
 
     $sync_result = $registry->sync();
@@ -164,7 +148,7 @@ if ($single_sku) {
     $logger->info('Step 1: Skipped (--skip-registry)');
 
     // Load SKUs from existing registry
-    $registry_file = $base_dir . '/data/sku-registry.json';
+    $registry_file = Config::projectRoot() . '/data/sku-registry.json';
     if (file_exists($registry_file)) {
         $registry_data = json_decode(file_get_contents($registry_file), true);
         $skus_to_process = array_keys($registry_data['skus'] ?? []);

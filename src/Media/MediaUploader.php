@@ -1,6 +1,13 @@
 <?php
+
+namespace ResellPiacenza\Media;
+
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+
 /**
- * Media Preparation (Source-Agnostic)
+ * Media Uploader (Source-Agnostic)
  *
  * Downloads product images and uploads them to the WordPress media
  * library with Italian SEO metadata.
@@ -8,24 +15,9 @@
  *
  * Outputs: image-map.json (SKU => {media_id, url, uploaded_at})
  *
- * Usage:
- *   php prepare-media.php --from-gs                   # Images from GS API
- *   php prepare-media.php --urls-file=images.json     # Images from JSON file
- *   php prepare-media.php --from-gs --limit=10        # First 10 only
- *   php prepare-media.php --from-gs --force           # Re-upload all
- *   php prepare-media.php --update-metadata           # Update SEO only
- *   php prepare-media.php --dry-run --verbose
- *
- * @package ResellPiacenza\WooImport
+ * @package ResellPiacenza\Media
  */
-
-require __DIR__ . '/vendor/autoload.php';
-
-use Monolog\Logger;
-use Monolog\Handler\StreamHandler;
-use Monolog\Handler\RotatingFileHandler;
-
-class MediaPreparer
+class MediaUploader
 {
     private $config;
     private $logger;
@@ -70,19 +62,10 @@ class MediaPreparer
 
     private function setupLogger(): void
     {
-        $this->logger = new Logger('MediaPrep');
-
-        $log_dir = __DIR__ . '/logs';
-        if (!is_dir($log_dir)) {
-            mkdir($log_dir, 0755, true);
-        }
-
-        $this->logger->pushHandler(
-            new RotatingFileHandler($log_dir . '/prepare-media.log', 7, Logger::DEBUG)
-        );
-
-        $level = $this->verbose ? Logger::DEBUG : Logger::INFO;
-        $this->logger->pushHandler(new StreamHandler('php://stdout', $level));
+        $this->logger = LoggerFactory::create('MediaPrep', [
+            'file' => Config::projectRoot() . '/logs/prepare-media.log',
+            'console_level' => $this->verbose ? Logger::DEBUG : Logger::INFO,
+        ]);
     }
 
     /**
@@ -90,7 +73,7 @@ class MediaPreparer
      */
     private function loadExistingMap(): void
     {
-        $map_file = __DIR__ . '/image-map.json';
+        $map_file = Config::projectRoot() . '/image-map.json';
         if (file_exists($map_file)) {
             $this->image_map = json_decode(file_get_contents($map_file), true) ?: [];
             $this->logger->info("Loaded existing image map: " . count($this->image_map) . " entries");
@@ -102,7 +85,7 @@ class MediaPreparer
      */
     private function saveImageMap(): void
     {
-        $map_file = __DIR__ . '/image-map.json';
+        $map_file = Config::projectRoot() . '/image-map.json';
         file_put_contents(
             $map_file,
             json_encode($this->image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
@@ -143,7 +126,7 @@ class MediaPreparer
             case 'file':
                 return $this->loadImagesFromFile($this->urls_file);
             default:
-                throw new Exception('No image source specified (use --from-gs or --urls-file=FILE)');
+                throw new \Exception('No image source specified (use --from-gs or --urls-file=FILE)');
         }
     }
 
@@ -172,18 +155,18 @@ class MediaPreparer
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
         if (curl_errno($ch)) {
-            throw new Exception('CURL Error: ' . curl_error($ch));
+            throw new \Exception('CURL Error: ' . curl_error($ch));
         }
 
         curl_close($ch);
 
         if ($http_code !== 200) {
-            throw new Exception("API returned HTTP {$http_code}");
+            throw new \Exception("API returned HTTP {$http_code}");
         }
 
         $products = json_decode($response, true);
         if (!is_array($products)) {
-            throw new Exception('Invalid JSON response');
+            throw new \Exception('Invalid JSON response');
         }
 
         $this->logger->info("  " . count($products) . " products");
@@ -219,12 +202,12 @@ class MediaPreparer
     private function loadImagesFromFile(string $path): array
     {
         if (!file_exists($path)) {
-            throw new Exception("URLs file not found: {$path}");
+            throw new \Exception("URLs file not found: {$path}");
         }
 
         $data = json_decode(file_get_contents($path), true);
         if (!is_array($data)) {
-            throw new Exception("Invalid JSON in URLs file");
+            throw new \Exception("Invalid JSON in URLs file");
         }
 
         $images = [];
@@ -316,7 +299,7 @@ class MediaPreparer
 
         if ($http_code !== 201) {
             $error = json_decode($response, true);
-            throw new Exception($error['message'] ?? "HTTP {$http_code}");
+            throw new \Exception($error['message'] ?? "HTTP {$http_code}");
         }
 
         $result = json_decode($response, true);
@@ -362,7 +345,7 @@ class MediaPreparer
         curl_close($ch);
 
         if ($http_code !== 200) {
-            throw new Exception("Metadata update failed: HTTP {$http_code}");
+            throw new \Exception("Metadata update failed: HTTP {$http_code}");
         }
     }
 
@@ -452,7 +435,7 @@ class MediaPreparer
             curl_close($ch);
 
             if ($http_code !== 200 || empty($content)) {
-                throw new Exception("Download failed: HTTP {$http_code}");
+                throw new \Exception("Download failed: HTTP {$http_code}");
             }
 
             file_put_contents($temp_file, $content);
@@ -460,14 +443,14 @@ class MediaPreparer
             // Validate image
             $info = @getimagesize($temp_file);
             if ($info === false) {
-                throw new Exception('Invalid image format');
+                throw new \Exception('Invalid image format');
             }
 
             $mime = $info['mime'];
             $ext = image_type_to_extension($info[2], false);
 
             if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
-                throw new Exception("Unsupported type: {$mime}");
+                throw new \Exception("Unsupported type: {$mime}");
             }
 
             // Delete old media if force re-uploading
@@ -490,7 +473,7 @@ class MediaPreparer
 
             $this->stats[$exists ? 'updated' : 'uploaded']++;
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->stats['failed']++;
             $this->logger->error("  Failed {$sku}: " . $e->getMessage());
 
@@ -575,73 +558,9 @@ class MediaPreparer
 
             return true;
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->logger->error('Error: ' . $e->getMessage());
             return false;
         }
     }
 }
-
-// ============================================================================
-// CLI
-// ============================================================================
-
-if (in_array('--help', $argv) || in_array('-h', $argv)) {
-    echo <<<HELP
-Media Preparation
-Downloads and uploads product images to WordPress with Italian SEO metadata.
-
-Usage:
-  php prepare-media.php <source> [options]
-
-Image sources (pick one):
-  --from-gs               Get image URLs from Golden Sneakers API
-  --urls-file=FILE        Load from JSON file (see docs/bulk-upload-images.json)
-
-Options:
-  --dry-run               Preview without uploading
-  --limit=N               Process first N images only
-  --force                 Re-upload all images (replaces existing)
-  --update-metadata       Update SEO metadata only (no re-upload)
-  --verbose, -v           Detailed output
-  --help, -h              Show help
-
-Output:
-  image-map.json - SKU to WordPress media ID mapping
-
-Examples:
-  php prepare-media.php --from-gs                        # GS pipeline
-  php prepare-media.php --from-gs --limit=10 --dry-run   # Preview 10
-  php prepare-media.php --urls-file=my-images.json       # Custom source
-
-HELP;
-    exit(0);
-}
-
-$options = [
-    'dry_run' => in_array('--dry-run', $argv),
-    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
-    'force' => in_array('--force', $argv),
-    'update_metadata' => in_array('--update-metadata', $argv),
-    'image_source' => null,
-    'urls_file' => null,
-    'limit' => null,
-];
-
-if (in_array('--from-gs', $argv)) {
-    $options['image_source'] = 'gs';
-}
-
-foreach ($argv as $arg) {
-    if (strpos($arg, '--limit=') === 0) {
-        $options['limit'] = (int) str_replace('--limit=', '', $arg);
-    }
-    if (strpos($arg, '--urls-file=') === 0) {
-        $options['image_source'] = 'file';
-        $options['urls_file'] = str_replace('--urls-file=', '', $arg);
-    }
-}
-
-$config = require __DIR__ . '/config.php';
-$preparer = new MediaPreparer($config, $options);
-exit($preparer->run() ? 0 : 1);

@@ -62,13 +62,13 @@ echo ""
 
 # Step 1: Ensure taxonomies exist (categories, attributes, brands from GS feed)
 echo "[Step 1/4] Preparing taxonomies..."
-php prepare-taxonomies.php --from-gs $DRY_RUN $VERBOSE
+php bin/prepare-taxonomies --from-gs $DRY_RUN $VERBOSE
 echo ""
 
 # Step 2: Upload new images to WordPress media library
 if [ -z "$SKIP_MEDIA" ]; then
     echo "[Step 2/4] Preparing media..."
-    php prepare-media.php --from-gs $DRY_RUN $VERBOSE
+    php bin/prepare-media --from-gs $DRY_RUN $VERBOSE
     echo ""
 else
     echo "[Step 2/4] Skipping media (--skip-media)"
@@ -77,12 +77,12 @@ fi
 
 # Step 3: Transform GS feed → WooCommerce format
 echo "[Step 3/4] Transforming feed..."
-php gs-transform.php $VERBOSE
+php bin/gs-transform $VERBOSE
 echo ""
 
 # Step 4: Delta sync + import
 echo "[Step 4/4] Running delta sync..."
-php sync-wc.php --feed=data/feed-wc-latest.json $DRY_RUN $VERBOSE $FORCE_FULL
+php bin/sync-wc --feed=data/feed-wc-latest.json $DRY_RUN $VERBOSE $FORCE_FULL
 
 echo ""
 echo "========================================"
