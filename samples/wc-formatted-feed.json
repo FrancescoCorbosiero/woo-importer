@@ -1,0 +1,120 @@
+[
+  {
+    "name": "Nike Air Force 1 '07 Low White",
+    "sku": "TEST-AF1-001",
+    "type": "variable",
+    "status": "publish",
+    "catalog_visibility": "visible",
+    "short_description": "<p>Sneakers originali <strong>Nike</strong>. Prodotto autentico al 100%. Spedizione veloce in tutta Italia.</p>",
+    "description": "<p>Scopri le <strong>Nike Air Force 1 '07 Low White</strong>, sneakers originali Nike disponibili su ResellPiacenza.</p>",
+    "categories": [{"id": 15}],
+    "brands": [{"id": 8}],
+    "images": [{"id": 100}],
+    "attributes": [
+      {
+        "id": 1,
+        "position": 0,
+        "visible": true,
+        "variation": true,
+        "options": ["38", "39", "40", "41", "42"]
+      }
+    ],
+    "_variations": [
+      {
+        "sku": "TEST-AF1-001-38",
+        "regular_price": "119.00",
+        "manage_stock": true,
+        "stock_quantity": 2,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "38"}]
+      },
+      {
+        "sku": "TEST-AF1-001-39",
+        "regular_price": "119.00",
+        "manage_stock": true,
+        "stock_quantity": 3,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "39"}]
+      },
+      {
+        "sku": "TEST-AF1-001-40",
+        "regular_price": "119.00",
+        "manage_stock": true,
+        "stock_quantity": 5,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "40"}]
+      },
+      {
+        "sku": "TEST-AF1-001-41",
+        "regular_price": "125.00",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "41"}]
+      },
+      {
+        "sku": "TEST-AF1-001-42",
+        "regular_price": "125.00",
+        "manage_stock": true,
+        "stock_quantity": 6,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "42"}]
+      }
+    ]
+  },
+  {
+    "name": "Adidas Samba OG Cloud White Core Black",
+    "sku": "TEST-SAMBA-003",
+    "type": "variable",
+    "status": "publish",
+    "catalog_visibility": "visible",
+    "short_description": "<p>Sneakers originali <strong>Adidas</strong>. Prodotto autentico al 100%. Spedizione veloce in tutta Italia.</p>",
+    "description": "<p>Scopri le <strong>Adidas Samba OG Cloud White Core Black</strong>, sneakers originali Adidas disponibili su ResellPiacenza.</p>",
+    "categories": [{"id": 15}],
+    "brands": [{"id": 9}],
+    "images": [{"id": 101}],
+    "attributes": [
+      {
+        "id": 1,
+        "position": 0,
+        "visible": true,
+        "variation": true,
+        "options": ["40", "41", "42", "43"]
+      }
+    ],
+    "_variations": [
+      {
+        "sku": "TEST-SAMBA-003-40",
+        "regular_price": "109.00",
+        "manage_stock": true,
+        "stock_quantity": 6,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "40"}]
+      },
+      {
+        "sku": "TEST-SAMBA-003-41",
+        "regular_price": "109.00",
+        "manage_stock": true,
+        "stock_quantity": 4,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "41"}]
+      },
+      {
+        "sku": "TEST-SAMBA-003-42",
+        "regular_price": "109.00",
+        "manage_stock": true,
+        "stock_quantity": 2,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "42"}]
+      },
+      {
+        "sku": "TEST-SAMBA-003-43",
+        "regular_price": "115.00",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "43"}]
+      }
+    ]
+  }
+]
