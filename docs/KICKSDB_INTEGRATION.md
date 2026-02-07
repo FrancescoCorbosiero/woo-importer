@@ -18,7 +18,7 @@ KicksDB (StockX market data) into WooCommerce.
                    │                                    │
     bin/import-kicksdb                      ┌───────────┴──────────┐
           │                                 │                      │
-    KicksDbTransformer              Webhook (real-time)    Cron (fallback)
+    KicksDbAdapter + Builder         Webhook (real-time)    Cron (fallback)
           │                                 │                      │
     WooCommerceImporter          kicksdb-webhook.php   pricing-reconcile
           │                                 │                      │

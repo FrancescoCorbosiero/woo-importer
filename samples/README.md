@@ -268,7 +268,7 @@ barcode, size_us, size_eu, size_uk.
 Simulated `price_change` webhook payload with 3 variant price updates.
 
 ### wc-feed-from-kicksdb.json
-Expected output of KicksDbTransformer for DD1873-102. Shows tiered
+Expected output of KicksDbAdapter + WcProductBuilder for DD1873-102. Shows tiered
 margin pricing applied to StockX asks:
 - $82 (size 35.5) → +35% tier → €111
 - $105 (size 40) → +28% tier → €135
