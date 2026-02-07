@@ -1,0 +1,162 @@
+#!/usr/bin/env php
+<?php
+/**
+ * KicksDB API diagnostic — tests endpoints and dumps response structure
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+
+$sku = $argv[1] ?? 'DR5415-100';
+$config = Config::load();
+$api_key = $config['pricing']['kicksdb_api_key'] ?? '';
+$base = $config['pricing']['kicksdb_base_url'] ?? 'https://api.kicks.dev/v3';
+
+echo "=== KicksDB API Diagnostic ===\n";
+echo "SKU: {$sku}\n";
+echo "Base URL: {$base}\n";
+echo "API Key: " . substr($api_key, 0, 8) . "...\n\n";
+
+function fetch(string $url, string $api_key): array
+{
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_HTTPHEADER => [
+            'Accept: application/json',
+            'Authorization: Bearer ' . $api_key,
+        ],
+    ]);
+    $response = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return ['code' => $code, 'body' => $response, 'json' => json_decode($response, true)];
+}
+
+// Step 1: Search
+echo "--- Step 1: Search ---\n";
+$url = "{$base}/stockx/products?" . http_build_query(['query' => $sku, 'limit' => 1]);
+echo "GET {$url}\n";
+$r = fetch($url, $api_key);
+echo "HTTP {$r['code']}\n";
+
+if ($r['code'] !== 200 || $r['json'] === null) {
+    echo "FAILED. Raw response:\n{$r['body']}\n";
+    exit(1);
+}
+
+$search_data = $r['json'];
+echo "Response top-level keys: " . implode(', ', array_keys($search_data)) . "\n";
+
+// Unwrap data
+$items = $search_data['data'] ?? $search_data;
+if (isset($items[0])) {
+    $product = $items[0];
+} else {
+    echo "No results found for '{$sku}'\n";
+    exit(1);
+}
+
+echo "First result keys: " . implode(', ', array_keys($product)) . "\n";
+echo "  id:    " . ($product['id'] ?? 'N/A') . "\n";
+echo "  slug:  " . ($product['slug'] ?? 'N/A') . "\n";
+echo "  sku:   " . ($product['sku'] ?? 'N/A') . "\n";
+echo "  title: " . ($product['title'] ?? $product['name'] ?? 'N/A') . "\n";
+echo "  brand: " . ($product['brand'] ?? 'N/A') . "\n";
+
+// Check for variants in search result
+$search_variants = $product['variants'] ?? null;
+echo "  variants in search result: " . ($search_variants !== null ? count($search_variants) . " items" : "NOT PRESENT") . "\n";
+if ($search_variants && count($search_variants) > 0) {
+    echo "  first variant keys: " . implode(', ', array_keys($search_variants[0])) . "\n";
+    echo "  first variant: " . json_encode($search_variants[0], JSON_PRETTY_PRINT) . "\n";
+}
+
+$slug = $product['slug'] ?? null;
+$uuid = $product['id'] ?? null;
+
+// Step 2: Full product by slug
+echo "\n--- Step 2: Full product by slug ---\n";
+if ($slug) {
+    $url = "{$base}/stockx/products/{$slug}";
+    echo "GET {$url}\n";
+    $r = fetch($url, $api_key);
+    echo "HTTP {$r['code']}\n";
+    if ($r['code'] === 200 && $r['json'] !== null) {
+        $full = $r['json'];
+        $full_data = $full['data'] ?? $full;
+        echo "Response top-level keys: " . implode(', ', array_keys($full)) . "\n";
+        if (isset($full['data'])) {
+            echo "data keys: " . implode(', ', array_keys($full_data)) . "\n";
+        }
+        $full_variants = $full_data['variants'] ?? null;
+        echo "  variants: " . ($full_variants !== null ? count($full_variants) . " items" : "NOT PRESENT") . "\n";
+        if ($full_variants && count($full_variants) > 0) {
+            echo "  first variant keys: " . implode(', ', array_keys($full_variants[0])) . "\n";
+            echo "  first variant: " . json_encode($full_variants[0], JSON_PRETTY_PRINT) . "\n";
+        }
+    } else {
+        echo "FAILED: {$r['body']}\n";
+    }
+} else {
+    echo "SKIP (no slug)\n";
+}
+
+// Step 3: Try variants endpoint with slug
+echo "\n--- Step 3: Variants endpoint (slug) ---\n";
+if ($slug) {
+    $url = "{$base}/stockx/products/{$slug}/variants";
+    echo "GET {$url}\n";
+    $r = fetch($url, $api_key);
+    echo "HTTP {$r['code']}\n";
+    if ($r['code'] === 200 && $r['json'] !== null) {
+        $v = $r['json'];
+        echo "Keys: " . implode(', ', array_keys($v)) . "\n";
+        $vitems = $v['data'] ?? $v;
+        echo "Variants: " . (is_array($vitems) ? count($vitems) . " items" : "not array") . "\n";
+        if (is_array($vitems) && count($vitems) > 0) {
+            $first = is_array($vitems[0] ?? null) ? $vitems[0] : reset($vitems);
+            echo "First variant: " . json_encode($first, JSON_PRETTY_PRINT) . "\n";
+        }
+    } else {
+        echo "FAILED: " . substr($r['body'], 0, 200) . "\n";
+    }
+}
+
+// Step 4: Try variants endpoint with UUID
+echo "\n--- Step 4: Variants endpoint (UUID) ---\n";
+if ($uuid) {
+    $url = "{$base}/stockx/products/{$uuid}/variants";
+    echo "GET {$url}\n";
+    $r = fetch($url, $api_key);
+    echo "HTTP {$r['code']}\n";
+    if ($r['code'] === 200 && $r['json'] !== null) {
+        $v = $r['json'];
+        echo "Keys: " . implode(', ', array_keys($v)) . "\n";
+    } else {
+        echo "FAILED: " . substr($r['body'], 0, 200) . "\n";
+    }
+}
+
+// Step 5: Try other possible variant paths
+echo "\n--- Step 5: Alternative endpoints ---\n";
+$alternatives = [
+    "{$base}/stockx/variants?product_id={$uuid}",
+    "{$base}/stockx/products/{$slug}/prices",
+    "{$base}/stockx/products/{$slug}/market",
+    "{$base}/stockx-realtime/products/{$slug}",
+];
+foreach ($alternatives as $url) {
+    echo "GET {$url}\n";
+    $r = fetch($url, $api_key);
+    echo "  HTTP {$r['code']}";
+    if ($r['code'] === 200 && $r['json'] !== null) {
+        echo " — Keys: " . implode(', ', array_keys($r['json']));
+    }
+    echo "\n";
+}
+
+echo "\n=== Done ===\n";
