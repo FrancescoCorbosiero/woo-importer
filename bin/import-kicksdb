@@ -4,11 +4,11 @@
  * CLI wrapper for KicksDB Product Importer
  *
  * Complete import pipeline: given a list of SKUs, fetches product data
- * from KicksDB (StockX), transforms to WooCommerce format with margin
- * pricing, and imports into WooCommerce.
+ * from KicksDB (StockX), normalizes via KicksDbAdapter, builds WC payloads
+ * via WcProductBuilder, and imports into WooCommerce.
  *
  * Pipeline:
- *   SKU list -> KicksDB API -> transform -> (optional: save feed) -> import-wc
+ *   SKU list → KicksDbAdapter → WcProductBuilder → (optional: save feed) → import-wc
  *
  * @package ResellPiacenza\Import
  */
@@ -17,7 +17,8 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use ResellPiacenza\Support\Config;
 use ResellPiacenza\Support\LoggerFactory;
-use ResellPiacenza\Import\KicksDbTransformer;
+use ResellPiacenza\Import\KicksDbAdapter;
+use ResellPiacenza\Import\WcProductBuilder;
 
 // ============================================================================
 // CLI Options
@@ -53,7 +54,7 @@ SKU File Formats:
 Pipeline:
   1. Read SKU list
   2. For each SKU: fetch product + variants from KicksDB (StockX)
-  3. Transform to WC REST format (prices with margin, Italian descriptions)
+  3. Normalize → build WC REST format (prices with margin, Italian descriptions)
   4. Import via bin/import-wc (batch create/update)
 
 Requires:
@@ -203,8 +204,10 @@ $logger->info('');
 $logger->info('Step 2: Fetching from KicksDB and transforming...');
 
 // Show pricing config
-$transformer = new KicksDbTransformer($config, $logger);
-$pricing_summary = $transformer->getPricingSummary();
+$adapter = new KicksDbAdapter($config, $skus, $logger);
+$builder = new WcProductBuilder($config, $logger);
+
+$pricing_summary = $adapter->getPricingSummary();
 $logger->info("  Pricing: flat {$pricing_summary['flat_margin']}, floor {$pricing_summary['floor_price']}, rounding {$pricing_summary['rounding']}");
 if (!empty($pricing_summary['tiers'])) {
     foreach ($pricing_summary['tiers'] as $tier) {
@@ -213,20 +216,21 @@ if (!empty($pricing_summary['tiers'])) {
 }
 $logger->info('');
 
-$wc_products = $transformer->transform($skus);
-$transform_stats = $transformer->getStats();
+$wc_products = $builder->buildAll($adapter->fetchProducts());
+$adapter_stats = $adapter->getStats();
+$builder_stats = $builder->getStats();
 
 $logger->info('');
 $logger->info('Transform complete:');
-$logger->info("  SKUs requested:       {$transform_stats['total_skus']}");
-$logger->info("  Products found:       {$transform_stats['products_found']}");
-$logger->info("  Products not found:   {$transform_stats['products_not_found']}");
-$logger->info("  Products transformed: {$transform_stats['products_transformed']}");
-$logger->info("  Total variants:       {$transform_stats['variants_total']}");
-$logger->info("  Variants with price:  {$transform_stats['variants_with_price']}");
-$logger->info("  Variants no price:    {$transform_stats['variants_no_price']}");
-$logger->info("  With image:           {$transform_stats['with_image']}");
-$logger->info("  Without image:        {$transform_stats['without_image']}");
+$logger->info("  SKUs requested:       {$adapter_stats['total_skus']}");
+$logger->info("  Products found:       {$adapter_stats['products_found']}");
+$logger->info("  Products not found:   {$adapter_stats['products_not_found']}");
+$logger->info("  Products transformed: {$builder_stats['transformed']}");
+$logger->info("  Total variants:       {$adapter_stats['variants_total']}");
+$logger->info("  Variants with price:  {$adapter_stats['variants_with_price']}");
+$logger->info("  Variants no price:    {$adapter_stats['variants_no_price']}");
+$logger->info("  With image:           {$builder_stats['with_image']}");
+$logger->info("  Without image:        {$builder_stats['without_image']}");
 
 if (empty($wc_products)) {
     $logger->warning('No products to import (all SKUs failed or had no priced variants).');

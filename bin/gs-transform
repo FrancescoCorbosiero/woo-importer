@@ -3,9 +3,8 @@
 /**
  * CLI wrapper for Golden Sneakers Feed Transformer
  *
- * Fetches the Golden Sneakers API feed and transforms it to WooCommerce
- * REST API format, using resolved IDs from taxonomy-map.json and
- * image-map.json.
+ * Fetches the Golden Sneakers API feed, normalizes via GoldenSneakersAdapter,
+ * and builds WooCommerce REST API payloads via WcProductBuilder.
  *
  * Outputs: data/feed-wc-latest.json
  *
@@ -14,8 +13,11 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use Monolog\Logger;
 use ResellPiacenza\Support\Config;
-use ResellPiacenza\Import\GoldenSneakersTransformer;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Import\GoldenSneakersAdapter;
+use ResellPiacenza\Import\WcProductBuilder;
 
 // ============================================================================
 // CLI
@@ -45,17 +47,79 @@ HELP;
     exit(0);
 }
 
-$options = [
-    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
-    'limit' => null,
-];
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$limit = null;
 
 foreach ($argv as $arg) {
     if (strpos($arg, '--limit=') === 0) {
-        $options['limit'] = (int) str_replace('--limit=', '', $arg);
+        $limit = (int) str_replace('--limit=', '', $arg);
     }
 }
 
+// ============================================================================
+// Setup
+// ============================================================================
+
 $config = Config::load();
-$transformer = new GoldenSneakersTransformer($config, $options);
-exit($transformer->run() ? 0 : 1);
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('Transform', [
+    'file' => Config::projectRoot() . '/logs/transform-feed.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('================================');
+$logger->info('  Feed Transformer');
+$logger->info('  GS feed → WC REST format');
+$logger->info('================================');
+$logger->info('');
+
+// ============================================================================
+// Fetch + Build
+// ============================================================================
+
+try {
+    $adapter = new GoldenSneakersAdapter($config, $logger, $limit);
+    $builder = new WcProductBuilder($config, $logger);
+
+    $wc_products = $builder->buildAll($adapter->fetchProducts());
+
+    // Write output
+    $data_dir = Config::projectRoot() . '/data';
+    if (!is_dir($data_dir)) {
+        mkdir($data_dir, 0755, true);
+    }
+
+    $output_file = $data_dir . '/feed-wc-latest.json';
+    file_put_contents(
+        $output_file,
+        json_encode($wc_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    );
+
+    // Summary
+    $duration = round(microtime(true) - $start_time, 1);
+    $adapter_stats = $adapter->getStats();
+    $builder_stats = $builder->getStats();
+
+    $logger->info('');
+    $logger->info('================================');
+    $logger->info('  TRANSFORM SUMMARY');
+    $logger->info('================================');
+    $logger->info("  Total:         {$adapter_stats['total']}");
+    $logger->info("  Transformed:   {$builder_stats['transformed']}");
+    $logger->info("  Sneakers:      {$adapter_stats['sneakers']}");
+    $logger->info("  Clothing:      {$adapter_stats['clothing']}");
+    $logger->info("  With image:    {$builder_stats['with_image']}");
+    $logger->info("  Without image: {$builder_stats['without_image']}");
+    $logger->info("  Warnings:      {$builder_stats['warnings']}");
+    $logger->info("  Duration:      {$duration}s");
+    $logger->info("  Output:        {$output_file}");
+    $logger->info('================================');
+
+    exit(0);
+
+} catch (\Exception $e) {
+    $logger->error('Error: ' . $e->getMessage());
+    exit(1);
+}
