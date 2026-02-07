@@ -93,13 +93,16 @@ class KicksDbAdapter implements FeedAdapter
             $this->stats['products_found']++;
             $product_data = $product['data'] ?? $product;
 
-            // Fetch variants
-            $product_id = $product_data['id'] ?? $sku;
-            $variants = $this->kicksdb->getStockXVariants($product_id, $this->market);
-            if ($variants !== null && isset($variants['data'])) {
-                $variants = $variants['data'];
+            // Extract variants from product response (they're embedded, not a separate endpoint)
+            $variants = $product_data['variants'] ?? [];
+            if (empty($variants)) {
+                // Fallback: try dedicated variants endpoint (some plans may support it)
+                $product_id = $product_data['id'] ?? $sku;
+                $raw = $this->kicksdb->getStockXVariants($product_id, $this->market);
+                if ($raw !== null) {
+                    $variants = $raw['data'] ?? $raw;
+                }
             }
-            $variants = $variants ?? [];
 
             // Normalize
             $normalized = $this->normalize($product_data, $variants, $sku);

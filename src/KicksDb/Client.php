@@ -185,12 +185,20 @@ class Client
                 continue;
             }
 
-            $product_id = $product['id'] ?? $sku;
-            $variants = $this->getStockXVariants($product_id, $market);
+            $product_data = $product['data'] ?? $product;
 
-            if ($variants !== null) {
+            // Extract variants from product response (embedded, not a separate endpoint)
+            $variants = $product_data['variants'] ?? [];
+            if (empty($variants)) {
+                // Fallback: try dedicated variants endpoint
+                $product_id = $product_data['id'] ?? $sku;
+                $raw = $this->getStockXVariants($product_id, $market);
+                $variants = ($raw !== null) ? ($raw['data'] ?? $raw) : [];
+            }
+
+            if (!empty($variants)) {
                 $results[$sku] = [
-                    'product' => $product,
+                    'product' => $product_data,
                     'variants' => $variants,
                 ];
             }
