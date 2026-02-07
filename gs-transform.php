@@ -264,33 +264,38 @@ class FeedTransformer
             $this->logger->debug("  Warning: No category ID for {$cat_config['slug']} (product {$sku})");
         }
 
-        // Brand attribute (optional)
-        if (($this->config['brands']['create_attribute'] ?? false) && $brand) {
+        // Brand attribute (pa_marca)
+        if ($brand) {
             $brand_slug = $this->config['attributes']['brand']['slug'] ?? 'marca';
             $brand_attr_id = $this->getAttributeId($brand_slug);
+            $brand_attr = [
+                'position' => 0,
+                'visible' => true,
+                'variation' => false,
+                'options' => [$brand],
+            ];
             if ($brand_attr_id) {
-                $wc_product['attributes'][] = [
-                    'id' => $brand_attr_id,
-                    'position' => 0,
-                    'visible' => true,
-                    'variation' => false,
-                    'options' => [$brand],
-                ];
+                $brand_attr['id'] = $brand_attr_id;
+            } else {
+                $brand_attr['name'] = 'pa_' . $brand_slug;
             }
+            $wc_product['attributes'][] = $brand_attr;
         }
 
-        // Size attribute
-        if ($size_attr_id) {
-            $wc_product['attributes'][] = [
-                'id' => $size_attr_id,
+        // Size attribute (pa_taglia) — always add for variations to work
+        if (!empty($size_options)) {
+            $size_attr = [
                 'position' => count($wc_product['attributes']),
                 'visible' => true,
                 'variation' => true,
                 'options' => $size_options,
             ];
-        } else {
-            $this->stats['warnings']++;
-            $this->logger->debug("  Warning: No attribute ID for {$size_slug} (product {$sku})");
+            if ($size_attr_id) {
+                $size_attr['id'] = $size_attr_id;
+            } else {
+                $size_attr['name'] = 'pa_' . $size_slug;
+            }
+            $wc_product['attributes'][] = $size_attr;
         }
 
         // Brand taxonomy
