@@ -42,9 +42,61 @@ class Client
     // StockX Product Endpoints
     // =========================================================================
 
+    /**
+     * Get a StockX product by slug, UUID, or style code (SKU)
+     *
+     * Tries direct lookup first (slug/UUID), then falls back to
+     * search if not found (needed for style codes like DD1503-101).
+     */
     public function getStockXProduct(string $identifier): ?array
     {
-        return $this->request('GET', "/stockx/products/{$identifier}");
+        // Try direct lookup (works for slugs and UUIDs)
+        $result = $this->request('GET', "/stockx/products/{$identifier}", [], null, true);
+        if ($result !== null) {
+            return $result;
+        }
+
+        // Fallback: search by style code/SKU
+        $this->log('debug', "Direct lookup missed for '{$identifier}', trying search...");
+        $search = $this->searchStockX($identifier, 5);
+        if ($search === null) {
+            return null;
+        }
+
+        $items = $search['data'] ?? $search;
+        if (!is_array($items) || empty($items)) {
+            return null;
+        }
+
+        // Prefer exact SKU match
+        $match = null;
+        foreach ($items as $item) {
+            if (strcasecmp($item['sku'] ?? '', $identifier) === 0) {
+                $match = $item;
+                break;
+            }
+        }
+
+        // Fall back to first result (best relevance match)
+        if ($match === null) {
+            $match = $items[0] ?? null;
+        }
+
+        if ($match === null) {
+            return null;
+        }
+
+        // Fetch full product details by slug/ID (search results may be lighter)
+        $product_id = $match['slug'] ?? $match['id'] ?? null;
+        if ($product_id !== null && $product_id !== $identifier) {
+            $full = $this->request('GET', "/stockx/products/{$product_id}");
+            if ($full !== null) {
+                return $full;
+            }
+        }
+
+        // Return search result as-is if full fetch fails
+        return $match;
     }
 
     public function searchStockX(string $query, int $limit = 10): ?array
@@ -153,7 +205,7 @@ class Client
     // Internal HTTP Client
     // =========================================================================
 
-    private function request(string $method, string $path, array $query = [], ?array $body = null): ?array
+    private function request(string $method, string $path, array $query = [], ?array $body = null, bool $quiet_404 = false): ?array
     {
         $url = $this->base_url . $path;
 
@@ -232,7 +284,11 @@ class Client
             }
 
             if ($http_code >= 400) {
-                $this->log('error', "KicksDB API error {$http_code}: {$response}");
+                if ($http_code === 404 && $quiet_404) {
+                    $this->log('debug', "KicksDB 404 for {$path} (will try search fallback)");
+                } else {
+                    $this->log('error', "KicksDB API error {$http_code}: {$response}");
+                }
                 return null;
             }
 
