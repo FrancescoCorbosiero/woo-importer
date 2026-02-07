@@ -1,0 +1,38 @@
+[
+  {
+    "sku": "TEST-AF1-001",
+    "url": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800",
+    "product_name": "Nike Air Force 1 '07 Low White",
+    "brand_name": "Nike"
+  },
+  {
+    "sku": "TEST-DUNK-002",
+    "url": "https://images.unsplash.com/photo-1600269452121-4f2416e55c28?w=800",
+    "product_name": "Nike Dunk Low Retro Panda Black White",
+    "brand_name": "Nike"
+  },
+  {
+    "sku": "TEST-SAMBA-003",
+    "url": "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=800",
+    "product_name": "Adidas Samba OG Cloud White Core Black",
+    "brand_name": "Adidas"
+  },
+  {
+    "sku": "TEST-NB550-004",
+    "url": "https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=800",
+    "product_name": "New Balance 550 White Green",
+    "brand_name": "New Balance"
+  },
+  {
+    "sku": "TEST-HOODIE-005",
+    "url": "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800",
+    "product_name": "Nike Sportswear Tech Fleece Windrunner Hoodie Black",
+    "brand_name": "Nike"
+  },
+  {
+    "sku": "TEST-JOGGER-006",
+    "url": "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=800",
+    "product_name": "Adidas Essentials 3-Stripes Jogger Pants Navy",
+    "brand_name": "Adidas"
+  }
+]
