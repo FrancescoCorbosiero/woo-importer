@@ -29,6 +29,12 @@
         "import:dry": "php import.php --dry-run",
         "import:test": "php import.php --dry-run --limit=5",
         "images": "php import-images.php",
-        "images:test": "php import-images.php --limit=5"
+        "images:test": "php import-images.php --limit=5",
+        "kicksdb:import": "php import-kicksdb.php",
+        "kicksdb:import:dry": "php import-kicksdb.php --dry-run",
+        "kicksdb:transform": "php import-kicksdb.php --transform-only --save-feed",
+        "pricing:reconcile": "php pricing/reconcile.php",
+        "pricing:reconcile:dry": "php pricing/reconcile.php --dry-run",
+        "pricing:reconcile:verbose": "php pricing/reconcile.php --verbose"
     }
 }

@@ -1,0 +1,251 @@
+<?php
+/**
+ * Price Reconciliation (Polling Fallback)
+ *
+ * Cron job that periodically:
+ * 1. Syncs the SKU registry (WC inventory ↔ KicksDB tracking)
+ * 2. Fetches current StockX prices from KicksDB for all tracked SKUs
+ * 3. Updates WC variation prices where they differ
+ *
+ * This acts as a safety net for missed webhooks, KicksDB downtime,
+ * and initial price backfill when new products are first imported.
+ *
+ * Usage:
+ *   php pricing/reconcile.php                    # Full reconciliation
+ *   php pricing/reconcile.php --dry-run          # Preview changes
+ *   php pricing/reconcile.php --skip-registry    # Skip SKU sync, prices only
+ *   php pricing/reconcile.php --sku=DD1873-102   # Single product only
+ *   php pricing/reconcile.php --limit=10         # Process first N products
+ *
+ * Cron (recommended: every 6-12 hours):
+ *   0 */6 * * * cd /path/to/woo-importer && php pricing/reconcile.php >> logs/cron.log 2>&1
+ *
+ * @package ResellPiacenza\Pricing
+ */
+
+$base_dir = dirname(__DIR__);
+require $base_dir . '/vendor/autoload.php';
+require_once __DIR__ . '/kicksdb-client.php';
+require_once __DIR__ . '/price-updater.php';
+require_once __DIR__ . '/sku-registry.php';
+
+use Automattic\WooCommerce\Client;
+use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
+use Monolog\Handler\RotatingFileHandler;
+
+// ============================================================================
+// CLI Options
+// ============================================================================
+
+if (in_array('--help', $argv ?? []) || in_array('-h', $argv ?? [])) {
+    echo <<<HELP
+Price Reconciliation (Polling Fallback)
+
+Usage:
+  php pricing/reconcile.php [options]
+
+Options:
+  --dry-run           Preview changes without updating WooCommerce
+  --skip-registry     Skip SKU registry sync (prices only)
+  --sku=SKU           Reconcile a single product only
+  --limit=N           Process first N products
+  --market=CODE       KicksDB market code (default: US)
+  --verbose, -v       Detailed output
+  --help, -h          Show this help
+
+Examples:
+  php pricing/reconcile.php                          # Full reconciliation
+  php pricing/reconcile.php --dry-run                # Preview all changes
+  php pricing/reconcile.php --sku=DD1873-102         # Single product
+  php pricing/reconcile.php --limit=10 --verbose     # First 10, detailed
+
+Cron (every 6 hours):
+  0 */6 * * * cd /path/to/woo-importer && php pricing/reconcile.php >> logs/cron.log 2>&1
+
+HELP;
+    exit(0);
+}
+
+$dry_run = in_array('--dry-run', $argv);
+$skip_registry = in_array('--skip-registry', $argv);
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$single_sku = null;
+$limit = null;
+$market = 'US';
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--sku=') === 0) {
+        $single_sku = str_replace('--sku=', '', $arg);
+    }
+    if (strpos($arg, '--limit=') === 0) {
+        $limit = (int) str_replace('--limit=', '', $arg);
+    }
+    if (strpos($arg, '--market=') === 0) {
+        $market = str_replace('--market=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = require $base_dir . '/config.php';
+$pricing = $config['pricing'] ?? [];
+
+// Logger
+$logger = new Logger('Reconcile');
+$log_dir = $base_dir . '/logs';
+if (!is_dir($log_dir)) {
+    mkdir($log_dir, 0755, true);
+}
+$logger->pushHandler(new RotatingFileHandler($log_dir . '/reconcile.log', 7, Logger::DEBUG));
+$console_level = $verbose ? Logger::DEBUG : Logger::INFO;
+$logger->pushHandler(new StreamHandler('php://stdout', $console_level));
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Price Reconciliation');
+$logger->info('========================================');
+if ($dry_run) {
+    $logger->warning('  DRY RUN MODE');
+}
+if ($single_sku) {
+    $logger->info("  Single SKU: {$single_sku}");
+}
+if ($limit) {
+    $logger->info("  Limit: {$limit}");
+}
+$logger->info("  Market: {$market}");
+$logger->info('');
+
+$start_time = microtime(true);
+
+// WooCommerce client
+$wc_client = new Client(
+    $config['woocommerce']['url'],
+    $config['woocommerce']['consumer_key'],
+    $config['woocommerce']['consumer_secret'],
+    ['version' => $config['woocommerce']['version'], 'timeout' => 120]
+);
+
+// KicksDB client
+$kicksdb = new KicksDbClient(
+    $pricing['kicksdb_api_key'] ?? '',
+    ['base_url' => $pricing['kicksdb_base_url'] ?? 'https://api.kicks.dev/v3'],
+    $logger
+);
+
+// ============================================================================
+// Step 1: SKU Registry Sync
+// ============================================================================
+
+$skus_to_process = [];
+
+if ($single_sku) {
+    $skus_to_process = [$single_sku];
+} elseif (!$skip_registry) {
+    $logger->info('Step 1: Syncing SKU registry...');
+
+    $registry = new SkuRegistry($wc_client, $kicksdb, [
+        'webhook_id' => $pricing['kicksdb_webhook_id'] ?? null,
+        'callback_url' => $pricing['webhook_callback_url'] ?? '',
+        'registry_file' => $base_dir . '/data/sku-registry.json',
+    ], $logger);
+
+    $sync_result = $registry->sync();
+    $logger->info("  Registry sync complete: {$sync_result['total']} SKUs tracked");
+    $logger->info("    Added: " . count($sync_result['added']));
+    $logger->info("    Removed: " . count($sync_result['removed']));
+    $logger->info('');
+
+    $skus_to_process = array_keys($registry->getRegisteredSkus());
+} else {
+    $logger->info('Step 1: Skipped (--skip-registry)');
+
+    // Load SKUs from existing registry
+    $registry_file = $base_dir . '/data/sku-registry.json';
+    if (file_exists($registry_file)) {
+        $registry_data = json_decode(file_get_contents($registry_file), true);
+        $skus_to_process = array_keys($registry_data['skus'] ?? []);
+    }
+
+    if (empty($skus_to_process)) {
+        $logger->error('No SKUs in registry. Run without --skip-registry first.');
+        exit(1);
+    }
+    $logger->info('');
+}
+
+// Apply limit
+if ($limit && count($skus_to_process) > $limit) {
+    $skus_to_process = array_slice($skus_to_process, 0, $limit);
+    $logger->info("Limited to {$limit} SKUs");
+}
+
+$logger->info('Step 2: Fetching KicksDB prices for ' . count($skus_to_process) . ' SKUs...');
+$logger->info('');
+
+// ============================================================================
+// Step 2: Fetch Prices & Update
+// ============================================================================
+
+$updater = new PriceUpdater($wc_client, $pricing, $logger, $dry_run);
+
+$total = count($skus_to_process);
+$processed = 0;
+$products_with_updates = 0;
+
+foreach ($skus_to_process as $sku) {
+    $processed++;
+    $logger->info("[{$processed}/{$total}] {$sku}");
+
+    // Fetch current market prices from KicksDB
+    $product = $kicksdb->getStockXProduct($sku);
+    if ($product === null) {
+        $logger->warning("  Not found in KicksDB, skipping");
+        continue;
+    }
+
+    $product_id = $product['id'] ?? $sku;
+    $variants = $kicksdb->getStockXVariants($product_id, $market);
+
+    if ($variants === null || empty($variants)) {
+        $logger->warning("  No variant data from KicksDB");
+        continue;
+    }
+
+    // Update WC prices
+    $result = $updater->updateProductPrices($sku, $variants);
+
+    if ($result['updated'] > 0) {
+        $products_with_updates++;
+    }
+
+    // Rate limit: 200ms between products
+    usleep(200000);
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+$stats = $updater->getStats();
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  RECONCILIATION SUMMARY');
+$logger->info('========================================');
+$logger->info("  SKUs Processed:       {$processed}");
+$logger->info("  Products Updated:     {$products_with_updates}");
+$logger->info("  Variations Checked:   {$stats['variations_checked']}");
+$logger->info("  Variations Updated:   {$stats['variations_updated']}");
+$logger->info("  Variations Skipped:   {$stats['variations_skipped']}");
+$logger->info("  Alerts Sent:          {$stats['alerts_sent']}");
+$logger->info("  Batch Requests:       {$stats['batch_requests']}");
+$logger->info("  Errors:               {$stats['errors']}");
+$logger->info("  Duration:             {$duration}s");
+$logger->info('========================================');
+
+exit($stats['errors'] > 0 ? 1 : 0);

@@ -1,0 +1,124 @@
+[
+  {
+    "$comment": "Expected WC output from kicksdb-transform.php for DD1873-102 with default tiered margins",
+    "name": "Nike Dunk Low Next Nature White Black Panda (Women's)",
+    "type": "variable",
+    "sku": "DD1873-102",
+    "status": "publish",
+    "catalog_visibility": "visible",
+    "short_description": "<p>Sneakers originali <strong>Nike</strong>. Prodotto autentico al 100%. Spedizione veloce in tutta Italia.</p>",
+    "description": "\n<p>Scopri le <strong>Nike Dunk Low Next Nature White Black Panda (Women's)</strong>, sneakers originali Nike disponibili su ResellPiacenza.</p>\n\n<h3>Garanzia di Autenticità</h3>\n<p>Tutti i prodotti venduti su ResellPiacenza sono <strong>100% originali e autentici</strong>. Ogni articolo viene accuratamente verificato prima della spedizione.</p>\n\n<h3>Spedizione e Resi</h3>\n<ul>\n    <li>✓ Spedizione rapida in tutta Italia</li>\n    <li>✓ Imballaggio sicuro e discreto</li>\n    <li>✓ Reso facile entro 14 giorni</li>\n</ul>\n\n<h3>Perché Scegliere ResellPiacenza</h3>\n<p>Siamo specialisti in sneakers e streetwear di alta qualità. La nostra missione è offrire prodotti autentici ai migliori prezzi, con un servizio clienti impeccabile.</p>\n",
+    "categories": [{"id": 15}],
+    "images": [{
+      "src": "https://images.stockx.com/images/Nike-Dunk-Low-Next-Nature-White-Black-W-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1635275412",
+      "name": "DD1873-102",
+      "alt": "Nike Dunk Low Next Nature White Black Panda (Women's) - DD1873-102 - Acquista su ResellPiacenza"
+    }],
+    "attributes": [
+      {
+        "id": 2,
+        "position": 0,
+        "visible": true,
+        "variation": false,
+        "options": ["Nike"]
+      },
+      {
+        "id": 1,
+        "position": 1,
+        "visible": true,
+        "variation": true,
+        "options": ["35.5", "36", "36.5", "37.5", "38", "38.5", "39", "40", "40.5", "41", "42"]
+      }
+    ],
+    "meta_data": [
+      {"key": "_kicksdb_id", "value": "50b8dfb8-327b-4703-8a9b-e6a344aef7b8"},
+      {"key": "_kicksdb_slug", "value": "nike-dunk-low-next-nature-white-black-w"},
+      {"key": "_source", "value": "kicksdb"},
+      {"key": "_gender", "value": "women"},
+      {"key": "_colorway", "value": "White/Black-White"},
+      {"key": "_release_date", "value": "2021-10-12"}
+    ],
+    "_variations": [
+      {
+        "$comment": "Market $82 * 1.35 (tier 0-100: +35%) = $111 → ceil → €111",
+        "sku": "DD1873-102-35.5",
+        "regular_price": "111",
+        "manage_stock": true,
+        "stock_quantity": 0,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "35.5"}],
+        "meta_data": [
+          {"key": "_kicksdb_lowest_ask", "value": "82"},
+          {"key": "_kicksdb_updated", "value": "2026-02-07T10:00:00+00:00"},
+          {"key": "_size_us", "value": "5W"},
+          {"key": "_size_uk", "value": "2.5"},
+          {"key": "_barcode", "value": "0196152912501"}
+        ]
+      },
+      {
+        "$comment": "Market $85 * 1.35 = $114.75 → ceil → €115",
+        "sku": "DD1873-102-36",
+        "regular_price": "115",
+        "manage_stock": true,
+        "stock_quantity": 0,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "36"}],
+        "meta_data": [
+          {"key": "_kicksdb_lowest_ask", "value": "85"},
+          {"key": "_kicksdb_updated", "value": "2026-02-07T10:00:00+00:00"},
+          {"key": "_size_us", "value": "5.5W"},
+          {"key": "_size_uk", "value": "3"},
+          {"key": "_barcode", "value": "0196152912518"}
+        ]
+      },
+      {
+        "$comment": "Market $95 * 1.35 = $128.25 → ceil → €129",
+        "sku": "DD1873-102-38",
+        "regular_price": "129",
+        "manage_stock": true,
+        "stock_quantity": 0,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "38"}],
+        "meta_data": [
+          {"key": "_kicksdb_lowest_ask", "value": "95"},
+          {"key": "_kicksdb_updated", "value": "2026-02-07T10:00:00+00:00"},
+          {"key": "_size_us", "value": "7W"},
+          {"key": "_size_uk", "value": "4.5"},
+          {"key": "_barcode", "value": "0196152912549"}
+        ]
+      },
+      {
+        "$comment": "Market $105 * 1.28 (tier 100-200: +28%) = $134.40 → ceil → €135",
+        "sku": "DD1873-102-40",
+        "regular_price": "135",
+        "manage_stock": true,
+        "stock_quantity": 0,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "40"}],
+        "meta_data": [
+          {"key": "_kicksdb_lowest_ask", "value": "105"},
+          {"key": "_kicksdb_updated", "value": "2026-02-07T10:00:00+00:00"},
+          {"key": "_size_us", "value": "8.5W"},
+          {"key": "_size_uk", "value": "6"},
+          {"key": "_barcode", "value": "0196152912570"}
+        ]
+      },
+      {
+        "$comment": "Market $125 * 1.28 = $160 → ceil → €160",
+        "sku": "DD1873-102-42",
+        "regular_price": "160",
+        "manage_stock": true,
+        "stock_quantity": 0,
+        "stock_status": "instock",
+        "attributes": [{"id": 1, "option": "42"}],
+        "meta_data": [
+          {"key": "_kicksdb_lowest_ask", "value": "125"},
+          {"key": "_kicksdb_updated", "value": "2026-02-07T10:00:00+00:00"},
+          {"key": "_size_us", "value": "10W"},
+          {"key": "_size_uk", "value": "7.5"},
+          {"key": "_barcode", "value": "0196152912600"}
+        ]
+      }
+    ]
+  }
+]

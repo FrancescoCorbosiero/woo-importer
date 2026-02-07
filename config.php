@@ -184,6 +184,53 @@ return [
     ],
 
     // ===========================================
+    // KicksDB Pricing Configuration
+    // ===========================================
+    'pricing' => [
+        // KicksDB API
+        'kicksdb_api_key' => env('KICKSDB_API_KEY', ''),
+        'kicksdb_base_url' => env('KICKSDB_BASE_URL', 'https://api.kicks.dev/v3'),
+        'kicksdb_market' => env('KICKSDB_MARKET', 'US'),
+
+        // KicksDB Webhook
+        'kicksdb_webhook_id' => env('KICKSDB_WEBHOOK_ID', null),
+        'webhook_callback_url' => env('KICKSDB_WEBHOOK_CALLBACK_URL', ''),
+        'webhook_secret' => env('KICKSDB_WEBHOOK_SECRET', ''),
+
+        // WooCommerce product webhook secret (for auto-registration)
+        'wc_webhook_secret' => env('WC_PRODUCT_WEBHOOK_SECRET', ''),
+
+        // Margin configuration
+        'margin' => [
+            // Flat margin (default when no tier matches)
+            'flat_margin' => (float) env('PRICING_FLAT_MARGIN', 25),
+
+            // Tiered margins: higher margin on lower-priced items
+            // Format: ['min' => X, 'max' => Y, 'margin' => Z]
+            'tiers' => json_decode(env('PRICING_TIERS', '[]'), true) ?: [
+                ['min' => 0, 'max' => 100, 'margin' => 35],
+                ['min' => 100, 'max' => 200, 'margin' => 28],
+                ['min' => 200, 'max' => 500, 'margin' => 22],
+                ['min' => 500, 'max' => null, 'margin' => 18],
+            ],
+
+            // Absolute minimum selling price (0 = disabled)
+            'floor_price' => (float) env('PRICING_FLOOR_PRICE', 59),
+
+            // Rounding: 'whole' (ceil), 'half' (0.50 steps), 'none'
+            'rounding' => env('PRICING_ROUNDING', 'whole'),
+        ],
+
+        // Price alert threshold (% change to trigger email). 0 = disabled
+        'alert_threshold' => (float) env('PRICING_ALERT_THRESHOLD', 30),
+        'alert_email' => env('PRICING_ALERT_EMAIL', ''),
+        'store_name' => env('STORE_NAME', 'ResellPiacenza'),
+
+        // Batch size for WC API variation updates
+        'batch_size' => (int) env('PRICING_BATCH_SIZE', 100),
+    ],
+
+    // ===========================================
     // Logging Configuration
     // ===========================================
     'logging' => [

@@ -1,0 +1,385 @@
+<?php
+/**
+ * KicksDB Product Importer
+ *
+ * Complete import pipeline: given a list of SKUs, fetches product data
+ * from KicksDB (StockX), transforms to WooCommerce format with margin
+ * pricing, and imports into WooCommerce.
+ *
+ * Pipeline:
+ *   SKU list → KicksDB API → transform → (optional: save feed) → import-wc.php
+ *
+ * Input: SKU list from file, CLI argument, or stdin
+ * Output: Products created/updated in WooCommerce
+ *
+ * Usage:
+ *   php import-kicksdb.php --skus=DD1873-102,CW2288-111
+ *   php import-kicksdb.php --skus-file=my-skus.json
+ *   echo "DD1873-102" | php import-kicksdb.php
+ *   php import-kicksdb.php --skus-file=skus.txt --dry-run
+ *   php import-kicksdb.php --skus=DD1873-102 --transform-only
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/kicksdb-transform.php';
+
+use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
+use Monolog\Handler\RotatingFileHandler;
+
+// ============================================================================
+// CLI Options
+// ============================================================================
+
+if (in_array('--help', $argv ?? []) || in_array('-h', $argv ?? [])) {
+    echo <<<HELP
+KicksDB Product Importer
+Fetches products from KicksDB (StockX) and imports into WooCommerce.
+
+Usage:
+  php import-kicksdb.php --skus=SKU1,SKU2,...       # SKUs from CLI
+  php import-kicksdb.php --skus-file=FILE            # SKUs from file
+  echo "DD1873-102" | php import-kicksdb.php         # SKU from stdin
+  php import-kicksdb.php --skus-file=FILE --dry-run  # Preview
+
+Options:
+  --skus=SKU1,SKU2     Comma-separated list of SKUs/style codes
+  --skus-file=FILE     File with SKUs (JSON array, one per line, or CSV)
+  --dry-run            Preview without creating products in WooCommerce
+  --transform-only     Only fetch + transform, save JSON feed, don't import
+  --save-feed          Save transformed feed to data/feed-kicksdb.json
+  --limit=N            Limit to first N SKUs
+  --market=CODE        KicksDB market code (default: from config or US)
+  --verbose, -v        Detailed output
+  --help, -h           Show this help
+
+SKU File Formats:
+  JSON array:    ["DD1873-102", "CW2288-111", "CT8527-100"]
+  Plain text:    One SKU per line
+  CSV:           First column is SKU (header row auto-detected)
+
+Pipeline:
+  1. Read SKU list
+  2. For each SKU: fetch product + variants from KicksDB (StockX)
+  3. Transform to WC REST format (prices with margin, Italian descriptions)
+  4. Import via import-wc.php (batch create/update)
+
+Requires:
+  - KICKSDB_API_KEY in .env
+  - data/taxonomy-map.json (from prepare-taxonomies.php)
+  - Optionally: image-map.json (from prepare-media.php)
+
+Examples:
+  # Import 3 specific sneakers
+  php import-kicksdb.php --skus=DD1873-102,CW2288-111,CT8527-100
+
+  # Import from a curated list, preview first
+  php import-kicksdb.php --skus-file=my-collection.json --dry-run
+
+  # Just generate the WC feed, don't import yet
+  php import-kicksdb.php --skus-file=skus.txt --transform-only --save-feed
+
+  # Pipe a single SKU
+  echo "DD1873-102" | php import-kicksdb.php --dry-run
+
+HELP;
+    exit(0);
+}
+
+// Parse CLI args
+$opt_dry_run = in_array('--dry-run', $argv);
+$opt_transform_only = in_array('--transform-only', $argv);
+$opt_save_feed = in_array('--save-feed', $argv) || $opt_transform_only;
+$opt_verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$opt_skus_raw = null;
+$opt_skus_file = null;
+$opt_limit = null;
+$opt_market = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--skus=') === 0) {
+        $opt_skus_raw = str_replace('--skus=', '', $arg);
+    }
+    if (strpos($arg, '--skus-file=') === 0) {
+        $opt_skus_file = str_replace('--skus-file=', '', $arg);
+    }
+    if (strpos($arg, '--limit=') === 0) {
+        $opt_limit = (int) str_replace('--limit=', '', $arg);
+    }
+    if (strpos($arg, '--market=') === 0) {
+        $opt_market = str_replace('--market=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = require __DIR__ . '/config.php';
+
+// Override market if specified
+if ($opt_market) {
+    $config['pricing']['kicksdb_market'] = $opt_market;
+}
+
+// Logger
+$logger = new Logger('ImportKicksDB');
+$log_dir = __DIR__ . '/logs';
+if (!is_dir($log_dir)) {
+    mkdir($log_dir, 0755, true);
+}
+$logger->pushHandler(new RotatingFileHandler($log_dir . '/import-kicksdb.log', 7, Logger::DEBUG));
+$console_level = $opt_verbose ? Logger::DEBUG : Logger::INFO;
+$logger->pushHandler(new StreamHandler('php://stdout', $console_level));
+
+$start_time = microtime(true);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  KicksDB Product Importer');
+$logger->info('========================================');
+if ($opt_dry_run) {
+    $logger->warning('  DRY RUN MODE');
+}
+if ($opt_transform_only) {
+    $logger->info('  TRANSFORM ONLY (no WC import)');
+}
+
+// ============================================================================
+// Step 1: Load SKU List
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 1: Loading SKU list...');
+
+$skus = [];
+
+if ($opt_skus_raw) {
+    // From --skus=SKU1,SKU2,...
+    $skus = array_map('trim', explode(',', $opt_skus_raw));
+    $logger->info("  Source: CLI argument ({$opt_skus_raw})");
+} elseif ($opt_skus_file) {
+    // From file
+    if (!file_exists($opt_skus_file)) {
+        $logger->error("SKU file not found: {$opt_skus_file}");
+        exit(1);
+    }
+
+    $content = file_get_contents($opt_skus_file);
+    $skus = parseSkuFile($content, $opt_skus_file);
+    $logger->info("  Source: {$opt_skus_file}");
+} elseif (!posix_isatty(STDIN)) {
+    // From stdin
+    $input = trim(stream_get_contents(STDIN));
+    if (!empty($input)) {
+        // Try JSON first, then line-by-line
+        $json = json_decode($input, true);
+        if (is_array($json)) {
+            $skus = array_values($json);
+        } else {
+            $skus = array_filter(array_map('trim', explode("\n", $input)));
+        }
+    }
+    $logger->info('  Source: stdin');
+} else {
+    $logger->error('No SKU input. Use --skus=, --skus-file=, or pipe via stdin.');
+    $logger->error('Run with --help for usage.');
+    exit(1);
+}
+
+// Clean and deduplicate
+$skus = array_values(array_unique(array_filter($skus)));
+
+if (empty($skus)) {
+    $logger->error('No valid SKUs found in input.');
+    exit(1);
+}
+
+// Apply limit
+if ($opt_limit && count($skus) > $opt_limit) {
+    $skus = array_slice($skus, 0, $opt_limit);
+    $logger->info("  Limited to first {$opt_limit}");
+}
+
+$logger->info("  {" . count($skus) . "} SKUs to process");
+if ($opt_verbose) {
+    foreach ($skus as $s) {
+        $logger->debug("    - {$s}");
+    }
+}
+
+// ============================================================================
+// Step 2: Fetch & Transform via KicksDB
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 2: Fetching from KicksDB and transforming...');
+
+// Show pricing config
+$transformer = new KicksDbTransformer($config, $logger);
+$pricing_summary = $transformer->getPricingSummary();
+$logger->info("  Pricing: flat {$pricing_summary['flat_margin']}, floor {$pricing_summary['floor_price']}, rounding {$pricing_summary['rounding']}");
+if (!empty($pricing_summary['tiers'])) {
+    foreach ($pricing_summary['tiers'] as $tier) {
+        $logger->info("    Tier: {$tier}");
+    }
+}
+$logger->info('');
+
+$wc_products = $transformer->transform($skus);
+$transform_stats = $transformer->getStats();
+
+$logger->info('');
+$logger->info('Transform complete:');
+$logger->info("  SKUs requested:       {$transform_stats['total_skus']}");
+$logger->info("  Products found:       {$transform_stats['products_found']}");
+$logger->info("  Products not found:   {$transform_stats['products_not_found']}");
+$logger->info("  Products transformed: {$transform_stats['products_transformed']}");
+$logger->info("  Total variants:       {$transform_stats['variants_total']}");
+$logger->info("  Variants with price:  {$transform_stats['variants_with_price']}");
+$logger->info("  Variants no price:    {$transform_stats['variants_no_price']}");
+$logger->info("  With image:           {$transform_stats['with_image']}");
+$logger->info("  Without image:        {$transform_stats['without_image']}");
+
+if (empty($wc_products)) {
+    $logger->warning('No products to import (all SKUs failed or had no priced variants).');
+    exit(1);
+}
+
+// ============================================================================
+// Step 3: Save Feed (optional)
+// ============================================================================
+
+if ($opt_save_feed) {
+    $data_dir = __DIR__ . '/data';
+    if (!is_dir($data_dir)) {
+        mkdir($data_dir, 0755, true);
+    }
+
+    $feed_file = $data_dir . '/feed-kicksdb.json';
+    file_put_contents(
+        $feed_file,
+        json_encode($wc_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    );
+    $logger->info('');
+    $logger->info("Feed saved to {$feed_file}");
+}
+
+if ($opt_transform_only) {
+    $duration = round(microtime(true) - $start_time, 1);
+    $logger->info('');
+    $logger->info("Transform-only mode. Done in {$duration}s.");
+    $logger->info("To import: php import-wc.php --feed=data/feed-kicksdb.json" . ($opt_dry_run ? ' --dry-run' : ''));
+    exit(0);
+}
+
+// ============================================================================
+// Step 4: Import to WooCommerce
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 3: Importing to WooCommerce...');
+$logger->info('');
+
+// Write temp feed and pipe to import-wc.php
+$temp_feed = tempnam(sys_get_temp_dir(), 'kicksdb_feed_');
+file_put_contents(
+    $temp_feed,
+    json_encode($wc_products, JSON_UNESCAPED_UNICODE)
+);
+
+$import_cmd = 'php ' . escapeshellarg(__DIR__ . '/import-wc.php') .
+    ' --feed=' . escapeshellarg($temp_feed);
+
+if ($opt_dry_run) {
+    $import_cmd .= ' --dry-run';
+}
+
+passthru($import_cmd, $import_exit_code);
+
+// Cleanup temp
+@unlink($temp_feed);
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  KICKSDB IMPORT COMPLETE');
+$logger->info('========================================');
+$logger->info("  Duration: {$duration}s");
+$logger->info("  Import exit code: {$import_exit_code}");
+$logger->info('========================================');
+
+exit($import_exit_code);
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Parse SKU file (supports JSON array, plain text, CSV)
+ *
+ * @param string $content File content
+ * @param string $filename Original filename (for format detection)
+ * @return array List of SKU strings
+ */
+function parseSkuFile(string $content, string $filename): array
+{
+    $content = trim($content);
+
+    if (empty($content)) {
+        return [];
+    }
+
+    // Try JSON first
+    if ($content[0] === '[' || $content[0] === '{') {
+        $json = json_decode($content, true);
+        if (is_array($json)) {
+            // Flat array: ["SKU1", "SKU2"]
+            if (isset($json[0]) && is_string($json[0])) {
+                return $json;
+            }
+            // Array of objects: [{"sku": "SKU1"}, ...]
+            return array_filter(array_map(function ($item) {
+                if (is_string($item)) {
+                    return $item;
+                }
+                return $item['sku'] ?? $item['style_id'] ?? $item['style_code'] ?? null;
+            }, $json));
+        }
+    }
+
+    // CSV: detect header row
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    if ($ext === 'csv') {
+        $lines = array_filter(array_map('trim', explode("\n", $content)));
+        $skus = [];
+        $header_skipped = false;
+
+        foreach ($lines as $line) {
+            $cols = str_getcsv($line);
+            $value = trim($cols[0] ?? '');
+
+            // Skip header row
+            if (!$header_skipped && preg_match('/^(sku|style|code|id)/i', $value)) {
+                $header_skipped = true;
+                continue;
+            }
+
+            if (!empty($value)) {
+                $skus[] = $value;
+            }
+        }
+
+        return $skus;
+    }
+
+    // Plain text: one SKU per line
+    return array_filter(array_map('trim', explode("\n", $content)));
+}
