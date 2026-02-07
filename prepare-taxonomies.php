@@ -141,14 +141,11 @@ class TaxonomyPreparer
     private function ensureAttribute(string $name, string $slug, array $extra = []): ?int
     {
         try {
-            $attributes = $this->wc_client->get('products/attributes');
-
-            foreach ($attributes as $attr) {
-                if ($attr->slug === $slug) {
-                    $this->stats['attributes_existing']++;
-                    $this->logger->debug("  Exists: {$name} (ID: {$attr->id})");
-                    return $attr->id;
-                }
+            $existing_id = $this->findExistingAttribute($slug);
+            if ($existing_id !== null) {
+                $this->stats['attributes_existing']++;
+                $this->logger->debug("  Exists: {$name} (ID: {$existing_id})");
+                return $existing_id;
             }
 
             if ($this->dry_run) {
@@ -172,9 +169,43 @@ class TaxonomyPreparer
             return $result->id;
 
         } catch (Exception $e) {
+            // "slug already in use" — attribute exists but lookup missed it
+            if (strpos($e->getMessage(), 'woocommerce_rest_cannot_create') !== false) {
+                $this->logger->debug("  Attribute exists (create conflict), retrying lookup for {$slug}...");
+                $existing_id = $this->findExistingAttribute($slug);
+                if ($existing_id !== null) {
+                    $this->stats['attributes_existing']++;
+                    $this->logger->info("  Found existing: {$name} (ID: {$existing_id})");
+                    return $existing_id;
+                }
+            }
             $this->logger->error("  Attribute error ({$name}): " . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Find an existing attribute by slug (handles pa_ prefix mismatch)
+     */
+    private function findExistingAttribute(string $slug): ?int
+    {
+        try {
+            $attributes = $this->wc_client->get('products/attributes');
+            foreach ($attributes as $attr) {
+                $attr_slug = $attr->slug ?? '';
+                // Match with or without pa_ prefix
+                if ($attr_slug === $slug || $attr_slug === 'pa_' . $slug || 'pa_' . $attr_slug === $slug) {
+                    return $attr->id;
+                }
+                // Also match by name (case-insensitive)
+                if (isset($attr->name) && strtolower($attr->name) === strtolower($slug)) {
+                    return $attr->id;
+                }
+            }
+        } catch (Exception $e) {
+            $this->logger->debug("  Attribute lookup error: " . $e->getMessage());
+        }
+        return null;
     }
 
     /**
