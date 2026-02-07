@@ -386,11 +386,63 @@ class BulkUploader
     }
 
     /**
-     * Resolve attribute ID from taxonomy map or WC API
+     * Resolve attribute ID from taxonomy map, WC API, or create it
      */
     private function resolveAttributeId(string $slug): ?int
     {
-        return $this->taxonomy_map['attributes'][$slug] ?? null;
+        // Check taxonomy-map cache
+        if (isset($this->taxonomy_map['attributes'][$slug])) {
+            return $this->taxonomy_map['attributes'][$slug];
+        }
+
+        // Query WC API for existing attribute
+        try {
+            $attributes = $this->wc_client->get('products/attributes');
+            foreach ($attributes as $attr) {
+                if ($attr->slug === $slug) {
+                    if (!isset($this->taxonomy_map['attributes'])) {
+                        $this->taxonomy_map['attributes'] = [];
+                    }
+                    $this->taxonomy_map['attributes'][$slug] = $attr->id;
+                    $this->logger->debug("  Found attribute: {$slug} (ID: {$attr->id})");
+                    return $attr->id;
+                }
+            }
+
+            // Not found — create it if we have config and not dry-run
+            if ($this->dry_run) {
+                return null;
+            }
+
+            $attr_config = null;
+            foreach ($this->config['attributes'] as $cfg) {
+                if ($cfg['slug'] === $slug) {
+                    $attr_config = $cfg;
+                    break;
+                }
+            }
+
+            if ($attr_config) {
+                $result = $this->wc_client->post('products/attributes', [
+                    'name' => $attr_config['name'],
+                    'slug' => $attr_config['slug'],
+                    'type' => $attr_config['type'] ?? 'select',
+                    'order_by' => $attr_config['order_by'] ?? 'menu_order',
+                    'has_archives' => $attr_config['has_archives'] ?? true,
+                ]);
+
+                if (!isset($this->taxonomy_map['attributes'])) {
+                    $this->taxonomy_map['attributes'] = [];
+                }
+                $this->taxonomy_map['attributes'][$slug] = $result->id;
+                $this->logger->info("  Created attribute: {$attr_config['name']} (ID: {$result->id})");
+                return $result->id;
+            }
+        } catch (Exception $e) {
+            $this->logger->debug("  Attribute resolve error ({$slug}): " . $e->getMessage());
+        }
+
+        return null;
     }
 
     // =========================================================================
@@ -581,18 +633,41 @@ class BulkUploader
             $wc['categories'][] = ['id' => $category_id];
         }
 
-        // Size attribute
-        if ($size_attr_id && !empty($size_options)) {
-            $wc['attributes'][] = [
-                'id' => $size_attr_id,
+        // Brand attribute (pa_marca)
+        if ($brand) {
+            $brand_slug = $this->config['attributes']['brand']['slug'] ?? 'marca';
+            $brand_attr_id = $this->resolveAttributeId($brand_slug);
+            $brand_attr = [
                 'position' => 0,
+                'visible' => true,
+                'variation' => false,
+                'options' => [$brand],
+            ];
+            if ($brand_attr_id) {
+                $brand_attr['id'] = $brand_attr_id;
+            } else {
+                $brand_attr['name'] = 'pa_' . $brand_slug;
+            }
+            $wc['attributes'][] = $brand_attr;
+        }
+
+        // Size attribute (pa_taglia) — always add for variations to work
+        if (!empty($size_options)) {
+            $size_attr = [
+                'position' => count($wc['attributes']),
                 'visible' => true,
                 'variation' => true,
                 'options' => $size_options,
             ];
+            if ($size_attr_id) {
+                $size_attr['id'] = $size_attr_id;
+            } else {
+                $size_attr['name'] = 'pa_' . $size_slug;
+            }
+            $wc['attributes'][] = $size_attr;
         }
 
-        // Brand
+        // Brand taxonomy (Perfect Brands plugin)
         if ($brand && ($this->config['brands']['enabled'] ?? true)) {
             $brand_id = $this->resolveBrandId($brand);
             if ($brand_id) {
