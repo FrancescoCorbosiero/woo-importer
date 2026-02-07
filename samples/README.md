@@ -14,6 +14,13 @@ All samples use the `TEST-` SKU prefix for easy identification and cleanup.
 | `bulk-upload-products.json` | `bulk-upload.php` | JSON format (6 products) |
 | `bulk-upload-products.csv` | `bulk-upload.php` | CSV format (4 products) |
 | `wc-formatted-feed.json` | `import-wc.php`, `sync-wc.php` | Pre-resolved WC REST format |
+| `kicksdb-skus.json` | `import-kicksdb.php` | JSON array of 5 real SKUs |
+| `kicksdb-skus.txt` | `import-kicksdb.php` | Plain text, one SKU per line |
+| `kicksdb-skus.csv` | `import-kicksdb.php` | CSV with SKU + name + notes |
+| `kicksdb-api-response.json` | Reference | Mock KicksDB StockX product response |
+| `kicksdb-variants-response.json` | Reference | Mock KicksDB variants (11 sizes + prices) |
+| `kicksdb-webhook-payload.json` | Reference | Mock price_change webhook payload |
+| `wc-feed-from-kicksdb.json` | `import-wc.php` | Expected WC output from KicksDB transform |
 
 ---
 
@@ -139,6 +146,74 @@ php import-wc.php --feed=samples/wc-formatted-feed.json
 
 ---
 
+## Flow 7: KicksDB Import (from SKU list)
+
+Import sneakers by SKU from KicksDB (StockX market data).
+Requires `KICKSDB_API_KEY` in `.env`.
+
+```bash
+# From CLI argument (dry run)
+php import-kicksdb.php --skus=DD1873-102,CW2288-111 --dry-run --verbose
+
+# From JSON file
+php import-kicksdb.php --skus-file=samples/kicksdb-skus.json --dry-run
+
+# From plain text file
+php import-kicksdb.php --skus-file=samples/kicksdb-skus.txt --dry-run
+
+# From CSV file
+php import-kicksdb.php --skus-file=samples/kicksdb-skus.csv --dry-run
+
+# Real import (limit to first 2)
+php import-kicksdb.php --skus-file=samples/kicksdb-skus.json --limit=2
+
+# Full import
+php import-kicksdb.php --skus-file=samples/kicksdb-skus.json
+
+# Transform only (generate WC feed without importing)
+php import-kicksdb.php --skus-file=samples/kicksdb-skus.json --transform-only --save-feed
+# Then import manually:
+php import-wc.php --feed=data/feed-kicksdb.json
+
+# Pipe a single SKU
+echo "DD1873-102" | php import-kicksdb.php --dry-run
+```
+
+---
+
+## Flow 8: KicksDB Price Reconciliation
+
+Update existing WC product prices from current StockX market data.
+
+```bash
+# Full reconciliation (all tracked SKUs)
+php pricing/reconcile.php --dry-run --verbose
+php pricing/reconcile.php --verbose
+
+# Single product
+php pricing/reconcile.php --sku=DD1873-102 --verbose
+
+# First 5 products only
+php pricing/reconcile.php --limit=5 --dry-run --verbose
+```
+
+---
+
+## Flow 9: Pre-formatted KicksDB WC Feed
+
+Import the sample WC feed that simulates KicksDB transform output.
+Useful for testing `import-wc.php` without a live KicksDB API key.
+
+```bash
+# Preview
+php import-wc.php --feed=samples/wc-feed-from-kicksdb.json --dry-run
+
+# Import
+php import-wc.php --feed=samples/wc-feed-from-kicksdb.json
+```
+
+---
+
 ## Cleanup
 
 Delete all test products after testing:
@@ -168,3 +243,33 @@ php nuke-products.php --dry-run
 ### gs-api-response.json (5 products)
 Same as above minus TEST-JOGGER-006, in Golden Sneakers API format with
 `presented_price`, `offer_price`, `available_quantity`, `barcode`, etc.
+
+### kicksdb-skus.json / .txt / .csv
+5 real sneaker SKUs for testing KicksDB import:
+
+| SKU | Name |
+|-----|------|
+| DD1873-102 | Nike Dunk Low Panda (W) |
+| CW2288-111 | Nike Air Force 1 '07 White |
+| CT8527-100 | Air Jordan 1 Retro High OG Chicago |
+| DV0833-105 | Nike Dunk Low Grey Fog |
+| FQ8249-100 | Nike Air Max 1 '86 Big Bubble |
+
+### kicksdb-api-response.json
+Simulated `GET /v3/stockx/products/DD1873-102` response with all fields:
+id, sku, slug, title, brand, model, gender, colorway, description, image, etc.
+
+### kicksdb-variants-response.json
+Simulated `GET /v3/stockx/products/{id}/variants?market=US` response with
+11 women's sizes (EU 35.5-42), each with: lowest_ask, highest_bid, last_sale,
+barcode, size_us, size_eu, size_uk.
+
+### kicksdb-webhook-payload.json
+Simulated `price_change` webhook payload with 3 variant price updates.
+
+### wc-feed-from-kicksdb.json
+Expected output of `kicksdb-transform.php` for DD1873-102. Shows tiered
+margin pricing applied to StockX asks:
+- $82 (size 35.5) → +35% tier → €111
+- $105 (size 40) → +28% tier → €135
+- $125 (size 42) → +28% tier → €160

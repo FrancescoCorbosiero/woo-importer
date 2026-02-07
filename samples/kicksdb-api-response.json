@@ -1,0 +1,21 @@
+{
+  "$comment": "Simulated KicksDB v3 StockX product response for GET /v3/stockx/products/DD1873-102",
+  "data": {
+    "id": "50b8dfb8-327b-4703-8a9b-e6a344aef7b8",
+    "sku": "DD1873-102",
+    "slug": "nike-dunk-low-next-nature-white-black-w",
+    "title": "Nike Dunk Low Next Nature White Black Panda (Women's)",
+    "brand": "Nike",
+    "model": "Dunk Low",
+    "gender": "women",
+    "colorway": "White/Black-White",
+    "description": "The Nike Dunk Low Next Nature White Black Panda features a white leather upper with black overlays and a Nike Swoosh. The shoe sits atop a white rubber sole with black accents.",
+    "image": "https://images.stockx.com/images/Nike-Dunk-Low-Next-Nature-White-Black-W-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1635275412",
+    "link": "https://stockx.com/nike-dunk-low-next-nature-white-black-w",
+    "product_type": "Shoes",
+    "category": "Dunk",
+    "release_date": "2021-10-12",
+    "updated_at": "2026-02-07T08:30:00Z"
+  },
+  "meta": null
+}
