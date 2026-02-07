@@ -264,10 +264,12 @@ class WooCommerceDirectImporter
                 $result = $this->wc_client->post('products/batch', [$operation => $chunk]);
                 $this->stats['batch_requests']++;
 
-                foreach ($result->$operation ?? [] as $item) {
+                foreach ($result->$operation ?? [] as $idx => $item) {
                     if (isset($item->error)) {
                         $this->stats['errors']++;
-                        $this->logger->error("  Error: " . ($item->error->message ?? 'Unknown'));
+                        $sku = $item->sku ?? $chunk[$idx]['sku'] ?? 'unknown';
+                        $code = $item->error->code ?? '';
+                        $this->logger->error("  Error [{$sku}]: " . ($item->error->message ?? 'Unknown') . ($code ? " [{$code}]" : ''));
                     } else {
                         if ($operation === 'create') {
                             $this->stats['products_created']++;
@@ -353,9 +355,11 @@ class WooCommerceDirectImporter
                 );
                 $this->stats['batch_requests']++;
 
-                foreach ($result->$operation ?? [] as $item) {
+                foreach ($result->$operation ?? [] as $idx => $item) {
                     if (isset($item->error)) {
                         $this->stats['errors']++;
+                        $var_sku = $item->sku ?? $chunk[$idx]['sku'] ?? 'unknown';
+                        $this->logger->error("  Variation error [product:{$product_id} {$var_sku}]: " . ($item->error->message ?? 'Unknown'));
                     } else {
                         if ($operation === 'create') {
                             $this->stats['variations_created']++;
@@ -367,6 +371,7 @@ class WooCommerceDirectImporter
 
             } catch (Exception $e) {
                 $this->stats['errors'] += count($chunk);
+                $this->logger->error("  Variation batch failed [product:{$product_id}]: " . $e->getMessage());
             }
         }
     }
