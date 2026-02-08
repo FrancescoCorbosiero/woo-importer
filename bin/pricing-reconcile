@@ -184,18 +184,18 @@ foreach ($skus_to_process as $sku) {
     $processed++;
     $logger->info("[{$processed}/{$total}] {$sku}");
 
-    // Fetch current market prices from KicksDB
-    $product = $kicksdb->getStockXProduct($sku);
+    // Fetch current market prices from KicksDB (variants are embedded in product response)
+    $product = $kicksdb->getStockXProduct($sku, $market);
     if ($product === null) {
         $logger->warning("  Not found in KicksDB, skipping");
         continue;
     }
 
-    $product_id = $product['id'] ?? $sku;
-    $variants = $kicksdb->getStockXVariants($product_id, $market);
+    $product_data = $product['data'] ?? $product;
+    $variants = $product_data['variants'] ?? [];
 
-    if ($variants === null || empty($variants)) {
-        $logger->warning("  No variant data from KicksDB");
+    if (empty($variants)) {
+        $logger->warning("  No variant data in KicksDB response");
         continue;
     }
 

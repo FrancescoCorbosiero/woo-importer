@@ -47,11 +47,16 @@ class Client
      *
      * Tries direct lookup first (slug/UUID), then falls back to
      * search if not found (needed for style codes like DD1503-101).
+     *
+     * @param string $identifier Slug, UUID, or SKU/style code
+     * @param string $market Market code (e.g. 'US') — needed to include variant pricing
      */
-    public function getStockXProduct(string $identifier): ?array
+    public function getStockXProduct(string $identifier, string $market = 'US'): ?array
     {
+        $query = ['market' => $market];
+
         // Try direct lookup (works for slugs and UUIDs)
-        $result = $this->request('GET', "/stockx/products/{$identifier}", [], null, true);
+        $result = $this->request('GET', "/stockx/products/{$identifier}", $query, null, true);
         if ($result !== null) {
             return $result;
         }
@@ -89,7 +94,7 @@ class Client
         // Fetch full product details by slug/ID (search results may be lighter)
         $product_id = $match['slug'] ?? $match['id'] ?? null;
         if ($product_id !== null && $product_id !== $identifier) {
-            $full = $this->request('GET', "/stockx/products/{$product_id}");
+            $full = $this->request('GET', "/stockx/products/{$product_id}", $query);
             if ($full !== null) {
                 return $full;
             }
@@ -178,7 +183,7 @@ class Client
         $results = [];
 
         foreach ($skus as $sku) {
-            $product = $this->getStockXProduct($sku);
+            $product = $this->getStockXProduct($sku, $market);
 
             if ($product === null) {
                 $this->log('warning', "No KicksDB data for SKU: {$sku}");
@@ -186,21 +191,15 @@ class Client
             }
 
             $product_data = $product['data'] ?? $product;
-
-            // Extract variants from product response (embedded, not a separate endpoint)
             $variants = $product_data['variants'] ?? [];
-            if (empty($variants)) {
-                // Fallback: try dedicated variants endpoint
-                $product_id = $product_data['id'] ?? $sku;
-                $raw = $this->getStockXVariants($product_id, $market);
-                $variants = ($raw !== null) ? ($raw['data'] ?? $raw) : [];
-            }
 
             if (!empty($variants)) {
                 $results[$sku] = [
                     'product' => $product_data,
                     'variants' => $variants,
                 ];
+            } else {
+                $this->log('warning', "No variants in KicksDB response for SKU: {$sku}");
             }
 
             usleep(200000); // 200ms between requests

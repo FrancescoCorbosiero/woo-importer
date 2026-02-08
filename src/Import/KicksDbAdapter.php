@@ -82,8 +82,8 @@ class KicksDbAdapter implements FeedAdapter
             $progress = $idx + 1;
             $this->log('info', "[{$progress}/{$this->stats['total_skus']}] Fetching {$sku}...");
 
-            // Fetch product
-            $product = $this->kicksdb->getStockXProduct($sku);
+            // Fetch product (pass market to include variant pricing data)
+            $product = $this->kicksdb->getStockXProduct($sku, $this->market);
             if ($product === null) {
                 $this->stats['products_not_found']++;
                 $this->log('warning', "  Not found in KicksDB: {$sku}");
@@ -93,16 +93,8 @@ class KicksDbAdapter implements FeedAdapter
             $this->stats['products_found']++;
             $product_data = $product['data'] ?? $product;
 
-            // Extract variants from product response (they're embedded, not a separate endpoint)
+            // Variants are embedded in the product response
             $variants = $product_data['variants'] ?? [];
-            if (empty($variants)) {
-                // Fallback: try dedicated variants endpoint (some plans may support it)
-                $product_id = $product_data['id'] ?? $sku;
-                $raw = $this->kicksdb->getStockXVariants($product_id, $this->market);
-                if ($raw !== null) {
-                    $variants = $raw['data'] ?? $raw;
-                }
-            }
 
             // Normalize
             $normalized = $this->normalize($product_data, $variants, $sku);
