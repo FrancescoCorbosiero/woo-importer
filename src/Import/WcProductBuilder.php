@@ -114,10 +114,7 @@ class WcProductBuilder
             'sku' => $sku,
             'status' => 'publish',
             'catalog_visibility' => 'visible',
-            'manage_stock' => true,
             'stock_status' => 'instock',
-            'backorders' => 'yes',
-            'stock_quantity' => 0,
             'short_description' => $short_description,
             'description' => $description,
             'categories' => [],
@@ -201,8 +198,7 @@ class WcProductBuilder
                 'regular_price' => (string) ($var['price'] ?? 0),
                 'manage_stock' => true,
                 'stock_status' => 'instock',
-                'backorders' => 'yes',
-                'stock_quantity' => 0,
+                'stock_quantity' => 90,
                 'attributes' => $size_attr_id
                     ? [['id' => $size_attr_id, 'option' => $size_eu]]
                     : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
