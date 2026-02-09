@@ -229,7 +229,9 @@ $logger->info("  Products transformed: {$builder_stats['transformed']}");
 $logger->info("  Total variants:       {$adapter_stats['variants_total']}");
 $logger->info("  Variants with price:  {$adapter_stats['variants_with_price']}");
 $logger->info("  Variants no price:    {$adapter_stats['variants_no_price']}");
+$logger->info("  Variants no EU size:  {$adapter_stats['variants_no_eu_size']}");
 $logger->info("  With image:           {$builder_stats['with_image']}");
+$logger->info("  With gallery:         {$builder_stats['with_gallery']}");
 $logger->info("  Without image:        {$builder_stats['without_image']}");
 
 if (empty($wc_products)) {

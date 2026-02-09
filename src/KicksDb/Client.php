@@ -42,23 +42,34 @@ class Client
     // StockX Product Endpoints
     // =========================================================================
 
+    /** @var array Default display fields for product endpoints */
+    private const DISPLAY_FIELDS = [
+        'display[variants]' => 'true',
+        'display[traits]' => 'true',
+        'display[identifiers]' => 'true',
+    ];
+
     /**
      * Get a StockX product by slug, UUID, or style code (SKU)
      *
      * Tries direct lookup first (slug/UUID), then falls back to
      * search if not found (needed for style codes like DD1503-101).
+     *
+     * @param string $identifier Slug, UUID, or SKU
+     * @param string $market Market code (IT, US, EU, etc.)
      */
-    public function getStockXProduct(string $identifier): ?array
+    public function getStockXProduct(string $identifier, string $market = 'IT'): ?array
     {
         // Try direct lookup (works for slugs and UUIDs)
-        $result = $this->request('GET', "/stockx/products/{$identifier}", [], null, true);
+        $query = array_merge(self::DISPLAY_FIELDS, ['market' => $market]);
+        $result = $this->request('GET', "/stockx/products/{$identifier}", $query, null, true);
         if ($result !== null) {
             return $result;
         }
 
         // Fallback: search by style code/SKU
         $this->log('debug', "Direct lookup missed for '{$identifier}', trying search...");
-        $search = $this->searchStockX($identifier, 5);
+        $search = $this->searchStockX($identifier, 5, $market);
         if ($search === null) {
             return null;
         }
@@ -86,39 +97,76 @@ class Client
             return null;
         }
 
-        // Fetch full product details by slug/ID (search results may be lighter)
+        // Search already includes display fields, so result should be complete.
+        // Only re-fetch if we got a different identifier (slug) with full details.
         $product_id = $match['slug'] ?? $match['id'] ?? null;
-        if ($product_id !== null && $product_id !== $identifier) {
-            $full = $this->request('GET', "/stockx/products/{$product_id}");
+        if ($product_id !== null && $product_id !== $identifier && empty($match['variants'])) {
+            $full = $this->request('GET', "/stockx/products/{$product_id}", $query);
             if ($full !== null) {
                 return $full;
             }
         }
 
-        // Return search result as-is if full fetch fails
+        // Wrap in data envelope if search returned a bare item
+        if (!isset($match['data'])) {
+            return ['data' => $match];
+        }
         return $match;
     }
 
-    public function searchStockX(string $query, int $limit = 10): ?array
+    /**
+     * Search StockX products by query string
+     *
+     * @param string $query Search term (SKU, name, etc.)
+     * @param int $limit Max results to return
+     * @param string $market Market code for pricing context
+     */
+    public function searchStockX(string $query, int $limit = 10, string $market = 'IT'): ?array
     {
-        return $this->request('GET', '/stockx/products', [
-            'query' => $query,
-            'limit' => $limit,
-        ]);
+        return $this->request('GET', '/stockx/products', array_merge(
+            self::DISPLAY_FIELDS,
+            [
+                'query' => $query,
+                'limit' => $limit,
+                'market' => $market,
+            ]
+        ));
     }
 
-    public function getStockXVariants(string $product_id, string $market = 'US'): ?array
+    /**
+     * Get variant/size data for a product
+     *
+     * @param string $product_id Product UUID or slug
+     * @param string $market Market code
+     */
+    public function getStockXVariants(string $product_id, string $market = 'IT'): ?array
     {
         return $this->request('GET', "/stockx/products/{$product_id}/variants", [
             'market' => $market,
         ]);
     }
 
-    public function getStockXVariantPrice(string $variant_id, string $market = 'US'): ?array
+    /**
+     * Batch fetch prices for multiple products at once
+     *
+     * Uses the dedicated POST /stockx/prices endpoint instead of
+     * individual per-product calls. Much more efficient for bulk operations.
+     *
+     * @param array $skus List of SKUs to price
+     * @param string $market Market code
+     * @param array $product_ids Optional list of product UUIDs
+     */
+    public function batchGetStockXPrices(array $skus = [], string $market = 'IT', array $product_ids = []): ?array
     {
-        return $this->request('GET', "/stockx/variants/{$variant_id}", [
-            'market' => $market,
-        ]);
+        $body = ['market' => $market];
+        if (!empty($skus)) {
+            $body['skus'] = array_values($skus);
+        }
+        if (!empty($product_ids)) {
+            $body['product_ids'] = array_values($product_ids);
+        }
+
+        return $this->request('POST', '/stockx/prices', [], $body);
     }
 
     // =========================================================================
@@ -173,37 +221,39 @@ class Client
     // Batch Price Lookup (for reconciliation)
     // =========================================================================
 
-    public function batchGetPrices(array $skus, string $market = 'US'): array
+    /**
+     * Fetch prices for multiple SKUs using the batch endpoint
+     *
+     * Returns an associative array keyed by SKU with product + variant data.
+     * Uses POST /stockx/prices for efficiency instead of per-SKU lookups.
+     *
+     * @param array $skus List of SKUs
+     * @param string $market Market code
+     * @return array<string, array{product_id: string, sku: string, variants: array}>
+     */
+    public function batchGetPrices(array $skus, string $market = 'IT'): array
     {
         $results = [];
 
-        foreach ($skus as $sku) {
-            $product = $this->getStockXProduct($sku);
-
-            if ($product === null) {
-                $this->log('warning', "No KicksDB data for SKU: {$sku}");
+        // Batch endpoint accepts up to ~50 SKUs at a time
+        $chunks = array_chunk($skus, 50);
+        foreach ($chunks as $chunk) {
+            $response = $this->batchGetStockXPrices($chunk, $market);
+            if ($response === null) {
+                $this->log('warning', 'Batch price request failed for chunk of ' . count($chunk) . ' SKUs');
                 continue;
             }
 
-            $product_data = $product['data'] ?? $product;
-
-            // Extract variants from product response (embedded, not a separate endpoint)
-            $variants = $product_data['variants'] ?? [];
-            if (empty($variants)) {
-                // Fallback: try dedicated variants endpoint
-                $product_id = $product_data['id'] ?? $sku;
-                $raw = $this->getStockXVariants($product_id, $market);
-                $variants = ($raw !== null) ? ($raw['data'] ?? $raw) : [];
+            foreach ($response['data'] ?? [] as $item) {
+                $sku = $item['sku'] ?? null;
+                if ($sku) {
+                    $results[$sku] = $item;
+                }
             }
 
-            if (!empty($variants)) {
-                $results[$sku] = [
-                    'product' => $product_data,
-                    'variants' => $variants,
-                ];
+            if (count($chunks) > 1) {
+                usleep(200000); // 200ms between batch calls
             }
-
-            usleep(200000); // 200ms between requests
         }
 
         return $results;

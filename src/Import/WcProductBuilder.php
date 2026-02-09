@@ -11,10 +11,11 @@ use ResellPiacenza\Support\Config;
  * WooCommerce REST API payloads. Handles all shared logic:
  *
  * - Taxonomy/image map resolution
- * - Italian localized descriptions via templates
+ * - Italian localized descriptions via templates, enriched with API data
  * - Category, attribute, brand ID lookup
- * - Image handling (media library or sideload fallback)
+ * - Image handling (media library or sideload fallback) with gallery support
  * - Variation construction with size attributes
+ * - Rich metadata mapping (colorway, gender, model, retail price, etc.)
  *
  * @package ResellPiacenza\Import
  */
@@ -30,6 +31,7 @@ class WcProductBuilder
         'transformed' => 0,
         'with_image' => 0,
         'without_image' => 0,
+        'with_gallery' => 0,
         'warnings' => 0,
     ];
 
@@ -63,8 +65,15 @@ class WcProductBuilder
 
         $name = $product['name'] ?? '';
         $brand = $product['brand'] ?? '';
+        $model = $product['model'] ?? '';
+        $gender = $product['gender'] ?? '';
+        $colorway = $product['colorway'] ?? '';
+        $release_date = $product['release_date'] ?? '';
+        $retail_price = $product['retail_price'] ?? '';
+        $api_description = $product['description'] ?? '';
         $category_type = $product['category_type'] ?? 'sneakers';
         $image_url = $product['image_url'] ?? null;
+        $gallery_urls = $product['gallery_urls'] ?? [];
         $extra_meta = $product['meta_data'] ?? [];
         $variations = $product['variations'] ?? [];
 
@@ -73,10 +82,13 @@ class WcProductBuilder
             'product_name' => $name,
             'brand_name' => $brand,
             'sku' => $sku,
+            'model' => $model,
+            'colorway' => $colorway,
         ];
 
         // Resolve category
-        $cat_config = $this->config['categories'][$category_type]
+        $cat_slug = $this->normalizeCategoryType($category_type);
+        $cat_config = $this->config['categories'][$cat_slug]
             ?? $this->config['categories']['sneakers'];
         $category_id = $this->getCategoryId($cat_config['slug']);
 
@@ -91,6 +103,10 @@ class WcProductBuilder
         $unique_sizes = array_values(array_unique($size_options));
         usort($unique_sizes, fn($a, $b) => (float) $a <=> (float) $b);
 
+        // Build description: use API description when available, enriched with Italian sections
+        $description = $this->buildDescription($tpl, $api_description, $colorway, $release_date, $retail_price, $gender);
+        $short_description = $this->buildShortDescription($tpl, $colorway);
+
         // Build base WC product
         $wc_product = [
             'name' => $name,
@@ -98,14 +114,8 @@ class WcProductBuilder
             'sku' => $sku,
             'status' => 'publish',
             'catalog_visibility' => 'visible',
-            'short_description' => $this->parseTemplate(
-                $this->config['templates']['short_description'],
-                $tpl
-            ),
-            'description' => $this->parseTemplate(
-                $this->config['templates']['long_description'],
-                $tpl
-            ),
+            'short_description' => $short_description,
+            'description' => $description,
             'categories' => [],
             'attributes' => [],
         ];
@@ -163,21 +173,14 @@ class WcProductBuilder
             }
         }
 
-        // Image: media library ID > sideload URL > none
-        $image_id = $this->image_map[$sku]['media_id'] ?? null;
-        if ($image_id) {
-            $wc_product['images'] = [['id' => $image_id]];
+        // Images: primary + gallery
+        $wc_product['images'] = $this->buildWcImages($sku, $name, $brand, $image_url, $gallery_urls, $tpl);
+
+        if (!empty($wc_product['images'])) {
             $this->stats['with_image']++;
-        } elseif ($image_url) {
-            $wc_product['images'] = [[
-                'src' => $image_url,
-                'name' => $sku,
-                'alt' => $this->parseTemplate(
-                    $this->config['templates']['image_alt'],
-                    $tpl
-                ),
-            ]];
-            $this->stats['with_image']++;
+            if (count($wc_product['images']) > 1) {
+                $this->stats['with_gallery']++;
+            }
         } else {
             $this->stats['without_image']++;
         }
@@ -237,6 +240,152 @@ class WcProductBuilder
     }
 
     // =========================================================================
+    // Description Building
+    // =========================================================================
+
+    /**
+     * Build the full product description (long description)
+     *
+     * When we have a rich API description, use it as the product story.
+     * Always append the Italian trust/shipping sections.
+     */
+    private function buildDescription(
+        array $tpl,
+        string $api_description,
+        string $colorway,
+        string $release_date,
+        string $retail_price,
+        string $gender
+    ): string {
+        $store = $this->config['store']['name'] ?? 'ResellPiacenza';
+        $sections = [];
+
+        // Product intro with rich data when available
+        if (!empty($api_description)) {
+            // Use the real product description from the source
+            $sections[] = '<div class="product-description">' . $api_description . '</div>';
+        } else {
+            // Fallback to template intro
+            $sections[] = '<p>Scopri le <strong>' . $tpl['product_name'] . '</strong>, sneakers originali '
+                . $tpl['brand_name'] . ' disponibili su ' . $store . '.</p>';
+        }
+
+        // Product details table (when we have rich metadata)
+        $details = [];
+        if (!empty($colorway)) {
+            $details[] = '<tr><td><strong>Colorway</strong></td><td>' . htmlspecialchars($colorway) . '</td></tr>';
+        }
+        if (!empty($tpl['model'])) {
+            $details[] = '<tr><td><strong>Modello</strong></td><td>' . htmlspecialchars($tpl['model']) . '</td></tr>';
+        }
+        if (!empty($tpl['sku'])) {
+            $details[] = '<tr><td><strong>Style Code</strong></td><td>' . htmlspecialchars($tpl['sku']) . '</td></tr>';
+        }
+        if (!empty($release_date)) {
+            $details[] = '<tr><td><strong>Data di Rilascio</strong></td><td>' . htmlspecialchars($this->formatDate($release_date)) . '</td></tr>';
+        }
+        if (!empty($retail_price)) {
+            $details[] = '<tr><td><strong>Prezzo Retail</strong></td><td>&euro;' . htmlspecialchars($retail_price) . '</td></tr>';
+        }
+        if (!empty($gender)) {
+            $details[] = '<tr><td><strong>Genere</strong></td><td>' . htmlspecialchars($this->translateGender($gender)) . '</td></tr>';
+        }
+
+        if (!empty($details)) {
+            $sections[] = '<h3>Dettagli Prodotto</h3>'
+                . '<table class="product-details">' . implode('', $details) . '</table>';
+        }
+
+        // Italian trust sections (always present)
+        $sections[] = '<h3>Garanzia di Autenticità</h3>'
+            . '<p>Tutti i prodotti venduti su ' . $store . ' sono <strong>100% originali e autentici</strong>. '
+            . 'Ogni articolo viene accuratamente verificato prima della spedizione.</p>';
+
+        $sections[] = '<h3>Spedizione e Resi</h3>'
+            . '<ul>'
+            . '<li>✓ Spedizione rapida in tutta Italia</li>'
+            . '<li>✓ Imballaggio sicuro e discreto</li>'
+            . '<li>✓ Reso facile entro 14 giorni</li>'
+            . '</ul>';
+
+        $sections[] = '<h3>Perché Scegliere ' . $store . '</h3>'
+            . '<p>Siamo specialisti in sneakers e streetwear di alta qualità. '
+            . 'La nostra missione è offrire prodotti autentici ai migliori prezzi, '
+            . 'con un servizio clienti impeccabile.</p>';
+
+        return implode("\n\n", $sections);
+    }
+
+    /**
+     * Build the short description (excerpt)
+     *
+     * Enriched with colorway when available.
+     */
+    private function buildShortDescription(array $tpl, string $colorway): string
+    {
+        $parts = [];
+        $parts[] = 'Sneakers originali <strong>' . $tpl['brand_name'] . '</strong>.';
+
+        if (!empty($colorway)) {
+            $parts[] = 'Colorway: ' . htmlspecialchars($colorway) . '.';
+        }
+
+        $parts[] = 'Prodotto autentico al 100%. Spedizione veloce in tutta Italia.';
+
+        return '<p>' . implode(' ', $parts) . '</p>';
+    }
+
+    // =========================================================================
+    // Image Building
+    // =========================================================================
+
+    /**
+     * Build WC images array from primary + gallery URLs
+     *
+     * Primary image is first. Gallery images follow.
+     * If image is already in media library (by SKU), use its ID.
+     */
+    private function buildWcImages(
+        string $sku,
+        string $name,
+        string $brand,
+        ?string $image_url,
+        array $gallery_urls,
+        array $tpl
+    ): array {
+        $images = [];
+
+        // Check media library first for pre-uploaded image
+        $image_id = $this->image_map[$sku]['media_id'] ?? null;
+
+        if ($image_id) {
+            // Primary from media library
+            $images[] = ['id' => $image_id];
+        } elseif ($image_url) {
+            // Primary via sideload
+            $images[] = [
+                'src' => $image_url,
+                'name' => $sku,
+                'alt' => $this->parseTemplate(
+                    $this->config['templates']['image_alt'] ?? '{product_name} - {sku} - Acquista su {store_name}',
+                    $tpl
+                ),
+            ];
+        }
+
+        // Gallery images via sideload
+        foreach ($gallery_urls as $idx => $url) {
+            $images[] = [
+                'src' => $url,
+                'name' => $sku . '-' . ($idx + 1),
+                'alt' => $name . ' - ' . $brand,
+            ];
+        }
+
+        return $images;
+    }
+
+    // =========================================================================
     // Map Loading
     // =========================================================================
 
@@ -285,8 +434,68 @@ class WcProductBuilder
     }
 
     // =========================================================================
-    // Template Engine
+    // Helpers
     // =========================================================================
+
+    /**
+     * Normalize category type from API to config key
+     *
+     * KicksDB may return "Shoes", "sneakers", etc.
+     */
+    private function normalizeCategoryType(string $type): string
+    {
+        $lower = strtolower(trim($type));
+        if (in_array($lower, ['shoes', 'sneakers', 'footwear'])) {
+            return 'sneakers';
+        }
+        if (in_array($lower, ['clothing', 'apparel'])) {
+            return 'clothing';
+        }
+        return 'sneakers';
+    }
+
+    /**
+     * Translate gender to Italian
+     */
+    private function translateGender(string $gender): string
+    {
+        $map = [
+            'men' => 'Uomo',
+            'women' => 'Donna',
+            'unisex' => 'Unisex',
+            'youth' => 'Ragazzo',
+            'child' => 'Bambino',
+            'infant' => 'Neonato',
+            'toddler' => 'Bambino piccolo',
+            'preschool' => 'Prescolare',
+        ];
+        return $map[strtolower($gender)] ?? ucfirst($gender);
+    }
+
+    /**
+     * Format a date string to Italian format
+     */
+    private function formatDate(string $date): string
+    {
+        // Handle ISO dates with time component
+        $date = preg_replace('/T.*$/', '', $date);
+        $ts = strtotime($date);
+        if ($ts === false) {
+            return $date;
+        }
+
+        $months = [
+            1 => 'Gennaio', 2 => 'Febbraio', 3 => 'Marzo', 4 => 'Aprile',
+            5 => 'Maggio', 6 => 'Giugno', 7 => 'Luglio', 8 => 'Agosto',
+            9 => 'Settembre', 10 => 'Ottobre', 11 => 'Novembre', 12 => 'Dicembre',
+        ];
+
+        $day = (int) date('j', $ts);
+        $month = $months[(int) date('n', $ts)];
+        $year = date('Y', $ts);
+
+        return "{$day} {$month} {$year}";
+    }
 
     /**
      * Parse template string with product placeholders
@@ -294,12 +503,14 @@ class WcProductBuilder
     private function parseTemplate(string $template, array $data): string
     {
         return str_replace(
-            ['{product_name}', '{brand_name}', '{sku}', '{store_name}'],
+            ['{product_name}', '{brand_name}', '{sku}', '{store_name}', '{model}', '{colorway}'],
             [
                 $data['product_name'] ?? '',
                 $data['brand_name'] ?? '',
                 $data['sku'] ?? '',
                 $this->config['store']['name'] ?? 'ResellPiacenza',
+                $data['model'] ?? '',
+                $data['colorway'] ?? '',
             ],
             $template
         );
