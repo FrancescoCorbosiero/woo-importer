@@ -114,6 +114,8 @@ class WcProductBuilder
             'sku' => $sku,
             'status' => 'publish',
             'catalog_visibility' => 'visible',
+            'manage_stock' => false,
+            'stock_status' => 'instock',
             'short_description' => $short_description,
             'description' => $description,
             'categories' => [],
