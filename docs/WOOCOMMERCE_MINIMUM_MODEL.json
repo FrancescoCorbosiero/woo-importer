@@ -1,0 +1,50 @@
+[
+    {
+        "name": "Product Name",
+        "sku": "SKU-123",
+        "type": "variable",
+        "status": "publish",
+        "description": "...",
+        "short_description": "...",
+        "categories": [
+            {
+                "id": 15
+            }
+        ],
+        "images": [
+            {
+                "src": "https://example.com/main.jpg"
+            },
+            {
+                "src": "https://example.com/gallery1.jpg"
+            }
+        ],
+        "attributes": [
+            {
+                "id": 1,
+                "visible": true,
+                "variation": true,
+                "options": [
+                    "36",
+                    "37",
+                    "38"
+                ]
+            }
+        ],
+        "_variations": [
+            {
+                "sku": "SKU-123-36",
+                "regular_price": "99.00",
+                "manage_stock": true,
+                "stock_quantity": 5,
+                "stock_status": "instock",
+                "attributes": [
+                    {
+                        "id": 1,
+                        "option": "36"
+                    }
+                ]
+            }
+        ]
+    }
+]
