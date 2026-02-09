@@ -194,9 +194,8 @@ class WcProductBuilder
             $wc_var = [
                 'sku' => $var_sku,
                 'regular_price' => (string) ($var['price'] ?? 0),
-                'manage_stock' => true,
-                'stock_quantity' => (int) ($var['stock_quantity'] ?? 0),
-                'stock_status' => $var['stock_status'] ?? 'outofstock',
+                'manage_stock' => false,
+                'stock_status' => 'instock',
                 'attributes' => $size_attr_id
                     ? [['id' => $size_attr_id, 'option' => $size_eu]]
                     : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
