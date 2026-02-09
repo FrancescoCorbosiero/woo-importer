@@ -49,6 +49,9 @@ class WooCommerceImporter
     private $limit = null;
     private $batch_size = 100;
 
+    // Category slug → ID cache
+    private $category_cache = [];
+
     // Stats
     private $stats = [
         'products_created' => 0,
@@ -165,6 +168,71 @@ class WooCommerceImporter
     }
 
     /**
+     * Resolve any slug-based categories to IDs via WC API
+     *
+     * WooCommerce REST API requires category IDs — slug-based assignment
+     * is silently ignored. This resolves slugs to IDs before batch send.
+     *
+     * @param array &$payload Product payload (modified in place)
+     */
+    private function resolveCategoryIds(array &$payload): void
+    {
+        if (empty($payload['categories'])) {
+            return;
+        }
+
+        foreach ($payload['categories'] as $idx => &$cat) {
+            if (!empty($cat['id'])) {
+                continue;
+            }
+
+            $slug = $cat['slug'] ?? null;
+            if (!$slug) {
+                continue;
+            }
+
+            $id = $this->lookupCategoryBySlug($slug);
+            if ($id) {
+                $cat = ['id' => $id];
+            } else {
+                $this->logger->warning("  Category '{$slug}' not found in WooCommerce — product will be uncategorized");
+                unset($payload['categories'][$idx]);
+            }
+        }
+
+        $payload['categories'] = array_values($payload['categories']);
+    }
+
+    /**
+     * Look up a WooCommerce category by slug (cached)
+     *
+     * @param string $slug Category slug
+     * @return int|null Category ID or null if not found
+     */
+    private function lookupCategoryBySlug(string $slug): ?int
+    {
+        if (array_key_exists($slug, $this->category_cache)) {
+            return $this->category_cache[$slug];
+        }
+
+        try {
+            $categories = $this->wc_client->get('products/categories', ['slug' => $slug]);
+
+            if (!empty($categories)) {
+                $id = $categories[0]->id;
+                $this->category_cache[$slug] = $id;
+                $this->logger->info("  Resolved category '{$slug}' → ID {$id}");
+                return $id;
+            }
+        } catch (\Exception $e) {
+            $this->logger->debug("  Category lookup failed for '{$slug}': " . $e->getMessage());
+        }
+
+        $this->category_cache[$slug] = null;
+        return null;
+    }
+
+    /**
      * Process products in batch
      *
      * @param array $wc_products WooCommerce-formatted products
@@ -188,6 +256,9 @@ class WooCommerceImporter
             // Clean internal keys before API call
             $api_payload = $product;
             unset($api_payload['_variations'], $api_payload['_sync_action'], $api_payload['_product_type']);
+
+            // Resolve any slug-based categories to IDs (WC API requires IDs)
+            $this->resolveCategoryIds($api_payload);
 
             if (isset($existing_products[$sku])) {
                 $api_payload['id'] = $existing_products[$sku]['id'];
