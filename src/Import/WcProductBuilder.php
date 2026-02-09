@@ -114,8 +114,10 @@ class WcProductBuilder
             'sku' => $sku,
             'status' => 'publish',
             'catalog_visibility' => 'visible',
-            'manage_stock' => false,
+            'manage_stock' => true,
             'stock_status' => 'instock',
+            'backorders' => 'yes',
+            'stock_quantity' => 0,
             'short_description' => $short_description,
             'description' => $description,
             'categories' => [],
@@ -127,12 +129,13 @@ class WcProductBuilder
             $wc_product['meta_data'] = $extra_meta;
         }
 
-        // Category
+        // Category: use ID from taxonomy map, fallback to slug so WC creates/resolves it
         if ($category_id) {
             $wc_product['categories'][] = ['id' => $category_id];
         } else {
+            $wc_product['categories'][] = ['slug' => $cat_config['slug']];
             $this->stats['warnings']++;
-            $this->log('debug', "  Warning: No category ID for {$cat_config['slug']} (product {$sku})");
+            $this->log('debug', "  No category ID for '{$cat_config['slug']}', using slug fallback (product {$sku})");
         }
 
         // Brand attribute (pa_marca)
@@ -196,8 +199,10 @@ class WcProductBuilder
             $wc_var = [
                 'sku' => $var_sku,
                 'regular_price' => (string) ($var['price'] ?? 0),
-                'manage_stock' => false,
+                'manage_stock' => true,
                 'stock_status' => 'instock',
+                'backorders' => 'yes',
+                'stock_quantity' => 0,
                 'attributes' => $size_attr_id
                     ? [['id' => $size_attr_id, 'option' => $size_eu]]
                     : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
