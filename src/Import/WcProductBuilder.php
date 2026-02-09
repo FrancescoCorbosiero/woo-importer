@@ -114,6 +114,7 @@ class WcProductBuilder
             'sku' => $sku,
             'status' => 'publish',
             'catalog_visibility' => 'visible',
+            'manage_stock' => false,
             'stock_status' => 'instock',
             'short_description' => $short_description,
             'description' => $description,
@@ -199,6 +200,7 @@ class WcProductBuilder
                 'manage_stock' => true,
                 'stock_status' => 'instock',
                 'stock_quantity' => 90,
+                'backorders' => 'yes',
                 'attributes' => $size_attr_id
                     ? [['id' => $size_attr_id, 'option' => $size_eu]]
                     : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
