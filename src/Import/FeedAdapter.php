@@ -14,13 +14,20 @@ namespace ResellPiacenza\Import;
  *     'sku'           => string,       // Product SKU / style code
  *     'name'          => string,       // Product title
  *     'brand'         => string,       // Brand name
+ *     'model'         => string,       // Model name (e.g. "Dunk Low", "Jordan 1 Retro High OG")
+ *     'gender'        => string,       // Gender: "men", "women", "unisex", "youth", etc.
+ *     'colorway'      => string,       // Colorway string (e.g. "White/Black-White")
+ *     'release_date'  => string,       // Release date (ISO or YYYY-MM-DD)
+ *     'retail_price'  => string,       // Original retail price
+ *     'description'   => string,       // Rich product description (HTML or plain text)
  *     'category_type' => string,       // 'sneakers' or 'clothing'
- *     'image_url'     => ?string,      // Source image URL (null if none)
+ *     'image_url'     => ?string,      // Primary image URL
+ *     'gallery_urls'  => array,        // Additional gallery image URLs
  *     'meta_data'     => array,        // Extra WC meta_data entries
  *     'variations'    => [
  *         [
  *             'size_eu'        => string,  // EU size
- *             'price'          => float,   // Final selling price
+ *             'price'          => float,   // Final selling price (after margin)
  *             'stock_quantity' => int,
  *             'stock_status'   => string,  // 'instock' or 'outofstock'
  *             'meta_data'      => array,   // Per-variation meta

@@ -232,18 +232,13 @@ class PriceUpdater
         $map = [];
 
         foreach ($kicksdb_variants as $variant) {
-            $size = $variant['size_eu']
-                ?? $variant['size']
-                ?? $this->extractSizeFromTitle($variant['title'] ?? '')
-                ?? null;
+            // Extract EU size: sizes[] sub-array first, then direct fields
+            $size = $this->extractEuSizeFromVariant($variant);
 
-            $price = $variant['lowest_ask']
-                ?? $variant['price']
-                ?? $variant['amount']
-                ?? null;
+            // Extract price: filter for "standard" type, fallback to direct fields
+            $price = $this->extractStandardPrice($variant);
 
-            if ($size !== null && $price !== null && $price > 0) {
-                $size = preg_replace('/^(EU\s*)/i', '', trim($size));
+            if ($size !== null && $price > 0) {
                 $map[$size] = (float) $price;
             }
         }
@@ -251,12 +246,61 @@ class PriceUpdater
         return $map;
     }
 
-    private function extractSizeFromTitle(string $title): ?string
+    /**
+     * Extract EU size from a variant, checking sizes[] sub-array first
+     */
+    private function extractEuSizeFromVariant(array $variant): ?string
     {
-        if (preg_match('/EU\s+([\d.]+)/i', $title, $matches)) {
+        // Primary: parse from sizes[] sub-array
+        foreach ($variant['sizes'] ?? [] as $size_entry) {
+            if (($size_entry['type'] ?? '') === 'eu') {
+                $eu = $size_entry['size'] ?? null;
+                if ($eu !== null) {
+                    return preg_replace('/^EU\s*/i', '', trim($eu));
+                }
+            }
+        }
+
+        // Fallback: direct size_eu field
+        if (!empty($variant['size_eu'])) {
+            return preg_replace('/^EU\s*/i', '', trim($variant['size_eu']));
+        }
+
+        // Fallback: parse from title like "Men's US 10 / EU 44"
+        if (!empty($variant['title']) && preg_match('/EU\s+([\d.]+)/i', $variant['title'], $matches)) {
             return $matches[1];
         }
+
+        // DO NOT fall back to $variant['size'] — that's US size
         return null;
+    }
+
+    /**
+     * Extract the standard market price from a variant
+     *
+     * Filters for "standard" type when prices[] sub-array exists,
+     * otherwise falls back to direct price fields.
+     */
+    private function extractStandardPrice(array $variant): float
+    {
+        if (!empty($variant['prices']) && is_array($variant['prices'])) {
+            foreach ($variant['prices'] as $price_entry) {
+                if (($price_entry['type'] ?? '') === 'standard') {
+                    return (float) ($price_entry['price'] ?? 0);
+                }
+            }
+            // No standard found — take lowest non-zero
+            $prices = array_filter(
+                array_column($variant['prices'], 'price'),
+                fn($p) => $p > 0
+            );
+            return !empty($prices) ? (float) min($prices) : 0.0;
+        }
+
+        return (float) ($variant['lowest_ask']
+            ?? $variant['price']
+            ?? $variant['amount']
+            ?? 0);
     }
 
     private function extractSizeFromVariation(object $variation): ?string

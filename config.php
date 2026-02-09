@@ -190,7 +190,7 @@ return [
         // KicksDB API
         'kicksdb_api_key' => env('KICKSDB_API_KEY', ''),
         'kicksdb_base_url' => env('KICKSDB_BASE_URL', 'https://api.kicks.dev/v3'),
-        'kicksdb_market' => env('KICKSDB_MARKET', 'US'),
+        'kicksdb_market' => env('KICKSDB_MARKET', 'IT'),
 
         // KicksDB Webhook
         'kicksdb_webhook_id' => env('KICKSDB_WEBHOOK_ID', null),
