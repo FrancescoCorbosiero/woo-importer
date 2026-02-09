@@ -435,6 +435,32 @@ class WooCommerceImporter
     }
 
     /**
+     * Ensure WooCommerce global stock management is enabled
+     *
+     * Without this, manage_stock on individual products/variations is ignored
+     * and size selectors won't appear on variable products.
+     */
+    private function ensureStockManagement(): void
+    {
+        if ($this->dry_run) {
+            return;
+        }
+
+        try {
+            $setting = $this->wc_client->get('settings/products/woocommerce_manage_stock');
+
+            if (($setting->value ?? '') !== 'yes') {
+                $this->wc_client->put('settings/products/woocommerce_manage_stock', [
+                    'value' => 'yes',
+                ]);
+                $this->logger->info('  Enabled WooCommerce stock management (was disabled)');
+            }
+        } catch (\Exception $e) {
+            $this->logger->debug('  Could not verify stock management setting: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Import from WooCommerce-formatted array
      *
      * @param array $wc_products Array of WC-formatted products
@@ -454,6 +480,9 @@ class WooCommerceImporter
         }
 
         try {
+            // Ensure stock management is enabled (required for size selectors)
+            $this->ensureStockManagement();
+
             // Apply limit
             if ($this->limit) {
                 $wc_products = array_slice($wc_products, 0, $this->limit);
