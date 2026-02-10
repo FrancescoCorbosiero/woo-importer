@@ -117,16 +117,21 @@ class GoldenSneakersAdapter implements FeedAdapter
             'meta_data' => [
                 ['key' => '_source', 'value' => 'golden_sneakers'],
             ],
-            'variations' => array_map(fn($s) => [
-                'size_eu' => $s['size_eu'],
-                'price' => (float) ($s['presented_price'] ?? 0),
-                'stock_quantity' => (int) ($s['available_quantity'] ?? 0),
-                'stock_status' => ($s['available_quantity'] ?? 0) > 0 ? 'instock' : 'outofstock',
-                'meta_data' => [
-                    ['key' => '_size_us', 'value' => $s['size_us'] ?? ''],
-                    ['key' => '_barcode', 'value' => $s['barcode'] ?? ''],
-                ],
-            ], $sizes),
+            'variations' => array_map(function ($s) {
+                $price = (float) ($s['presented_price'] ?? 0);
+                $api_qty = (int) ($s['available_quantity'] ?? 0);
+
+                return [
+                    'size_eu' => $s['size_eu'],
+                    'price' => $price,
+                    'stock_quantity' => $api_qty > 0 ? $api_qty : $this->stockForPrice($price),
+                    'stock_status' => 'instock',
+                    'meta_data' => [
+                        ['key' => '_size_us', 'value' => $s['size_us'] ?? ''],
+                        ['key' => '_barcode', 'value' => $s['barcode'] ?? ''],
+                    ],
+                ];
+            }, $sizes),
         ];
     }
 
@@ -149,6 +154,30 @@ class GoldenSneakersAdapter implements FeedAdapter
         }
 
         return 'sneakers';
+    }
+
+    // =========================================================================
+    // Stock Assignment
+    // =========================================================================
+
+    /**
+     * Determine default stock quantity based on selling price range
+     *
+     * Used as fallback when the GS API reports zero available_quantity.
+     * Thresholds are tuned for GS final prices (markup/VAT included).
+     */
+    private function stockForPrice(float $price): int
+    {
+        if ($price < 140) {
+            return 80;
+        }
+        if ($price < 240) {
+            return 50;
+        }
+        if ($price < 340) {
+            return 30;
+        }
+        return 13;
     }
 
     // =========================================================================
