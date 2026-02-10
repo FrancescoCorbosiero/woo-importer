@@ -30,6 +30,7 @@ class ProductNuker
     private $wc_client;
     private $logger;
     private $dry_run = true;
+    private $delete_media = false;
     private $batch_size = 100;
     private $excluded_skus = [];
 
@@ -38,6 +39,8 @@ class ProductNuker
     private $products_skipped = 0;
     private $products_failed = 0;
     private $variations_deleted = 0;
+    private $media_deleted = 0;
+    private $media_failed = 0;
 
     public function __construct(array $config)
     {
@@ -100,6 +103,12 @@ class ProductNuker
         return $this;
     }
 
+    public function setDeleteMedia(bool $delete_media): self
+    {
+        $this->delete_media = $delete_media;
+        return $this;
+    }
+
     public function setExcludedSkus(array $skus): self
     {
         $this->excluded_skus = array_map('trim', $skus);
@@ -139,6 +148,9 @@ class ProductNuker
         } else {
             $this->logger->info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             $this->logger->info("  LIVE MODE - Products WILL BE DELETED!");
+            if ($this->delete_media) {
+                $this->logger->info("  MEDIA CLEANUP ENABLED - Associated images will also be deleted!");
+            }
             $this->logger->info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
         }
 
@@ -254,10 +266,25 @@ class ProductNuker
         $id = $product->id;
 
         try {
+            // Collect media IDs before deletion
+            $media_ids = [];
+            if ($this->delete_media) {
+                $media_ids = $this->collectProductMediaIds($product);
+            }
+
             if ($this->dry_run) {
                 $this->logger->info("  [DRY RUN] Would delete: {$name} (SKU: {$sku}, ID: {$id})");
+                if (!empty($media_ids)) {
+                    $this->logger->info("    Would delete " . count($media_ids) . " media items: " . implode(', ', $media_ids));
+                    $this->media_deleted += count($media_ids);
+                }
                 $this->products_deleted++;
                 return true;
+            }
+
+            // Delete associated media first
+            if ($this->delete_media && !empty($media_ids)) {
+                $this->deleteProductMedia($media_ids, $sku);
             }
 
             // Delete the product (force=true permanently deletes, bypasses trash)
@@ -273,6 +300,89 @@ class ProductNuker
             $this->products_failed++;
             return false;
         }
+    }
+
+    /**
+     * Collect all media IDs associated with a product
+     */
+    private function collectProductMediaIds($product): array
+    {
+        $ids = [];
+
+        // Product images from the WC response
+        foreach ($product->images ?? [] as $image) {
+            $media_id = $image->id ?? null;
+            if ($media_id && $media_id > 0) {
+                $ids[] = $media_id;
+            }
+        }
+
+        return array_unique($ids);
+    }
+
+    /**
+     * Delete media items from WordPress and clean up image-map.json
+     */
+    private function deleteProductMedia(array $media_ids, string $sku): void
+    {
+        $wp_url = rtrim($this->config['woocommerce']['url'], '/') . '/wp-json/wp/v2/media/';
+        $auth = base64_encode(
+            $this->config['wordpress']['username'] . ':' .
+            $this->config['wordpress']['app_password']
+        );
+
+        foreach ($media_ids as $media_id) {
+            try {
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $wp_url . $media_id . '?force=true',
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_CUSTOMREQUEST => 'DELETE',
+                    CURLOPT_HTTPHEADER => ["Authorization: Basic {$auth}"],
+                    CURLOPT_TIMEOUT => 30,
+                ]);
+
+                $response = curl_exec($ch);
+                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($http_code >= 200 && $http_code < 300) {
+                    $this->media_deleted++;
+                    $this->logger->debug("    Deleted media ID {$media_id}");
+                } else {
+                    $this->media_failed++;
+                    $this->logger->warning("    Failed to delete media ID {$media_id}: HTTP {$http_code}");
+                }
+            } catch (Exception $e) {
+                $this->media_failed++;
+                $this->logger->warning("    Failed to delete media ID {$media_id}: " . $e->getMessage());
+            }
+        }
+
+        // Clean up image-map.json entry for this SKU
+        $this->removeFromImageMap($sku);
+    }
+
+    /**
+     * Remove a SKU entry from image-map.json
+     */
+    private function removeFromImageMap(string $sku): void
+    {
+        $map_file = __DIR__ . '/image-map.json';
+        if (!file_exists($map_file)) {
+            return;
+        }
+
+        $map = json_decode(file_get_contents($map_file), true);
+        if (!is_array($map) || !isset($map[$sku])) {
+            return;
+        }
+
+        unset($map[$sku]);
+        file_put_contents(
+            $map_file,
+            json_encode($map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        );
     }
 
     private function printBanner(): void
@@ -295,6 +405,10 @@ class ProductNuker
         $this->logger->info("  Products deleted:  {$this->products_deleted}");
         $this->logger->info("  Products skipped:  {$this->products_skipped}");
         $this->logger->info("  Products failed:   {$this->products_failed}");
+        if ($this->delete_media) {
+            $this->logger->info("  Media deleted:     {$this->media_deleted}");
+            $this->logger->info("  Media failed:      {$this->media_failed}");
+        }
         $this->logger->info("  Time elapsed:      {$elapsed}s");
         $this->logger->info("═══════════════════════════════════════════════════════════");
 
@@ -312,6 +426,7 @@ class ProductNuker
 // Parse command line arguments
 $options = getopt('', [
     'confirm',
+    'delete-media',
     'keep:',
     'keep-file:',
     'batch:',
@@ -331,6 +446,7 @@ Usage:
 
 Options:
   --confirm              Actually delete products (without this, it's a dry run)
+  --delete-media         Also delete associated images from WordPress media library
   --keep=SKU1,SKU2       Comma-separated list of SKUs to keep
   --keep-file=file.txt   File containing SKUs to keep (one per line)
   --batch=N              Delete in batches of N products (default: 100, max: 100)
@@ -339,6 +455,7 @@ Options:
 Examples:
   php nuke-products.php                              # Dry run, see what would be deleted
   php nuke-products.php --confirm                    # Delete everything
+  php nuke-products.php --confirm --delete-media     # Delete products + their images
   php nuke-products.php --confirm --keep=ABC-123     # Delete all except SKU ABC-123
   php nuke-products.php --confirm --keep-file=keep.txt --batch=50
 
@@ -350,6 +467,9 @@ $nuker = new ProductNuker($config);
 
 // Set dry run mode (default: true, unless --confirm is passed)
 $nuker->setDryRun(!isset($options['confirm']));
+
+// Set media deletion mode
+$nuker->setDeleteMedia(isset($options['delete-media']));
 
 // Set batch size
 if (isset($options['batch'])) {

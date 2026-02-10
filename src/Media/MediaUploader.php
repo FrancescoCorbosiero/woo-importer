@@ -30,8 +30,9 @@ class MediaUploader
     private $update_metadata = false;
 
     // Image source
-    private $image_source = null; // 'gs', 'file', or null
+    private $image_source = null; // 'gs', 'file', 'feed', or null
     private $urls_file = null;
+    private $feed_file = null;
 
     private $stats = [
         'total' => 0,
@@ -55,6 +56,7 @@ class MediaUploader
         $this->update_metadata = $options['update_metadata'] ?? false;
         $this->image_source = $options['image_source'] ?? null;
         $this->urls_file = $options['urls_file'] ?? null;
+        $this->feed_file = $options['feed_file'] ?? null;
 
         $this->setupLogger();
         $this->loadExistingMap();
@@ -125,8 +127,10 @@ class MediaUploader
                 return $this->fetchImagesFromGS();
             case 'file':
                 return $this->loadImagesFromFile($this->urls_file);
+            case 'feed':
+                return $this->loadImagesFromFeed($this->feed_file);
             default:
-                throw new \Exception('No image source specified (use --from-gs or --urls-file=FILE)');
+                throw new \Exception('No image source specified (use --from-gs, --urls-file=FILE, or --from-feed=FILE)');
         }
     }
 
@@ -228,6 +232,48 @@ class MediaUploader
         }
 
         $this->logger->info("  Loaded " . count($images) . " images from {$path}");
+        return $images;
+    }
+
+    /**
+     * Load images from a raw normalized feed file (from import-kicksdb --save-raw)
+     *
+     * Reads the normalized product format and extracts both primary and gallery URLs.
+     * Each image entry includes a 'gallery_urls' key for gallery images.
+     *
+     * @param string $path Path to feed JSON file
+     * @return array Image entries [{sku, url, product_name, brand_name, gallery_urls}, ...]
+     */
+    private function loadImagesFromFeed(string $path): array
+    {
+        if (!file_exists($path)) {
+            throw new \Exception("Feed file not found: {$path}");
+        }
+
+        $data = json_decode(file_get_contents($path), true);
+        if (!is_array($data)) {
+            throw new \Exception("Invalid JSON in feed file");
+        }
+
+        $images = [];
+        foreach ($data as $product) {
+            $sku = $product['sku'] ?? null;
+            $url = $product['image_url'] ?? null;
+            if (!$sku || !$url) {
+                continue;
+            }
+
+            $images[] = [
+                'sku' => $sku,
+                'url' => $url,
+                'product_name' => $product['name'] ?? '',
+                'brand_name' => $product['brand'] ?? '',
+                'gallery_urls' => $product['gallery_urls'] ?? [],
+            ];
+        }
+
+        $total_gallery = array_sum(array_map(fn($i) => count($i['gallery_urls'] ?? []), $images));
+        $this->logger->info("  Loaded " . count($images) . " products from feed ({$total_gallery} gallery images)");
         return $images;
     }
 
@@ -384,6 +430,7 @@ class MediaUploader
     {
         $sku = $image_data['sku'];
         $url = $image_data['url'];
+        $gallery_urls = $image_data['gallery_urls'] ?? [];
         $temp_file = null;
 
         $template_data = [
@@ -395,9 +442,15 @@ class MediaUploader
         try {
             $exists = isset($this->image_map[$sku]);
             $existing_id = $exists ? ($this->image_map[$sku]['media_id'] ?? null) : null;
+            $existing_gallery = $exists ? ($this->image_map[$sku]['gallery_ids'] ?? []) : [];
 
-            // Skip if exists and not in update mode
-            if ($exists && !$this->force && !$this->update_metadata) {
+            // Check if gallery is already fully uploaded
+            $gallery_complete = !empty($gallery_urls)
+                ? count($existing_gallery) >= count($gallery_urls)
+                : true;
+
+            // Skip if primary + gallery both exist and not in update mode
+            if ($exists && $existing_id && $gallery_complete && !$this->force && !$this->update_metadata) {
                 $this->stats['skipped']++;
                 return;
             }
@@ -417,9 +470,77 @@ class MediaUploader
                 return;
             }
 
-            // Download image
-            $temp_file = tempnam(sys_get_temp_dir(), 'woo_img_');
+            // Upload primary image (if not already uploaded or force)
+            $media_id = $existing_id;
+            if (!$existing_id || $this->force) {
+                // Delete old media if force re-uploading
+                if ($this->force && $existing_id) {
+                    $this->deleteMedia($existing_id);
+                }
 
+                $media_id = $this->downloadAndUpload($url, $sku, $template_data);
+            }
+
+            // Upload gallery images
+            $gallery_ids = [];
+            if (!empty($gallery_urls)) {
+                // Delete old gallery if force re-uploading
+                if ($this->force && !empty($existing_gallery)) {
+                    foreach ($existing_gallery as $gid) {
+                        $this->deleteMedia($gid);
+                    }
+                }
+
+                if (!$this->force && !empty($existing_gallery)) {
+                    // Keep existing gallery
+                    $gallery_ids = $existing_gallery;
+                } else {
+                    foreach ($gallery_urls as $idx => $gallery_url) {
+                        try {
+                            $gallery_sku = $sku . '-' . ($idx + 1);
+                            $gallery_template = [
+                                'product_name' => $image_data['product_name'] . ' - ' . ($idx + 1),
+                                'brand_name' => $image_data['brand_name'],
+                                'sku' => $gallery_sku,
+                            ];
+                            $gid = $this->downloadAndUpload($gallery_url, $gallery_sku, $gallery_template);
+                            $gallery_ids[] = $gid;
+                        } catch (\Exception $e) {
+                            $this->logger->warning("  Gallery image {$idx} failed for {$sku}: " . $e->getMessage());
+                        }
+                    }
+                }
+            }
+
+            // Update map with primary + gallery
+            $this->image_map[$sku] = [
+                'media_id' => $media_id,
+                'gallery_ids' => $gallery_ids,
+                'url' => $url,
+                'uploaded_at' => date('Y-m-d H:i:s'),
+            ];
+
+            $this->stats[$exists ? 'updated' : 'uploaded']++;
+
+        } catch (\Exception $e) {
+            $this->stats['failed']++;
+            $this->logger->error("  Failed {$sku}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Download an image from URL and upload to WordPress
+     *
+     * @param string $url Image URL
+     * @param string $sku SKU or identifier for the filename
+     * @param array $template_data Template placeholder values
+     * @return int WordPress media ID
+     */
+    private function downloadAndUpload(string $url, string $sku, array $template_data): int
+    {
+        $temp_file = tempnam(sys_get_temp_dir(), 'woo_img_');
+
+        try {
             $ch = curl_init();
             curl_setopt_array($ch, [
                 CURLOPT_URL => $url,
@@ -440,7 +561,6 @@ class MediaUploader
 
             file_put_contents($temp_file, $content);
 
-            // Validate image
             $info = @getimagesize($temp_file);
             if ($info === false) {
                 throw new \Exception('Invalid image format');
@@ -453,33 +573,16 @@ class MediaUploader
                 throw new \Exception("Unsupported type: {$mime}");
             }
 
-            // Delete old media if force re-uploading
-            if ($this->force && $exists && $existing_id) {
-                $this->deleteMedia($existing_id);
-            }
-
-            // Upload to WordPress
             $media_id = $this->uploadToWordPress($temp_file, $sku, $ext, $mime, $template_data);
 
             unlink($temp_file);
-            $temp_file = null;
-
-            // Update map
-            $this->image_map[$sku] = [
-                'media_id' => $media_id,
-                'url' => $url,
-                'uploaded_at' => date('Y-m-d H:i:s'),
-            ];
-
-            $this->stats[$exists ? 'updated' : 'uploaded']++;
+            return $media_id;
 
         } catch (\Exception $e) {
-            $this->stats['failed']++;
-            $this->logger->error("  Failed {$sku}: " . $e->getMessage());
-
-            if ($temp_file && file_exists($temp_file)) {
+            if (file_exists($temp_file)) {
                 @unlink($temp_file);
             }
+            throw $e;
         }
     }
 

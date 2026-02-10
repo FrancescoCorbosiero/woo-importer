@@ -197,18 +197,24 @@ class WcProductBuilder
             $var_sku = $sku . '-' . str_replace([' ', '/'], '', $size_eu);
 
             $price = (float) ($var['price'] ?? 0);
+            $var_manage_stock = $var['manage_stock'] ?? true;
+
             $wc_var = [
                 'sku' => $var_sku,
                 'status' => 'publish',
                 'regular_price' => (string) $price,
-                'manage_stock' => true,
-                'stock_quantity' => (int) ($var['stock_quantity'] ?? 0),
+                'manage_stock' => $var_manage_stock,
                 'stock_status' => $var['stock_status'] ?? 'instock',
                 'backorders' => 'yes',
                 'attributes' => $size_attr_id
                     ? [['id' => $size_attr_id, 'option' => $size_eu]]
                     : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
             ];
+
+            // Only include stock_quantity when stock is managed
+            if ($var_manage_stock) {
+                $wc_var['stock_quantity'] = (int) ($var['stock_quantity'] ?? 0);
+            }
 
             if (!empty($var['meta_data'])) {
                 $wc_var['meta_data'] = $var['meta_data'];
@@ -362,9 +368,10 @@ class WcProductBuilder
         array $tpl
     ): array {
         $images = [];
+        $map_entry = $this->image_map[$sku] ?? null;
 
-        // Check media library first for pre-uploaded image
-        $image_id = $this->image_map[$sku]['media_id'] ?? null;
+        // Check media library first for pre-uploaded primary image
+        $image_id = $map_entry['media_id'] ?? null;
 
         if ($image_id) {
             // Primary from media library
@@ -381,13 +388,23 @@ class WcProductBuilder
             ];
         }
 
-        // Gallery images via sideload
-        foreach ($gallery_urls as $idx => $url) {
-            $images[] = [
-                'src' => $url,
-                'name' => $sku . '-' . ($idx + 1),
-                'alt' => $name . ' - ' . $brand,
-            ];
+        // Gallery images: prefer pre-uploaded IDs from image-map
+        $gallery_ids = $map_entry['gallery_ids'] ?? [];
+
+        if (!empty($gallery_ids)) {
+            // Gallery from media library (uploaded by prepare-media)
+            foreach ($gallery_ids as $gid) {
+                $images[] = ['id' => $gid];
+            }
+        } elseif (!empty($gallery_urls)) {
+            // Fallback: gallery via sideload (will create new media each time!)
+            foreach ($gallery_urls as $idx => $url) {
+                $images[] = [
+                    'src' => $url,
+                    'name' => $sku . '-' . ($idx + 1),
+                    'alt' => $name . ' - ' . $brand,
+                ];
+            }
         }
 
         return $images;

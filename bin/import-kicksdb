@@ -41,6 +41,8 @@ Options:
   --dry-run            Preview without creating products in WooCommerce
   --transform-only     Only fetch + transform, save JSON feed, don't import
   --save-feed          Save transformed feed to data/feed-kicksdb.json
+  --save-raw           Save raw normalized data to data/kicksdb-raw.json
+  --from-raw[=FILE]    Read from saved raw data instead of API (default: data/kicksdb-raw.json)
   --limit=N            Limit to first N SKUs
   --market=CODE        KicksDB market code (default: from config or US)
   --verbose, -v        Detailed output
@@ -51,7 +53,13 @@ SKU File Formats:
   Plain text:    One SKU per line
   CSV:           First column is SKU (header row auto-detected)
 
-Pipeline:
+Pipeline (recommended /data-staged approach):
+  1. bin/import-kicksdb --skus=... --save-raw        Fetch → data/kicksdb-raw.json
+  2. bin/prepare-media --from-feed=data/kicksdb-raw.json   Upload images → image-map.json
+  3. bin/import-kicksdb --from-raw --save-feed        Transform → data/feed-kicksdb.json
+  4. bin/import-wc --feed=data/feed-kicksdb.json      Import (images by ID, no sideloading)
+
+Pipeline (direct, single-shot):
   1. Read SKU list
   2. For each SKU: fetch product + variants from KicksDB (StockX)
   3. Normalize → build WC REST format (prices with margin, Italian descriptions)
@@ -63,7 +71,13 @@ Requires:
   - Optionally: image-map.json (from prepare-media)
 
 Examples:
-  # Import 3 specific sneakers
+  # Recommended: staged pipeline (no junk media)
+  bin/import-kicksdb --skus-file=skus.txt --save-raw
+  bin/prepare-media --from-feed=data/kicksdb-raw.json
+  bin/import-kicksdb --from-raw --save-feed
+  bin/import-wc --feed=data/feed-kicksdb.json
+
+  # Import 3 specific sneakers (direct)
   bin/import-kicksdb --skus=DD1873-102,CW2288-111,CT8527-100
 
   # Import from a curated list, preview first
@@ -83,11 +97,13 @@ HELP;
 $opt_dry_run = in_array('--dry-run', $argv);
 $opt_transform_only = in_array('--transform-only', $argv);
 $opt_save_feed = in_array('--save-feed', $argv) || $opt_transform_only;
+$opt_save_raw = in_array('--save-raw', $argv);
 $opt_verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
 $opt_skus_raw = null;
 $opt_skus_file = null;
 $opt_limit = null;
 $opt_market = null;
+$opt_from_raw = null;
 
 foreach ($argv as $arg) {
     if (strpos($arg, '--skus=') === 0) {
@@ -101,6 +117,12 @@ foreach ($argv as $arg) {
     }
     if (strpos($arg, '--market=') === 0) {
         $opt_market = str_replace('--market=', '', $arg);
+    }
+    if ($arg === '--from-raw') {
+        $opt_from_raw = Config::projectRoot() . '/data/kicksdb-raw.json';
+    }
+    if (strpos($arg, '--from-raw=') === 0) {
+        $opt_from_raw = str_replace('--from-raw=', '', $arg);
     }
 }
 
@@ -132,107 +154,202 @@ if ($opt_dry_run) {
 if ($opt_transform_only) {
     $logger->info('  TRANSFORM ONLY (no WC import)');
 }
+if ($opt_from_raw) {
+    $logger->info('  FROM RAW: ' . $opt_from_raw);
+}
+if ($opt_save_raw) {
+    $logger->info('  SAVE RAW: data/kicksdb-raw.json');
+}
 
 // ============================================================================
-// Step 1: Load SKU List
+// Step 1: Load SKU List (or raw feed)
 // ============================================================================
 
 $logger->info('');
-$logger->info('Step 1: Loading SKU list...');
+$raw_products = null;
 
-$skus = [];
+if ($opt_from_raw) {
+    // Load pre-fetched raw normalized data
+    $logger->info('Step 1: Loading from raw feed...');
 
-if ($opt_skus_raw) {
-    // From --skus=SKU1,SKU2,...
-    $skus = array_map('trim', explode(',', $opt_skus_raw));
-    $logger->info("  Source: CLI argument ({$opt_skus_raw})");
-} elseif ($opt_skus_file) {
-    // From file
-    if (!file_exists($opt_skus_file)) {
-        $logger->error("SKU file not found: {$opt_skus_file}");
+    if (!file_exists($opt_from_raw)) {
+        $logger->error("Raw feed not found: {$opt_from_raw}");
+        $logger->error("Run with --save-raw first to generate it.");
         exit(1);
     }
 
-    $content = file_get_contents($opt_skus_file);
-    $skus = parseSkuFile($content, $opt_skus_file);
-    $logger->info("  Source: {$opt_skus_file}");
-} elseif (!posix_isatty(STDIN)) {
-    // From stdin
-    $input = trim(stream_get_contents(STDIN));
-    if (!empty($input)) {
-        // Try JSON first, then line-by-line
-        $json = json_decode($input, true);
-        if (is_array($json)) {
-            $skus = array_values($json);
-        } else {
-            $skus = array_filter(array_map('trim', explode("\n", $input)));
+    $raw_products = json_decode(file_get_contents($opt_from_raw), true);
+    if (!is_array($raw_products) || empty($raw_products)) {
+        $logger->error("Invalid or empty raw feed: {$opt_from_raw}");
+        exit(1);
+    }
+
+    $logger->info("  Loaded " . count($raw_products) . " products from {$opt_from_raw}");
+
+    // Apply limit
+    if ($opt_limit && count($raw_products) > $opt_limit) {
+        $raw_products = array_slice($raw_products, 0, $opt_limit);
+        $logger->info("  Limited to first {$opt_limit}");
+    }
+} else {
+    $logger->info('Step 1: Loading SKU list...');
+
+    $skus = [];
+
+    if ($opt_skus_raw) {
+        // From --skus=SKU1,SKU2,...
+        $skus = array_map('trim', explode(',', $opt_skus_raw));
+        $logger->info("  Source: CLI argument ({$opt_skus_raw})");
+    } elseif ($opt_skus_file) {
+        // From file
+        if (!file_exists($opt_skus_file)) {
+            $logger->error("SKU file not found: {$opt_skus_file}");
+            exit(1);
+        }
+
+        $content = file_get_contents($opt_skus_file);
+        $skus = parseSkuFile($content, $opt_skus_file);
+        $logger->info("  Source: {$opt_skus_file}");
+    } elseif (!posix_isatty(STDIN)) {
+        // From stdin
+        $input = trim(stream_get_contents(STDIN));
+        if (!empty($input)) {
+            // Try JSON first, then line-by-line
+            $json = json_decode($input, true);
+            if (is_array($json)) {
+                $skus = array_values($json);
+            } else {
+                $skus = array_filter(array_map('trim', explode("\n", $input)));
+            }
+        }
+        $logger->info('  Source: stdin');
+    } else {
+        $logger->error('No SKU input. Use --skus=, --skus-file=, --from-raw, or pipe via stdin.');
+        $logger->error('Run with --help for usage.');
+        exit(1);
+    }
+
+    // Clean and deduplicate
+    $skus = array_values(array_unique(array_filter($skus)));
+
+    if (empty($skus)) {
+        $logger->error('No valid SKUs found in input.');
+        exit(1);
+    }
+
+    // Apply limit
+    if ($opt_limit && count($skus) > $opt_limit) {
+        $skus = array_slice($skus, 0, $opt_limit);
+        $logger->info("  Limited to first {$opt_limit}");
+    }
+
+    $logger->info("  {" . count($skus) . "} SKUs to process");
+    if ($opt_verbose) {
+        foreach ($skus as $s) {
+            $logger->debug("    - {$s}");
         }
     }
-    $logger->info('  Source: stdin');
+}
+
+// ============================================================================
+// Step 2: Fetch & Transform
+// ============================================================================
+
+$logger->info('');
+
+if ($raw_products !== null) {
+    // From raw feed — skip API fetch, go straight to WcProductBuilder
+    $logger->info('Step 2: Transforming from raw data...');
+
+    $builder = new WcProductBuilder($config, $logger);
+    $wc_products = $builder->buildAll($raw_products);
+    $builder_stats = $builder->getStats();
+
+    $logger->info('');
+    $logger->info('Transform complete:');
+    $logger->info("  Products loaded:      " . count($raw_products));
+    $logger->info("  Products transformed: {$builder_stats['transformed']}");
+    $logger->info("  With image:           {$builder_stats['with_image']}");
+    $logger->info("  With gallery:         {$builder_stats['with_gallery']}");
+    $logger->info("  Without image:        {$builder_stats['without_image']}");
 } else {
-    $logger->error('No SKU input. Use --skus=, --skus-file=, or pipe via stdin.');
-    $logger->error('Run with --help for usage.');
-    exit(1);
-}
+    // From API — full pipeline
+    $logger->info('Step 2: Fetching from KicksDB and transforming...');
 
-// Clean and deduplicate
-$skus = array_values(array_unique(array_filter($skus)));
+    $adapter = new KicksDbAdapter($config, $skus, $logger);
+    $builder = new WcProductBuilder($config, $logger);
 
-if (empty($skus)) {
-    $logger->error('No valid SKUs found in input.');
-    exit(1);
-}
-
-// Apply limit
-if ($opt_limit && count($skus) > $opt_limit) {
-    $skus = array_slice($skus, 0, $opt_limit);
-    $logger->info("  Limited to first {$opt_limit}");
-}
-
-$logger->info("  {" . count($skus) . "} SKUs to process");
-if ($opt_verbose) {
-    foreach ($skus as $s) {
-        $logger->debug("    - {$s}");
+    // Show pricing config
+    $pricing_summary = $adapter->getPricingSummary();
+    $logger->info("  Pricing: flat {$pricing_summary['flat_margin']}, floor {$pricing_summary['floor_price']}, rounding {$pricing_summary['rounding']}");
+    if (!empty($pricing_summary['tiers'])) {
+        foreach ($pricing_summary['tiers'] as $tier) {
+            $logger->info("    Tier: {$tier}");
+        }
     }
-}
+    $logger->info('');
 
-// ============================================================================
-// Step 2: Fetch & Transform via KicksDB
-// ============================================================================
-
-$logger->info('');
-$logger->info('Step 2: Fetching from KicksDB and transforming...');
-
-// Show pricing config
-$adapter = new KicksDbAdapter($config, $skus, $logger);
-$builder = new WcProductBuilder($config, $logger);
-
-$pricing_summary = $adapter->getPricingSummary();
-$logger->info("  Pricing: flat {$pricing_summary['flat_margin']}, floor {$pricing_summary['floor_price']}, rounding {$pricing_summary['rounding']}");
-if (!empty($pricing_summary['tiers'])) {
-    foreach ($pricing_summary['tiers'] as $tier) {
-        $logger->info("    Tier: {$tier}");
+    // Collect raw normalized products for --save-raw
+    $fetched_products = [];
+    foreach ($adapter->fetchProducts() as $product) {
+        $fetched_products[] = $product;
     }
+
+    $adapter_stats = $adapter->getStats();
+
+    // Save raw normalized data if requested
+    if ($opt_save_raw) {
+        $data_dir = Config::projectRoot() . '/data';
+        if (!is_dir($data_dir)) {
+            mkdir($data_dir, 0755, true);
+        }
+
+        $raw_file = $data_dir . '/kicksdb-raw.json';
+        file_put_contents(
+            $raw_file,
+            json_encode($fetched_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        );
+        $logger->info('');
+        $logger->info("Raw data saved to {$raw_file}");
+
+        // If --save-raw only (no --save-feed, no import), exit early
+        if (!$opt_save_feed && !$opt_transform_only) {
+            $duration = round(microtime(true) - $start_time, 1);
+            $logger->info('');
+            $logger->info("Fetch complete:");
+            $logger->info("  SKUs requested:       {$adapter_stats['total_skus']}");
+            $logger->info("  Products found:       {$adapter_stats['products_found']}");
+            $logger->info("  Products not found:   {$adapter_stats['products_not_found']}");
+            $logger->info("  Total variants:       {$adapter_stats['variants_total']}");
+            $logger->info("  Variants with price:  {$adapter_stats['variants_with_price']}");
+            $logger->info("  Duration:             {$duration}s");
+            $logger->info('');
+            $logger->info("Next steps:");
+            $logger->info("  1. bin/prepare-media --from-feed=data/kicksdb-raw.json");
+            $logger->info("  2. bin/import-kicksdb --from-raw --save-feed");
+            $logger->info("  3. bin/import-wc --feed=data/feed-kicksdb.json");
+            exit(0);
+        }
+    }
+
+    // Build WC payloads
+    $wc_products = $builder->buildAll($fetched_products);
+    $builder_stats = $builder->getStats();
+
+    $logger->info('');
+    $logger->info('Transform complete:');
+    $logger->info("  SKUs requested:       {$adapter_stats['total_skus']}");
+    $logger->info("  Products found:       {$adapter_stats['products_found']}");
+    $logger->info("  Products not found:   {$adapter_stats['products_not_found']}");
+    $logger->info("  Products transformed: {$builder_stats['transformed']}");
+    $logger->info("  Total variants:       {$adapter_stats['variants_total']}");
+    $logger->info("  Variants with price:  {$adapter_stats['variants_with_price']}");
+    $logger->info("  Variants no price:    {$adapter_stats['variants_no_price']}");
+    $logger->info("  Variants no EU size:  {$adapter_stats['variants_no_eu_size']}");
+    $logger->info("  With image:           {$builder_stats['with_image']}");
+    $logger->info("  With gallery:         {$builder_stats['with_gallery']}");
+    $logger->info("  Without image:        {$builder_stats['without_image']}");
 }
-$logger->info('');
-
-$wc_products = $builder->buildAll($adapter->fetchProducts());
-$adapter_stats = $adapter->getStats();
-$builder_stats = $builder->getStats();
-
-$logger->info('');
-$logger->info('Transform complete:');
-$logger->info("  SKUs requested:       {$adapter_stats['total_skus']}");
-$logger->info("  Products found:       {$adapter_stats['products_found']}");
-$logger->info("  Products not found:   {$adapter_stats['products_not_found']}");
-$logger->info("  Products transformed: {$builder_stats['transformed']}");
-$logger->info("  Total variants:       {$adapter_stats['variants_total']}");
-$logger->info("  Variants with price:  {$adapter_stats['variants_with_price']}");
-$logger->info("  Variants no price:    {$adapter_stats['variants_no_price']}");
-$logger->info("  Variants no EU size:  {$adapter_stats['variants_no_eu_size']}");
-$logger->info("  With image:           {$builder_stats['with_image']}");
-$logger->info("  With gallery:         {$builder_stats['with_gallery']}");
-$logger->info("  Without image:        {$builder_stats['without_image']}");
 
 if (empty($wc_products)) {
     $logger->warning('No products to import (all SKUs failed or had no priced variants).');
