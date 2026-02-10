@@ -483,7 +483,6 @@ class WooCommerceImporter
 
             $total = count($product_map);
             $current = 0;
-            $synced_ids = [];
 
             foreach ($product_map as $sku => $data) {
                 $current++;
@@ -494,15 +493,8 @@ class WooCommerceImporter
 
                 echo "\r  Processing: {$current}/{$total}          ";
                 $this->processVariations($data['id'], $data['variations']);
-                $synced_ids[] = $data['id'];
             }
             echo "\n";
-
-            // Trigger WC_Product_Variable::sync() for all imported products.
-            // This is what the WP editor "Update" button does internally —
-            // rebuilds parent _price meta, stock status, and attribute lookups.
-            // Requires the resellpiacenza-variation-sync mu-plugin on the WP server.
-            $this->syncVariations($synced_ids);
 
             // Flush WooCommerce caches so variations appear on frontend
             $this->flushWooCommerceCache();
@@ -514,116 +506,6 @@ class WooCommerceImporter
             $this->logger->error('Fatal error: ' . $e->getMessage());
             return false;
         }
-    }
-
-    /**
-     * Trigger WC_Product_Variable::sync() via custom REST endpoint
-     *
-     * The WC REST API does NOT call sync() after creating variations,
-     * leaving _product_attributes meta, price lookups, and transient
-     * caches stale. This calls our mu-plugin endpoint which runs:
-     *   - WC_Product_Variable::sync($id)
-     *   - wc_delete_product_transients($id)
-     *
-     * @param int[] $product_ids Product IDs to sync
-     */
-    private function syncVariations(array $product_ids): void
-    {
-        if (empty($product_ids) || $this->dry_run) {
-            return;
-        }
-
-        $this->logger->info('');
-        $this->logger->info('Syncing variations (WC_Product_Variable::sync)...');
-
-        // Process in chunks to avoid oversized requests
-        $chunks = array_chunk($product_ids, $this->batch_size);
-
-        foreach ($chunks as $chunk) {
-            $result = $this->wpRestPost('resellpiacenza/v1/sync-variations', [
-                'product_ids' => $chunk,
-            ]);
-
-            if ($result === null) {
-                $this->logger->error('  Variation sync failed — is the resellpiacenza-variation-sync mu-plugin installed?');
-                $this->logger->info('  Falling back to PUT re-save...');
-                $this->fallbackResave($chunk);
-            } else {
-                $synced = $result['synced'] ?? 0;
-                $total = $result['total'] ?? count($chunk);
-                $this->logger->info("  Synced {$synced}/{$total} products");
-
-                foreach ($result['results'] ?? [] as $r) {
-                    if (($r['status'] ?? '') === 'error') {
-                        $this->logger->warning("  Sync error [product:{$r['id']}]: {$r['reason']}");
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Fallback: PUT re-save products when the mu-plugin is not available
-     *
-     * @param int[] $product_ids Product IDs
-     */
-    private function fallbackResave(array $product_ids): void
-    {
-        foreach ($product_ids as $id) {
-            try {
-                $this->wc_client->put("products/{$id}", ['status' => 'publish']);
-            } catch (\Exception $e) {
-                $this->logger->debug("  Re-save failed for product {$id}: " . $e->getMessage());
-            }
-        }
-    }
-
-    /**
-     * Make a POST request to the WordPress REST API (Basic Auth)
-     *
-     * Uses the same WP Application Password credentials as media uploads.
-     *
-     * @param string $endpoint REST route (e.g. 'resellpiacenza/v1/sync-variations')
-     * @param array $body Request body
-     * @return array|null Decoded response or null on failure
-     */
-    private function wpRestPost(string $endpoint, array $body): ?array
-    {
-        $url = rtrim($this->config['woocommerce']['url'], '/') . '/wp-json/' . $endpoint;
-        $auth = base64_encode(
-            $this->config['wordpress']['username'] . ':' .
-            $this->config['wordpress']['app_password']
-        );
-
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => json_encode($body),
-            CURLOPT_HTTPHEADER => [
-                "Authorization: Basic {$auth}",
-                'Content-Type: application/json',
-            ],
-            CURLOPT_TIMEOUT => 120,
-        ]);
-
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
-
-        if ($error) {
-            $this->logger->error("  WP REST request failed: {$error}");
-            return null;
-        }
-
-        if ($http_code >= 400) {
-            $this->logger->error("  WP REST returned HTTP {$http_code}: {$response}");
-            return null;
-        }
-
-        return json_decode($response, true);
     }
 
     /**
