@@ -496,12 +496,46 @@ class WooCommerceImporter
             }
             echo "\n";
 
+            // Flush WooCommerce caches so variations appear on frontend
+            $this->flushWooCommerceCache();
+
             $this->printSummary($start_time);
             return true;
 
         } catch (\Exception $e) {
             $this->logger->error('Fatal error: ' . $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Flush WooCommerce caches after import
+     *
+     * REST API-created products don't trigger WP save_post hooks, so
+     * WooCommerce's lookup tables and transient caches can be stale.
+     * This replicates what happens when you open a product in the editor.
+     */
+    private function flushWooCommerceCache(): void
+    {
+        if ($this->dry_run) {
+            return;
+        }
+
+        $this->logger->info('');
+        $this->logger->info('Flushing WooCommerce caches...');
+
+        $tools = [
+            'clear_transients',
+            'regenerate_product_attributes_lookup_table',
+        ];
+
+        foreach ($tools as $tool) {
+            try {
+                $this->wc_client->put("system_status/tools/{$tool}", ['confirm' => true]);
+                $this->logger->info("  Ran: {$tool}");
+            } catch (\Exception $e) {
+                $this->logger->debug("  Tool '{$tool}' failed: " . $e->getMessage());
+            }
         }
     }
 
