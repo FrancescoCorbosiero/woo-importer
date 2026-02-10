@@ -493,6 +493,16 @@ class WooCommerceImporter
 
                 echo "\r  Processing: {$current}/{$total}          ";
                 $this->processVariations($data['id'], $data['variations']);
+
+                // Re-save product to trigger WooCommerce sync hooks
+                // (equivalent of opening the product in the WP editor)
+                if (!$this->dry_run) {
+                    try {
+                        $this->wc_client->put("products/{$data['id']}", ['id' => $data['id']]);
+                    } catch (\Exception $e) {
+                        $this->logger->debug("  Re-save failed for product {$data['id']}: " . $e->getMessage());
+                    }
+                }
             }
             echo "\n";
 
