@@ -114,9 +114,6 @@ class WcProductBuilder
             'sku' => $sku,
             'status' => 'publish',
             'catalog_visibility' => 'visible',
-            'manage_stock' => false,
-            'stock_status' => 'instock',
-            'backorders' => 'yes',
             'sold_individually' => true,
             'short_description' => $short_description,
             'description' => $description,
@@ -199,12 +196,10 @@ class WcProductBuilder
             $price = (float) ($var['price'] ?? 0);
             $wc_var = [
                 'sku' => $var_sku,
-                'status' => 'publish',
                 'regular_price' => (string) $price,
                 'manage_stock' => true,
                 'stock_quantity' => $this->stockForPrice($price),
                 'stock_status' => 'instock',
-                'backorders' => 'yes',
                 'attributes' => $size_attr_id
                     ? [['id' => $size_attr_id, 'option' => $size_eu]]
                     : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
