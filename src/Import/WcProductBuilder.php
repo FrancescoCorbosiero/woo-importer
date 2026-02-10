@@ -116,6 +116,7 @@ class WcProductBuilder
             'catalog_visibility' => 'visible',
             'manage_stock' => false,
             'stock_status' => 'instock',
+            'sold_individually' => true,
             'short_description' => $short_description,
             'description' => $description,
             'categories' => [],
