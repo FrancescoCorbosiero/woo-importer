@@ -197,24 +197,18 @@ class WcProductBuilder
             $var_sku = $sku . '-' . str_replace([' ', '/'], '', $size_eu);
 
             $price = (float) ($var['price'] ?? 0);
-            $var_manage_stock = $var['manage_stock'] ?? true;
-
             $wc_var = [
                 'sku' => $var_sku,
                 'status' => 'publish',
                 'regular_price' => (string) $price,
-                'manage_stock' => $var_manage_stock,
+                'manage_stock' => true,
+                'stock_quantity' => (int) ($var['stock_quantity'] ?? 0),
                 'stock_status' => $var['stock_status'] ?? 'instock',
                 'backorders' => 'yes',
                 'attributes' => $size_attr_id
                     ? [['id' => $size_attr_id, 'option' => $size_eu]]
                     : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
             ];
-
-            // Only include stock_quantity when stock is managed
-            if ($var_manage_stock) {
-                $wc_var['stock_quantity'] = (int) ($var['stock_quantity'] ?? 0);
-            }
 
             if (!empty($var['meta_data'])) {
                 $wc_var['meta_data'] = $var['meta_data'];
