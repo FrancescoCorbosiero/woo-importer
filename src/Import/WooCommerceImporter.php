@@ -494,11 +494,15 @@ class WooCommerceImporter
                 echo "\r  Processing: {$current}/{$total}          ";
                 $this->processVariations($data['id'], $data['variations']);
 
-                // Re-save product to trigger WooCommerce sync hooks
-                // (equivalent of opening the product in the WP editor)
+                // Re-save product to trigger WC_Product_Variable::sync()
+                // which rebuilds parent price meta and variation lookups.
+                // Must send a real field — an empty/id-only body is a no-op
+                // on some WC versions and won't trigger the sync cycle.
                 if (!$this->dry_run) {
                     try {
-                        $this->wc_client->put("products/{$data['id']}", ['id' => $data['id']]);
+                        $this->wc_client->put("products/{$data['id']}", [
+                            'status' => 'publish',
+                        ]);
                     } catch (\Exception $e) {
                         $this->logger->debug("  Re-save failed for product {$data['id']}: " . $e->getMessage());
                     }
@@ -536,6 +540,7 @@ class WooCommerceImporter
 
         $tools = [
             'clear_transients',
+            'regenerate_product_lookup_tables',
             'regenerate_product_attributes_lookup_table',
         ];
 

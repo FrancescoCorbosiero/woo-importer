@@ -199,6 +199,7 @@ class WcProductBuilder
             $price = (float) ($var['price'] ?? 0);
             $wc_var = [
                 'sku' => $var_sku,
+                'status' => 'publish',
                 'regular_price' => (string) $price,
                 'manage_stock' => true,
                 'stock_quantity' => $this->stockForPrice($price),
