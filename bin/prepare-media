@@ -31,6 +31,7 @@ Usage:
 
 Image sources (pick one):
   --from-gs               Get image URLs from Golden Sneakers API
+  --from-feed=FILE        Load from raw normalized feed (e.g. data/kicksdb-raw.json)
   --urls-file=FILE        Load from JSON file (see docs/bulk-upload-images.json)
 
 Options:
@@ -42,12 +43,13 @@ Options:
   --help, -h              Show help
 
 Output:
-  image-map.json - SKU to WordPress media ID mapping
+  image-map.json - SKU to WordPress media ID mapping (includes gallery_ids)
 
 Examples:
-  bin/prepare-media --from-gs                        # GS pipeline
-  bin/prepare-media --from-gs --limit=10 --dry-run   # Preview 10
-  bin/prepare-media --urls-file=my-images.json       # Custom source
+  bin/prepare-media --from-gs                                    # GS pipeline
+  bin/prepare-media --from-gs --limit=10 --dry-run               # Preview 10
+  bin/prepare-media --from-feed=data/kicksdb-raw.json            # KickDB pipeline
+  bin/prepare-media --urls-file=my-images.json                   # Custom source
 
 HELP;
     exit(0);
@@ -60,6 +62,7 @@ $options = [
     'update_metadata' => in_array('--update-metadata', $argv),
     'image_source' => null,
     'urls_file' => null,
+    'feed_file' => null,
     'limit' => null,
 ];
 
@@ -74,6 +77,10 @@ foreach ($argv as $arg) {
     if (strpos($arg, '--urls-file=') === 0) {
         $options['image_source'] = 'file';
         $options['urls_file'] = str_replace('--urls-file=', '', $arg);
+    }
+    if (strpos($arg, '--from-feed=') === 0) {
+        $options['image_source'] = 'feed';
+        $options['feed_file'] = str_replace('--from-feed=', '', $arg);
     }
 }
 

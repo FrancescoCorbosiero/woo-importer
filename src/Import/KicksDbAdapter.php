@@ -308,7 +308,7 @@ class KicksDbAdapter implements FeedAdapter
             $normalized_vars[] = [
                 'size_eu' => $size_eu,
                 'price' => $selling_price,
-                'stock_quantity' => $this->stockForPrice($selling_price),
+                'manage_stock' => false,
                 'stock_status' => 'instock',
                 'meta_data' => $var_meta,
             ];
@@ -339,31 +339,6 @@ class KicksDbAdapter implements FeedAdapter
             'meta_data' => $meta,
             'variations' => $normalized_vars,
         ];
-    }
-
-    // =========================================================================
-    // Stock Assignment
-    // =========================================================================
-
-    /**
-     * Determine default stock quantity based on selling price range
-     *
-     * KicksDB has no real stock data, so we assign virtual stock
-     * inversely proportional to price (cheaper items = higher demand).
-     * Thresholds are tuned for KicksDB margin-adjusted prices.
-     */
-    private function stockForPrice(float $price): int
-    {
-        if ($price < 140) {
-            return 80;
-        }
-        if ($price < 240) {
-            return 50;
-        }
-        if ($price < 340) {
-            return 30;
-        }
-        return 13;
     }
 
     // =========================================================================
