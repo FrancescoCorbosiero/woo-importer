@@ -493,21 +493,12 @@ class WooCommerceImporter
 
                 echo "\r  Processing: {$current}/{$total}          ";
                 $this->processVariations($data['id'], $data['variations']);
-
-                // Re-save product to trigger WooCommerce sync hooks
-                // (equivalent of opening the product in the WP editor)
-                if (!$this->dry_run) {
-                    try {
-                        $this->wc_client->put("products/{$data['id']}", ['id' => $data['id']]);
-                    } catch (\Exception $e) {
-                        $this->logger->debug("  Re-save failed for product {$data['id']}: " . $e->getMessage());
-                    }
-                }
             }
             echo "\n";
 
-            // Flush WooCommerce caches so variations appear on frontend
-            $this->flushWooCommerceCache();
+            // Sync variable products so variations appear on frontend
+            $product_ids = array_filter(array_column($product_map, 'id'));
+            $this->syncVariableProducts($product_ids);
 
             $this->printSummary($start_time);
             return true;
@@ -519,33 +510,58 @@ class WooCommerceImporter
     }
 
     /**
-     * Flush WooCommerce caches after import
+     * Call the mu-plugin endpoint to run WC_Product_Variable::sync()
      *
-     * REST API-created products don't trigger WP save_post hooks, so
-     * WooCommerce's lookup tables and transient caches can be stale.
-     * This replicates what happens when you open a product in the editor.
+     * The WC REST API doesn't trigger the internal sync hooks that the
+     * WP editor does. This endpoint (provided by resellpiacenza-sync.php
+     * mu-plugin) calls WC_Product_Variable::sync() for each product,
+     * rebuilding variation attribute data so sizes appear on the frontend.
+     *
+     * @param array $product_ids Product IDs to sync
      */
-    private function flushWooCommerceCache(): void
+    private function syncVariableProducts(array $product_ids): void
     {
-        if ($this->dry_run) {
+        if ($this->dry_run || empty($product_ids)) {
             return;
         }
 
         $this->logger->info('');
-        $this->logger->info('Flushing WooCommerce caches...');
+        $this->logger->info('Syncing variable products...');
 
-        $tools = [
-            'clear_transients',
-            'regenerate_product_attributes_lookup_table',
-        ];
+        $wp_url = rtrim($this->config['woocommerce']['url'], '/');
+        $username = $this->config['wordpress']['username'] ?? '';
+        $password = $this->config['wordpress']['app_password'] ?? '';
 
-        foreach ($tools as $tool) {
-            try {
-                $this->wc_client->put("system_status/tools/{$tool}", ['confirm' => true]);
-                $this->logger->info("  Ran: {$tool}");
-            } catch (\Exception $e) {
-                $this->logger->debug("  Tool '{$tool}' failed: " . $e->getMessage());
-            }
+        if (empty($username) || empty($password)) {
+            $this->logger->warning('  WP credentials not configured — skip sync (set WP_USERNAME + WP_APP_PASSWORD)');
+            $this->logger->warning('  Sizes may not appear until you open each product in the WP editor');
+            return;
+        }
+
+        $url = $wp_url . '/wp-json/resellpiacenza/v1/sync-products';
+        $body = json_encode(['ids' => array_values(array_map('intval', $product_ids))]);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $body,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Basic ' . base64_encode($username . ':' . $password),
+            ],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 120,
+        ]);
+
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($http_code === 200) {
+            $result = json_decode($response, true);
+            $this->logger->info("  Synced {$result['synced']} products");
+        } else {
+            $this->logger->warning("  Sync endpoint returned HTTP {$http_code} — is resellpiacenza-sync.php installed in wp-content/mu-plugins/?");
         }
     }
 
