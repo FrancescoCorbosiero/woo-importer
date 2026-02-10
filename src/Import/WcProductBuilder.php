@@ -202,8 +202,8 @@ class WcProductBuilder
                 'status' => 'publish',
                 'regular_price' => (string) $price,
                 'manage_stock' => true,
-                'stock_quantity' => $this->stockForPrice($price),
-                'stock_status' => 'instock',
+                'stock_quantity' => (int) ($var['stock_quantity'] ?? 0),
+                'stock_status' => $var['stock_status'] ?? 'instock',
                 'backorders' => 'yes',
                 'attributes' => $size_attr_id
                     ? [['id' => $size_attr_id, 'option' => $size_eu]]
@@ -444,25 +444,6 @@ class WcProductBuilder
     // =========================================================================
     // Helpers
     // =========================================================================
-
-    /**
-     * Determine default stock quantity based on price range
-     *
-     * Lower-priced items get higher stock to reflect higher demand.
-     */
-    private function stockForPrice(float $price): int
-    {
-        if ($price < 140) {
-            return 80;
-        }
-        if ($price < 240) {
-            return 50;
-        }
-        if ($price < 340) {
-            return 30;
-        }
-        return 13;
-    }
 
     /**
      * Normalize category type from API to config key
