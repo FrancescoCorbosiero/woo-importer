@@ -292,6 +292,14 @@ class WooCommerceImporter
             $api_payload = $product;
             unset($api_payload['_variations'], $api_payload['_sync_action'], $api_payload['_product_type']);
 
+            // Sanitize image objects: only send WC-recognized fields
+            if (!empty($api_payload['images'])) {
+                $allowed_image_keys = ['id', 'src', 'name', 'alt', 'position'];
+                $api_payload['images'] = array_map(function ($img) use ($allowed_image_keys) {
+                    return array_intersect_key($img, array_flip($allowed_image_keys));
+                }, $api_payload['images']);
+            }
+
             // Resolve any slug-based categories to IDs (WC API requires IDs)
             $this->resolveCategoryIds($api_payload);
 

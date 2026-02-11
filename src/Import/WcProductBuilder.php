@@ -377,12 +377,8 @@ class WcProductBuilder
         $image_id = $this->image_map[$sku]['media_id'] ?? null;
 
         if ($image_id) {
-            // Primary from media library (store fallback URL for retry on stale IDs)
-            $img_entry = ['id' => $image_id];
-            if ($image_url) {
-                $img_entry['_fallback_src'] = $image_url;
-            }
-            $images[] = $img_entry;
+            // Primary from media library
+            $images[] = ['id' => $image_id];
         } elseif ($image_url) {
             // Primary via sideload
             $images[] = [
