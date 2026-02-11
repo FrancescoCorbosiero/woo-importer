@@ -2,6 +2,8 @@
 
 namespace ResellPiacenza\Import;
 
+use ResellPiacenza\Support\StockEstimator;
+
 /**
  * Golden Sneakers Feed Adapter
  *
@@ -124,7 +126,7 @@ class GoldenSneakersAdapter implements FeedAdapter
                 return [
                     'size_eu' => $s['size_eu'],
                     'price' => $price,
-                    'stock_quantity' => $api_qty > 0 ? $api_qty : $this->stockForPrice($price),
+                    'stock_quantity' => $api_qty > 0 ? $api_qty : StockEstimator::forPrice($price),
                     'stock_status' => 'instock',
                     'meta_data' => [
                         ['key' => '_size_us', 'value' => $s['size_us'] ?? ''],
@@ -154,30 +156,6 @@ class GoldenSneakersAdapter implements FeedAdapter
         }
 
         return 'sneakers';
-    }
-
-    // =========================================================================
-    // Stock Assignment
-    // =========================================================================
-
-    /**
-     * Determine default stock quantity based on selling price range
-     *
-     * Used as fallback when the GS API reports zero available_quantity.
-     * Thresholds are tuned for GS final prices (markup/VAT included).
-     */
-    private function stockForPrice(float $price): int
-    {
-        if ($price < 140) {
-            return 80;
-        }
-        if ($price < 240) {
-            return 50;
-        }
-        if ($price < 340) {
-            return 30;
-        }
-        return 13;
     }
 
     // =========================================================================

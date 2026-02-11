@@ -135,58 +135,6 @@ class DeltaSync
     }
 
     /**
-     * Fetch feed from REST API
-     */
-    private function fetchFeedFromAPI(): ?array
-    {
-        $url = $this->config['api']['base_url'];
-        $params = $this->config['api']['params'] ?? [];
-
-        if (!empty($params)) {
-            $url .= '?' . http_build_query($params);
-        }
-
-        $ch = curl_init();
-        $headers = ['Accept: application/json'];
-
-        if (!empty($this->config['api']['bearer_token'])) {
-            $headers[] = 'Authorization: Bearer ' . $this->config['api']['bearer_token'];
-        }
-
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_TIMEOUT => 60,
-        ]);
-
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-        if (curl_errno($ch)) {
-            $this->logger->error('CURL Error: ' . curl_error($ch));
-            curl_close($ch);
-            return null;
-        }
-
-        curl_close($ch);
-
-        if ($http_code !== 200) {
-            $this->logger->error("API returned HTTP {$http_code}");
-            return null;
-        }
-
-        $data = json_decode($response, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $this->logger->error('JSON error: ' . json_last_error_msg());
-            return null;
-        }
-
-        return $data;
-    }
-
-    /**
      * Load saved feed
      */
     private function loadSavedFeed(): ?array
@@ -343,8 +291,6 @@ class DeltaSync
         $this->logger->info('================================');
         if ($this->feed_file_input) {
             $this->logger->info('  Source: ' . $this->feed_file_input);
-        } else {
-            $this->logger->info('  Source: API');
         }
 
         if ($this->dry_run) {
@@ -360,21 +306,21 @@ class DeltaSync
         $this->logger->info('');
 
         try {
-            // Fetch current feed (from file or API)
-            if ($this->feed_file_input) {
-                $this->logger->info("Loading feed from {$this->feed_file_input}...");
-                $current_feed = $this->loadFeedFromFile($this->feed_file_input);
-            } else {
-                $this->logger->info('Fetching feed from API...');
-                $current_feed = $this->fetchFeedFromAPI();
+            // Load feed from file (required — use gs-transform or import-kicksdb to generate)
+            if (!$this->feed_file_input) {
+                $this->logger->error('No feed file specified. Use --feed=FILE (e.g. --feed=data/feed-wc-latest.json)');
+                return false;
             }
+
+            $this->logger->info("Loading feed from {$this->feed_file_input}...");
+            $current_feed = $this->loadFeedFromFile($this->feed_file_input);
 
             if (empty($current_feed)) {
                 $this->logger->error('Failed to fetch feed');
                 return false;
             }
 
-            $this->logger->info("   {$this->countProducts($current_feed)} products");
+            $this->logger->info("   {count($current_feed)} products");
 
             // Load saved
             $this->logger->info('');
@@ -393,7 +339,7 @@ class DeltaSync
                 unset($p);
             } else {
                 $saved_time = $this->getSavedFeedTime();
-                $this->logger->info("   {$this->countProducts($saved_feed)} from {$saved_time}");
+                $this->logger->info("   {count($saved_feed)} from {$saved_time}");
 
                 $this->logger->info('');
                 $this->logger->info('Comparing...');
@@ -440,10 +386,5 @@ class DeltaSync
             $this->logger->error('Error: ' . $e->getMessage());
             return false;
         }
-    }
-
-    private function countProducts(array $feed): int
-    {
-        return count($feed);
     }
 }

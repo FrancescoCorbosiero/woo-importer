@@ -6,6 +6,7 @@ use Automattic\WooCommerce\Client;
 use Monolog\Logger;
 use ResellPiacenza\Support\Config;
 use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Support\Template;
 
 /**
  * Bulk Upload Utility
@@ -432,23 +433,6 @@ class BulkUploader
     // =========================================================================
 
     /**
-     * Parse template string with product placeholders
-     */
-    private function parseTemplate(string $template, array $data): string
-    {
-        return str_replace(
-            ['{product_name}', '{brand_name}', '{sku}', '{store_name}'],
-            [
-                $data['product_name'] ?? '',
-                $data['brand_name'] ?? '',
-                $data['sku'] ?? '',
-                $this->config['store']['name'] ?? 'ResellPiacenza',
-            ],
-            $template
-        );
-    }
-
-    /**
      * Upload a single image to WordPress and return the media ID
      */
     private function uploadImage(string $sku, string $url, array $template_data): ?int
@@ -499,9 +483,9 @@ class BulkUploader
 
             // Build SEO metadata
             $title = $template_data['product_name'];
-            $alt = $this->parseTemplate($this->config['templates']['image_alt'], $template_data);
-            $caption = $this->parseTemplate($this->config['templates']['image_caption'], $template_data);
-            $desc = $this->parseTemplate($this->config['templates']['image_description'], $template_data);
+            $alt = Template::parse($this->config['templates']['image_alt'], $template_data);
+            $caption = Template::parse($this->config['templates']['image_caption'], $template_data);
+            $desc = Template::parse($this->config['templates']['image_description'], $template_data);
 
             // Build multipart body
             $boundary = 'BulkUpload' . time() . rand(1000, 9999);
@@ -587,6 +571,7 @@ class BulkUploader
             'product_name' => $name,
             'brand_name' => $brand,
             'sku' => $sku,
+            'store_name' => $this->config['store']['name'] ?? 'ResellPiacenza',
         ];
 
         // Resolve IDs
@@ -604,9 +589,9 @@ class BulkUploader
             'status' => 'publish',
             'catalog_visibility' => 'visible',
             'short_description' => $product['short_description']
-                ?? $this->parseTemplate($this->config['templates']['short_description'], $tpl),
+                ?? Template::parse($this->config['templates']['short_description'], $tpl),
             'description' => $product['description']
-                ?? $this->parseTemplate($this->config['templates']['long_description'], $tpl),
+                ?? Template::parse($this->config['templates']['long_description'], $tpl),
             'categories' => [],
             'attributes' => [],
         ];

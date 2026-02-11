@@ -1,2 +1,0 @@
-# Every 6 hours, sync prices from KicksDB for all registered products
-0 */6 * * * cd /path/to/woo-importer && php bin/pricing-reconcile >> logs/cron.log 2>&1

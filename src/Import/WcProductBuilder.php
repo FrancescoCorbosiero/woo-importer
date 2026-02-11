@@ -3,6 +3,7 @@
 namespace ResellPiacenza\Import;
 
 use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\Template;
 
 /**
  * WooCommerce Product Builder
@@ -82,6 +83,7 @@ class WcProductBuilder
             'product_name' => $name,
             'brand_name' => $brand,
             'sku' => $sku,
+            'store_name' => $this->config['store']['name'] ?? 'ResellPiacenza',
             'model' => $model,
             'colorway' => $colorway,
         ];
@@ -115,8 +117,6 @@ class WcProductBuilder
             'status' => 'publish',
             'catalog_visibility' => 'visible',
             'manage_stock' => false,
-            'stock_status' => 'instock',
-            'backorders' => 'yes',
             'sold_individually' => true,
             'short_description' => $short_description,
             'description' => $description,
@@ -375,7 +375,7 @@ class WcProductBuilder
             $images[] = [
                 'src' => $image_url,
                 'name' => $sku,
-                'alt' => $this->parseTemplate(
+                'alt' => Template::parse(
                     $this->config['templates']['image_alt'] ?? '{product_name} - {sku} - Acquista su {store_name}',
                     $tpl
                 ),
@@ -514,25 +514,6 @@ class WcProductBuilder
         $year = date('Y', $ts);
 
         return "{$day} {$month} {$year}";
-    }
-
-    /**
-     * Parse template string with product placeholders
-     */
-    private function parseTemplate(string $template, array $data): string
-    {
-        return str_replace(
-            ['{product_name}', '{brand_name}', '{sku}', '{store_name}', '{model}', '{colorway}'],
-            [
-                $data['product_name'] ?? '',
-                $data['brand_name'] ?? '',
-                $data['sku'] ?? '',
-                $this->config['store']['name'] ?? 'ResellPiacenza',
-                $data['model'] ?? '',
-                $data['colorway'] ?? '',
-            ],
-            $template
-        );
     }
 
     // =========================================================================

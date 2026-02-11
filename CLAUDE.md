@@ -1,243 +1,235 @@
-# WOO-IMPORTER UPGRADE PROJECT
+# WOO-IMPORTER
 
-## 📋 Project Overview
+Multi-source sneaker product importer for WooCommerce. Imports from Golden Sneakers API, KicksDB (StockX prices), and CSV/JSON bulk files into a WooCommerce store with Italian localization, SEO-optimized images, and dynamic pricing.
 
-This project upgrades the Golden Sneakers to WooCommerce importer with:
-- Multi-language support (Italian default)
-- Environment variable configuration (.env)
-- SEO-optimized image metadata
-- Proper WooCommerce attribute handling
-- Clean, professional code structure
+## Architecture
 
-## 🎯 Goals
+```
+Golden Sneakers API ─┐
+KicksDB API ─────────┼─→ FeedAdapter ─→ WcProductBuilder ─→ WooCommerceImporter ─→ WC Store
+Bulk CSV/JSON ───────┘    (normalize)    (WC format)         (REST API push)
+```
 
-1. **Environment Configuration**: Move sensitive data to `.env` file
-2. **Multi-language Support**: Italian as default, fully configurable
-3. **SEO-Optimized Images**: Italian metadata, proper alt texts
-4. **Proper Attribute Handling**: Use WooCommerce attribute slugs correctly
-5. **Generic Product Descriptions**: Elegant placeholder until LLM integration
+**Core pipeline**: Source-specific adapters normalize products into a common format. `WcProductBuilder` transforms them into WC REST API payloads. `WooCommerceImporter` pushes via batch endpoints, creates variations, re-saves to trigger sync, and flushes caches.
 
-## 📁 File Structure
+## Data Flows
+
+### Golden Sneakers (full pipeline via `gs-sync.sh`)
+```
+prepare-taxonomies --from-gs    → data/taxonomy-map.json
+prepare-media --from-gs         → image-map.json
+gs-transform                    → data/feed-wc-latest.json
+sync-wc --feed=data/feed-wc-latest.json → WooCommerce
+```
+
+### KicksDB (single command)
+```
+import-kicksdb --skus=FILE      → WcProductBuilder → WooCommerceImporter → WooCommerce
+```
+
+### Bulk Upload (self-contained)
+```
+bulk-upload --file=products.json → taxonomy + media + WC import (all-in-one)
+```
+
+### Price Reconciliation (cron)
+```
+pricing-reconcile               → SkuRegistry sync → KicksDB prices → PriceUpdater → WC variations
+```
+
+### Webhooks (real-time)
+```
+KicksDB price change → public/kicksdb-webhook.php → PriceUpdater → WC variations
+WC product created   → public/wc-product-listener.php → SkuRegistry → KicksDB webhook
+```
+
+## File Structure
 
 ```
 woo-importer/
-├── .env.example          # Template for environment variables
-├── .env                  # Actual config (gitignored)
-├── .gitignore            # Updated to include .env
-├── config.php            # Loads from .env, contains defaults
-├── import.php            # Main product importer (updated)
-├── import-images.php     # Image importer (updated)
-├── composer.json         # Dependencies (add vlucas/phpdotenv)
-├── image-map.json        # Generated: SKU → Media ID mapping
-└── logs/                 # Log files directory
+├── config.php                          # Central config (loads .env)
+├── composer.json                       # Dependencies + script aliases
+├── gs-sync.sh                          # GS full pipeline (crontab entrypoint)
+├── nuke-products.php                   # Bulk product deletion utility
+│
+├── bin/                                # CLI entry points
+│   ├── gs-transform                    # GS feed → WC format
+│   ├── import-kicksdb                  # KicksDB product importer
+│   ├── import-wc                       # WC REST API direct importer
+│   ├── bulk-upload                     # CSV/JSON bulk importer
+│   ├── prepare-media                   # Image upload to WP media library
+│   ├── prepare-taxonomies              # Category/attribute/brand setup
+│   ├── pricing-reconcile               # KicksDB price sync (polling)
+│   └── sync-wc                         # Delta sync orchestrator
+│
+├── src/
+│   ├── Support/
+│   │   ├── Config.php                  # Config singleton (dot-notation access)
+│   │   ├── LoggerFactory.php           # Monolog wrapper
+│   │   ├── Template.php                # Template string parser ({placeholders})
+│   │   └── StockEstimator.php          # Price-based virtual stock assignment
+│   │
+│   ├── Import/
+│   │   ├── FeedAdapter.php             # Interface: normalized product contract
+│   │   ├── GoldenSneakersAdapter.php   # GS API → normalized format
+│   │   ├── KicksDbAdapter.php          # KicksDB API → normalized format
+│   │   ├── WcProductBuilder.php        # Normalized → WC REST API format
+│   │   ├── WooCommerceImporter.php     # WC REST API batch push
+│   │   ├── BulkUploader.php            # CSV/JSON → full pipeline
+│   │   └── DeltaSync.php              # Feed diff detection (incremental sync)
+│   │
+│   ├── Media/
+│   │   └── MediaUploader.php           # Image download + WP upload + SEO metadata
+│   │
+│   ├── Pricing/
+│   │   ├── PriceCalculator.php         # Tiered margin calculation
+│   │   ├── PriceUpdater.php            # WC variation price sync
+│   │   └── SkuRegistry.php             # WC ↔ KicksDB product tracking
+│   │
+│   ├── Taxonomy/
+│   │   └── TaxonomyManager.php         # Category/attribute/brand management
+│   │
+│   └── KicksDb/
+│       ├── Client.php                  # KicksDB v3 API client
+│       └── VariantParser.php           # EU size + market price extraction
+│
+├── public/                             # Webhook endpoints (deploy to web server)
+│   ├── kicksdb-webhook.php             # KicksDB price change receiver
+│   └── wc-product-listener.php         # WC product event → SKU registry
+│
+├── samples/                            # Test data and example files
+├── docs/                               # Model documentation and examples
+├── data/                               # Generated at runtime (gitignored)
+└── logs/                               # Log files (gitignored)
 ```
 
-## 🔧 Technical Requirements
+## Key Patterns
 
-### Dependencies
-- PHP >= 7.4
-- automattic/woocommerce ^3.0
-- monolog/monolog ^2.0
-- vlucas/phpdotenv ^5.0 (NEW)
-
-### JSON Feed Structure (Reference)
-```json
-{
-    "id": 8,
-    "sku": "DD1873-102",
-    "name": "Nike Dunk Low Next Nature White Black Panda (Women's)",
-    "brand_name": "Nike",
-    "image_full_url": "https://www.goldensneakers.net/images/DD1873-102/main/",
-    "size_mapper_name": "Nike WMNS",
-    "sizes": [
-        {
-            "size_us": "5",
-            "size_eu": "35.5",
-            "offer_price": 55.0,
-            "presented_price": 84,
-            "available_quantity": 0,
-            "barcode": null
-        }
-    ]
-}
-```
-
-## 🌍 Localization Strategy
-
-### Default Language: Italian (it_IT)
-
-All user-facing text should be in Italian by default:
-- Category names
-- Attribute names
-- Image SEO metadata
-- Product descriptions
-- Error messages (logs can stay English)
-
-### Configurable Strings
+### Normalized Product Format (FeedAdapter contract)
+Every adapter yields products in this shape:
 ```php
-'locale' => [
-    'language' => 'it_IT',
-    'category_name' => 'Sneakers',
-    'size_attribute_name' => 'Taglia',
-    'size_attribute_slug' => 'taglia',
-    'brand_attribute_name' => 'Marca', 
-    'brand_attribute_slug' => 'marca',
-    'image_alt_template' => '{product_name} - {sku} - Acquista su {store_name}',
-    'image_caption_template' => '{brand_name} {product_name}',
-    'image_description_template' => 'Acquista {product_name} ({sku}) su {store_name}. Sneakers originali {brand_name}. Spedizione rapida in tutta Italia.',
-    'default_short_description' => 'Sneakers originali {brand_name}. Prodotto autentico al 100%. Spedizione veloce in Italia.',
-    'default_long_description' => '<p>Scopri le <strong>{product_name}</strong>, sneakers originali {brand_name} disponibili su {store_name}.</p><p>✓ Prodotto 100% autentico<br>✓ Spedizione rapida in tutta Italia<br>✓ Reso facile entro 14 giorni</p>',
-],
-'store' => [
-    'name' => 'ResellPiacenza',
-    'url' => 'resellpiacenza.it',
-],
-```
-
-## 🏷️ WooCommerce Attribute Strategy
-
-### Best Practice for Attributes
-WooCommerce REST API handles attributes best when:
-1. Using **global attributes** (created in WooCommerce > Attributes)
-2. Referencing by **slug** (e.g., `pa_taglia`, `pa_marca`)
-
-### Implementation Approach
-```php
-// For product creation, use this format:
-'attributes' => [
-    [
-        'name' => 'pa_marca',           // Use slug with pa_ prefix
-        'position' => 0,
-        'visible' => true,
-        'variation' => false,
-        'options' => ['Nike']
-    ],
-    [
-        'name' => 'pa_taglia',          // Use slug with pa_ prefix
-        'position' => 1,
-        'visible' => true,
-        'variation' => true,
-        'options' => ['35.5', '36', '36.5', ...]
+[
+    'sku' => 'DD1873-102',
+    'name' => 'Nike Dunk Low ...',
+    'brand' => 'Nike',
+    'category_type' => 'sneakers',  // or 'clothing'
+    'image_url' => 'https://...',
+    'gallery_urls' => [...],
+    'variations' => [
+        ['size_eu' => '36', 'price' => 99.00, 'stock_quantity' => 50, 'stock_status' => 'instock']
     ]
 ]
 ```
 
-### Attribute Slugs Convention
-| Display Name (IT) | Slug | WooCommerce Taxonomy |
-|-------------------|------|---------------------|
-| Taglia | taglia | pa_taglia |
-| Marca | marca | pa_marca |
+### Taxonomy Map (`data/taxonomy-map.json`)
+Pre-resolved WooCommerce IDs for categories, attributes, and brands. Created by `prepare-taxonomies`, consumed by `WcProductBuilder`. Avoids slug-based lookups during import.
 
-## 📝 Product Description Strategy
+### Image Map (`image-map.json`)
+Pre-uploaded WordPress media IDs keyed by SKU. Created by `prepare-media`, consumed by `WcProductBuilder`. Maps `{sku: {media_id, url, gallery_ids}}`.
 
-Until LLM integration, use elegant generic descriptions:
+### PUT Re-save After Variations
+WC REST API does NOT call `WC_Product_Variable::sync()` when creating variations via batch endpoint. The importer does a PUT re-save (`['status' => 'publish']`) on each parent product after variations are created, which triggers the sync hooks that update `_price` meta, stock status, and attribute lookups.
 
-### Short Description (Italian)
-```
-Sneakers originali {brand_name}. Prodotto autentico al 100%. Spedizione veloce in Italia.
-```
+### Cache Flush After Import
+Runs `clear_transients`, `regenerate_product_lookup_tables`, and `regenerate_product_attributes_lookup_table` via `system_status/tools` REST API endpoint.
 
-### Long Description (Italian)
-```html
-<p>Scopri le <strong>{product_name}</strong>, sneakers originali {brand_name} disponibili su {store_name}.</p>
+### Tiered Pricing (PriceCalculator)
+Market price → selling price with configurable tiers:
+- 0-100: +35%, 100-200: +28%, 200-500: +22%, 500+: +18%
+- Floor price (default 59), rounding (whole/half/none)
 
-<p>
-✓ Prodotto 100% autentico<br>
-✓ Spedizione rapida in tutta Italia<br>
-✓ Reso facile entro 14 giorni
-</p>
-```
+### Virtual Stock (StockEstimator)
+Neither source has real stock data. Stock assigned inversely by price:
+- < 140 → 80 units, < 240 → 50, < 340 → 30, 340+ → 13
 
-## 🖼️ Image SEO Requirements
+### Italian Localization
+Template strings in `config.php` for image metadata, product descriptions, category/attribute names. Parsed by `Support\Template::parse()`.
 
-### Filename
-Format: `{sku}.{extension}` (sanitized)
-Example: `DD1873-102.jpg`
+## CLI Commands
 
-### Title
-`{product_name}`
-Example: `Nike Dunk Low Next Nature White Black Panda (Women's)`
+```bash
+# Golden Sneakers full pipeline
+./gs-sync.sh                                    # Full sync
+./gs-sync.sh --dry-run                          # Preview
+./gs-sync.sh --skip-media --force-full          # Skip images, force full import
 
-### Alt Text (Critical for SEO)
-Template: `{product_name} - {sku} - Acquista su {store_name}`
-Example: `Nike Dunk Low Next Nature White Black Panda (Women's) - DD1873-102 - Acquista su ResellPiacenza`
+# Individual GS steps
+bin/prepare-taxonomies --from-gs                # Setup categories/attributes/brands
+bin/prepare-media --from-gs                     # Upload images to WP
+bin/gs-transform                                # Transform feed to WC format
+bin/sync-wc --feed=data/feed-wc-latest.json     # Delta sync + import
 
-### Caption
-Template: `{brand_name} {product_name}`
-Example: `Nike Nike Dunk Low Next Nature White Black Panda (Women's)`
+# KicksDB
+bin/import-kicksdb --skus=samples/kicksdb-skus.csv
+bin/import-kicksdb --skus=samples/kicksdb-skus.json --dry-run --limit=5
 
-### Description
-Template: `Acquista {product_name} ({sku}) su {store_name}. Sneakers originali {brand_name}. Spedizione rapida in tutta Italia.`
+# Bulk upload
+bin/bulk-upload --file=products.json
+bin/bulk-upload --file=products.csv --dry-run
 
-## ⚙️ Environment Variables (.env)
+# Direct WC import (pre-formatted JSON)
+bin/import-wc --feed=data/feed-wc-latest.json
+cat products.json | bin/import-wc
 
-```env
-# API Configuration
-GS_API_URL=https://www.goldensneakers.net/api/assortment/
-GS_BEARER_TOKEN=your_jwt_token_here
-GS_MARKUP_PERCENTAGE=25
-GS_VAT_PERCENTAGE=22
-GS_ROUNDING_TYPE=whole
+# Price reconciliation
+bin/pricing-reconcile                           # Full reconciliation
+bin/pricing-reconcile --sku=DD1873-102          # Single product
+bin/pricing-reconcile --dry-run --limit=10      # Preview first 10
 
-# WooCommerce Configuration
-WC_URL=https://your-store.com
-WC_CONSUMER_KEY=ck_xxxxx
-WC_CONSUMER_SECRET=cs_xxxxx
-WC_API_VERSION=wc/v3
-
-# WordPress Configuration (for media uploads)
-WP_USERNAME=admin
-WP_APP_PASSWORD=xxxx_xxxx_xxxx_xxxx
-
-# Store Configuration
-STORE_NAME=ResellPiacenza
-STORE_LOCALE=it_IT
-
-# Import Configuration
-IMPORT_CATEGORY=Sneakers
-IMPORT_SIZE_ATTRIBUTE_NAME=Taglia
-IMPORT_SIZE_ATTRIBUTE_SLUG=taglia
-IMPORT_BRAND_ATTRIBUTE_NAME=Marca
-IMPORT_BRAND_ATTRIBUTE_SLUG=marca
-IMPORT_BATCH_SIZE=100
-IMPORT_CREATE_OUT_OF_STOCK=true
-
-# Logging
-LOG_ENABLED=true
-LOG_LEVEL=info
-LOG_CONSOLE_LEVEL=info
+# Utilities
+php nuke-products.php --confirm                 # Delete all products
+php nuke-products.php --confirm --keep=SKU1,SKU2
 ```
 
-## 🚀 Implementation Checklist
+## Cron Setup
 
-- [ ] Add vlucas/phpdotenv to composer.json
-- [ ] Create .env.example with all variables
-- [ ] Update .gitignore to exclude .env
-- [ ] Refactor config.php to load from .env with defaults
-- [ ] Update import.php:
-  - [ ] Use attribute slugs (pa_taglia, pa_marca)
-  - [ ] Add short_description and description
-  - [ ] Use localized strings
-- [ ] Update import-images.php:
-  - [ ] Italian SEO metadata
-  - [ ] Template-based strings
-- [ ] Test with dry-run mode
-- [ ] Document changes in README
+```bash
+# GS sync every 30 minutes
+*/30 * * * * cd /path/to/woo-importer && ./gs-sync.sh >> logs/cron.log 2>&1
 
-## 📋 Code Style Guidelines
+# Price reconciliation every 6 hours
+0 */6 * * * cd /path/to/woo-importer && bin/pricing-reconcile >> logs/cron.log 2>&1
+```
 
-- Use PSR-12 coding standard
-- Add PHPDoc comments for all methods
-- Use meaningful variable names
-- Keep methods focused and small
-- Handle errors gracefully with logging
-- Use constants for magic strings
+## Environment Variables
 
-## 🧪 Testing
+See `.env.example` for the full list. Key groups:
 
-Before deploying:
-1. Run `php import.php --dry-run --limit=5`
-2. Verify attribute slugs are correct
-3. Check image metadata in WordPress Media Library
-4. Validate product descriptions appear correctly
-5. Test with Google Rich Results Test after import
+- `GS_*` — Golden Sneakers API (base_url, bearer_token, markup/VAT)
+- `WC_*` — WooCommerce REST API (url, consumer_key, consumer_secret)
+- `WP_*` — WordPress media upload (username, app_password)
+- `STORE_*` — Store identity (name, locale)
+- `ATTRIBUTE_*` — WC attributes (size/brand name and slug)
+- `KICKSDB_*` — KicksDB API (api_key, base_url, market, webhook)
+- `PRICING_*` — Pricing engine (flat_margin, tiers, floor_price, rounding)
+
+## Dependencies
+
+```json
+{
+    "php": ">=7.4",
+    "automattic/woocommerce": "^3.0",
+    "monolog/monolog": "^2.0",
+    "vlucas/phpdotenv": "^5.0"
+}
+```
+
+PSR-4 autoloading: `ResellPiacenza\` → `src/`
+
+## Known Constraints
+
+- WC REST API batch limit: 100 items per request
+- KicksDB rate limit: 200ms between requests (enforced in adapters)
+- Image sideloading is slow; always prefer `prepare-media` pre-upload
+- Brands taxonomy requires a WooCommerce brands plugin (e.g. Perfect Brands)
+- DeltaSync requires a pre-built `--feed` file; does not fetch from API directly
+- Variable products: never set `stock_status` on the parent — let WC derive it from variations via the PUT re-save
+
+## Code Style
+
+- PSR-12
+- PHPDoc on public methods
+- Logs in English, user-facing text in Italian
+- All template parsing through `Support\Template::parse()`
+- All stock estimation through `Support\StockEstimator::forPrice()`
+- All KicksDB variant parsing through `KicksDb\VariantParser`

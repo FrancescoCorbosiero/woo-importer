@@ -5,6 +5,7 @@ namespace ResellPiacenza\Media;
 use Monolog\Logger;
 use ResellPiacenza\Support\Config;
 use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Support\Template;
 
 /**
  * Media Uploader (Source-Agnostic)
@@ -91,27 +92,6 @@ class MediaUploader
         file_put_contents(
             $map_file,
             json_encode($this->image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-        );
-    }
-
-    /**
-     * Parse template string with product placeholders
-     *
-     * @param string $template Template with {placeholders}
-     * @param array $data Placeholder values
-     * @return string Parsed string
-     */
-    private function parseTemplate(string $template, array $data): string
-    {
-        return str_replace(
-            ['{product_name}', '{brand_name}', '{sku}', '{store_name}'],
-            [
-                $data['product_name'] ?? '',
-                $data['brand_name'] ?? '',
-                $data['sku'] ?? '',
-                $this->config['store']['name'] ?? 'ResellPiacenza',
-            ],
-            $template
         );
     }
 
@@ -298,9 +278,9 @@ class MediaUploader
 
         // Build Italian SEO metadata from templates
         $title = $template_data['product_name'];
-        $alt_text = $this->parseTemplate($this->config['templates']['image_alt'], $template_data);
-        $caption = $this->parseTemplate($this->config['templates']['image_caption'], $template_data);
-        $description = $this->parseTemplate($this->config['templates']['image_description'], $template_data);
+        $alt_text = Template::parse($this->config['templates']['image_alt'], $template_data);
+        $caption = Template::parse($this->config['templates']['image_caption'], $template_data);
+        $description = Template::parse($this->config['templates']['image_description'], $template_data);
 
         // Build multipart form data
         $boundary = 'WooImageUpload' . time() . rand(1000, 9999);
@@ -368,9 +348,9 @@ class MediaUploader
 
         $payload = json_encode([
             'title' => $template_data['product_name'],
-            'alt_text' => $this->parseTemplate($this->config['templates']['image_alt'], $template_data),
-            'caption' => $this->parseTemplate($this->config['templates']['image_caption'], $template_data),
-            'description' => $this->parseTemplate($this->config['templates']['image_description'], $template_data),
+            'alt_text' => Template::parse($this->config['templates']['image_alt'], $template_data),
+            'caption' => Template::parse($this->config['templates']['image_caption'], $template_data),
+            'description' => Template::parse($this->config['templates']['image_description'], $template_data),
         ]);
 
         $ch = curl_init();
@@ -437,6 +417,7 @@ class MediaUploader
             'product_name' => $image_data['product_name'],
             'brand_name' => $image_data['brand_name'],
             'sku' => $sku,
+            'store_name' => $this->config['store']['name'] ?? 'ResellPiacenza',
         ];
 
         try {

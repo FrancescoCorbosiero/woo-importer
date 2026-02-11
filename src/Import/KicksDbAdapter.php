@@ -3,7 +3,9 @@
 namespace ResellPiacenza\Import;
 
 use ResellPiacenza\KicksDb\Client as KicksDbClient;
+use ResellPiacenza\KicksDb\VariantParser;
 use ResellPiacenza\Pricing\PriceCalculator;
+use ResellPiacenza\Support\StockEstimator;
 
 /**
  * KicksDB Feed Adapter
@@ -244,7 +246,7 @@ class KicksDbAdapter implements FeedAdapter
             $this->stats['variants_total']++;
 
             // Extract EU size from the sizes[] sub-array
-            $size_eu = $this->extractEuSizeFromVariant($variant);
+            $size_eu = VariantParser::extractEuSize($variant);
 
             if ($size_eu === null) {
                 $this->stats['variants_no_eu_size']++;
@@ -254,7 +256,7 @@ class KicksDbAdapter implements FeedAdapter
             }
 
             // Get market price - filter for "standard" type only (not express)
-            $market_price = $this->extractStandardPrice($variant);
+            $market_price = VariantParser::extractStandardPrice($variant);
 
             if ($market_price <= 0) {
                 $this->stats['variants_no_price']++;
@@ -272,8 +274,8 @@ class KicksDbAdapter implements FeedAdapter
             ];
 
             // Size mappings for reference
-            $size_us = $this->extractSizeByType($variant, 'us m')
-                ?? $this->extractSizeByType($variant, 'us w')
+            $size_us = VariantParser::extractSizeByType($variant, 'us m')
+                ?? VariantParser::extractSizeByType($variant, 'us w')
                 ?? $variant['size_us']
                 ?? $variant['size']
                 ?? '';
@@ -281,7 +283,7 @@ class KicksDbAdapter implements FeedAdapter
                 $var_meta[] = ['key' => '_size_us', 'value' => $size_us];
             }
 
-            $size_uk = $this->extractSizeByType($variant, 'uk') ?? $variant['size_uk'] ?? '';
+            $size_uk = VariantParser::extractSizeByType($variant, 'uk') ?? $variant['size_uk'] ?? '';
             if ($size_uk) {
                 $var_meta[] = ['key' => '_size_uk', 'value' => $size_uk];
             }
@@ -308,7 +310,7 @@ class KicksDbAdapter implements FeedAdapter
             $normalized_vars[] = [
                 'size_eu' => $size_eu,
                 'price' => $selling_price,
-                'stock_quantity' => $this->stockForPrice($selling_price),
+                'stock_quantity' => StockEstimator::forPrice($selling_price),
                 'stock_status' => 'instock',
                 'meta_data' => $var_meta,
             ];
@@ -339,128 +341,6 @@ class KicksDbAdapter implements FeedAdapter
             'meta_data' => $meta,
             'variations' => $normalized_vars,
         ];
-    }
-
-    // =========================================================================
-    // Stock Assignment
-    // =========================================================================
-
-    /**
-     * Determine default stock quantity based on selling price range
-     *
-     * KicksDB has no real stock data, so we assign virtual stock
-     * inversely proportional to price (cheaper items = higher demand).
-     */
-    private function stockForPrice(float $price): int
-    {
-        if ($price < 140) {
-            return 80;
-        }
-        if ($price < 240) {
-            return 50;
-        }
-        if ($price < 340) {
-            return 30;
-        }
-        return 13;
-    }
-
-    // =========================================================================
-    // Size Extraction
-    // =========================================================================
-
-    /**
-     * Extract EU size from a variant's sizes[] sub-array
-     *
-     * The API returns variants with a nested sizes[] array:
-     *   "sizes": [
-     *     {"size": "EU 35.5", "type": "eu"},
-     *     {"size": "US M 3.5", "type": "us m"},
-     *     ...
-     *   ]
-     *
-     * Falls back to size_eu direct field (older/simulated responses),
-     * then to parsing the title string.
-     */
-    private function extractEuSizeFromVariant(array $variant): ?string
-    {
-        // Primary: parse from sizes[] sub-array
-        $eu_size = $this->extractSizeByType($variant, 'eu');
-        if ($eu_size !== null) {
-            // Strip "EU " prefix → "EU 35.5" becomes "35.5"
-            return preg_replace('/^EU\s*/i', '', trim($eu_size));
-        }
-
-        // Fallback: direct size_eu field (some response formats)
-        if (!empty($variant['size_eu'])) {
-            return preg_replace('/^EU\s*/i', '', trim($variant['size_eu']));
-        }
-
-        // Fallback: parse from title like "Men's US 10 / EU 44"
-        if (!empty($variant['title'])) {
-            if (preg_match('/EU\s+([\d.]+)/i', $variant['title'], $matches)) {
-                return $matches[1];
-            }
-        }
-
-        // DO NOT fall back to $variant['size'] — that's US size and would be wrong
-        return null;
-    }
-
-    /**
-     * Extract a specific size type from the sizes[] sub-array
-     *
-     * @param array $variant Variant data
-     * @param string $type Size type key (eu, us m, us w, uk, cm, kr)
-     * @return string|null The size value or null
-     */
-    private function extractSizeByType(array $variant, string $type): ?string
-    {
-        foreach ($variant['sizes'] ?? [] as $size_entry) {
-            if (($size_entry['type'] ?? '') === $type) {
-                return $size_entry['size'] ?? null;
-            }
-        }
-        return null;
-    }
-
-    // =========================================================================
-    // Price Extraction
-    // =========================================================================
-
-    /**
-     * Extract the standard market price from a variant
-     *
-     * Variants can have multiple prices with different types:
-     * - "standard": regular shipping price (what we want)
-     * - "express_standard": faster shipping, higher price
-     * - "express_expedited": fastest, highest price
-     *
-     * If a prices[] array exists, filter for "standard" type.
-     * Otherwise fall back to lowest_ask / price direct fields.
-     */
-    private function extractStandardPrice(array $variant): float
-    {
-        // If variant has a prices[] sub-array, find the "standard" entry
-        if (!empty($variant['prices']) && is_array($variant['prices'])) {
-            foreach ($variant['prices'] as $price_entry) {
-                if (($price_entry['type'] ?? '') === 'standard') {
-                    return (float) ($price_entry['price'] ?? 0);
-                }
-            }
-            // No standard found — take lowest non-zero price
-            $prices = array_filter(
-                array_column($variant['prices'], 'price'),
-                fn($p) => $p > 0
-            );
-            return !empty($prices) ? (float) min($prices) : 0.0;
-        }
-
-        // Direct fields (simulated responses, variants endpoint)
-        return (float) ($variant['lowest_ask']
-            ?? $variant['price']
-            ?? $variant['amount']
-            ?? 0);
     }
 
     // =========================================================================
