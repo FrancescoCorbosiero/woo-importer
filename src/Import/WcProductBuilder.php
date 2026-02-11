@@ -199,7 +199,7 @@ class WcProductBuilder
                 'regular_price' => (string) ($var['price'] ?? 0),
                 'manage_stock' => true,
                 'stock_status' => 'instock',
-                'stock_quantity' => 90,
+                'stock_quantity' => (int) ($var['stock_quantity'] ?? 90),
                 'backorders' => 'yes',
                 'attributes' => $size_attr_id
                     ? [['id' => $size_attr_id, 'option' => $size_eu]]
@@ -363,8 +363,12 @@ class WcProductBuilder
         $image_id = $this->image_map[$sku]['media_id'] ?? null;
 
         if ($image_id) {
-            // Primary from media library
-            $images[] = ['id' => $image_id];
+            // Primary from media library (store fallback URL for retry on stale IDs)
+            $img_entry = ['id' => $image_id];
+            if ($image_url) {
+                $img_entry['_fallback_src'] = $image_url;
+            }
+            $images[] = $img_entry;
         } elseif ($image_url) {
             // Primary via sideload
             $images[] = [
@@ -377,13 +381,18 @@ class WcProductBuilder
             ];
         }
 
-        // Gallery images via sideload
+        // Gallery images: check map first, then sideload
+        $gallery_ids = $this->image_map[$sku]['gallery_ids'] ?? [];
         foreach ($gallery_urls as $idx => $url) {
-            $images[] = [
-                'src' => $url,
-                'name' => $sku . '-' . ($idx + 1),
-                'alt' => $name . ' - ' . $brand,
-            ];
+            if (isset($gallery_ids[$idx])) {
+                $images[] = ['id' => $gallery_ids[$idx]];
+            } else {
+                $images[] = [
+                    'src' => $url,
+                    'name' => $sku . '-' . ($idx + 1),
+                    'alt' => $name . ' - ' . $brand,
+                ];
+            }
         }
 
         return $images;

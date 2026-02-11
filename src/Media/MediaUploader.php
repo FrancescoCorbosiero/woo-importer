@@ -563,4 +563,139 @@ class MediaUploader
             return false;
         }
     }
+
+    /**
+     * Validate image-map entries against WordPress media library
+     *
+     * Checks each media_id (and gallery_ids) still exists in WordPress.
+     * Removes stale entries where media has been deleted.
+     *
+     * @return array Stats: ['total', 'valid', 'stale', 'removed_skus']
+     */
+    public function validateMap(): array
+    {
+        $stats = ['total' => 0, 'valid' => 0, 'stale' => 0, 'removed_skus' => []];
+        $stats['total'] = count($this->image_map);
+
+        if (empty($this->image_map)) {
+            $this->logger->info('Image map is empty, nothing to validate');
+            return $stats;
+        }
+
+        $this->logger->info("Validating {$stats['total']} image-map entries...");
+
+        $wp_url = rtrim($this->config['woocommerce']['url'] ?? '', '/');
+        $auth = base64_encode(
+            ($this->config['wordpress']['username'] ?? '') . ':' .
+            ($this->config['wordpress']['app_password'] ?? '')
+        );
+
+        // Batch validate: collect all media IDs first, then check in batches
+        $sku_to_ids = [];
+        foreach ($this->image_map as $sku => $entry) {
+            $ids = [];
+            if (!empty($entry['media_id'])) {
+                $ids[] = $entry['media_id'];
+            }
+            foreach ($entry['gallery_ids'] ?? [] as $gid) {
+                $ids[] = $gid;
+            }
+            $sku_to_ids[$sku] = $ids;
+        }
+
+        // Collect all unique IDs and batch-check them
+        $all_ids = [];
+        foreach ($sku_to_ids as $ids) {
+            $all_ids = array_merge($all_ids, $ids);
+        }
+        $all_ids = array_unique($all_ids);
+
+        $valid_ids = [];
+        $id_chunks = array_chunk($all_ids, 100);
+
+        foreach ($id_chunks as $chunk) {
+            $include = implode(',', $chunk);
+            $check_url = "{$wp_url}/wp-json/wp/v2/media?include={$include}&per_page=100&_fields=id";
+
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $check_url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => ["Authorization: Basic {$auth}"],
+                CURLOPT_TIMEOUT => 30,
+            ]);
+
+            $response = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($http_code === 200) {
+                $items = json_decode($response, true) ?: [];
+                foreach ($items as $item) {
+                    if (!empty($item['id'])) {
+                        $valid_ids[$item['id']] = true;
+                    }
+                }
+            } else {
+                $this->logger->warning("  Media batch check returned HTTP {$http_code}, falling back to individual checks");
+                // Fallback: individual HEAD requests
+                foreach ($chunk as $mid) {
+                    $ch = curl_init();
+                    curl_setopt_array($ch, [
+                        CURLOPT_URL => "{$wp_url}/wp-json/wp/v2/media/{$mid}",
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_NOBODY => true,
+                        CURLOPT_HTTPHEADER => ["Authorization: Basic {$auth}"],
+                        CURLOPT_TIMEOUT => 10,
+                    ]);
+                    curl_exec($ch);
+                    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+
+                    if ($code === 200) {
+                        $valid_ids[$mid] = true;
+                    }
+                    usleep(50000);
+                }
+            }
+        }
+
+        // Remove stale entries
+        foreach ($this->image_map as $sku => $entry) {
+            $primary_id = $entry['media_id'] ?? null;
+
+            if ($primary_id && !isset($valid_ids[$primary_id])) {
+                $stats['stale']++;
+                $stats['removed_skus'][] = $sku;
+                unset($this->image_map[$sku]);
+                $this->logger->info("  Stale: SKU {$sku} (media_id {$primary_id} no longer exists)");
+                continue;
+            }
+
+            // Clean stale gallery IDs
+            if (!empty($entry['gallery_ids'])) {
+                $clean_gallery = array_filter(
+                    $entry['gallery_ids'],
+                    fn($gid) => isset($valid_ids[$gid])
+                );
+                $removed_count = count($entry['gallery_ids']) - count($clean_gallery);
+                if ($removed_count > 0) {
+                    $this->image_map[$sku]['gallery_ids'] = array_values($clean_gallery);
+                    $this->logger->debug("  SKU {$sku}: removed {$removed_count} stale gallery IDs");
+                }
+            }
+
+            $stats['valid']++;
+        }
+
+        // Save cleaned map
+        if ($stats['stale'] > 0) {
+            $this->saveImageMap();
+            $this->logger->info("  Cleaned image-map.json: removed {$stats['stale']} stale entries");
+        } else {
+            $this->logger->info("  All {$stats['valid']} entries are valid");
+        }
+
+        return $stats;
+    }
 }

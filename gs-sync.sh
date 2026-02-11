@@ -75,6 +75,11 @@ else
     echo ""
 fi
 
+# Step 2.5: Validate image map (remove stale media references)
+echo "[Step 2.5] Validating image map..."
+php bin/prepare-media --validate $VERBOSE
+echo ""
+
 # Step 3: Transform GS feed → WooCommerce format
 echo "[Step 3/4] Transforming feed..."
 php bin/gs-transform $VERBOSE

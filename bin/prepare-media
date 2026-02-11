@@ -53,6 +53,18 @@ HELP;
     exit(0);
 }
 
+// Validate-only mode: check image-map entries against WordPress
+if (in_array('--validate', $argv)) {
+    $config = Config::load();
+    $options = [
+        'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
+    ];
+    $preparer = new MediaUploader($config, $options);
+    $stats = $preparer->validateMap();
+    echo "Image map validation: {$stats['total']} entries, {$stats['valid']} valid, {$stats['stale']} stale removed\n";
+    exit(0);
+}
+
 $options = [
     'dry_run' => in_array('--dry-run', $argv),
     'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),

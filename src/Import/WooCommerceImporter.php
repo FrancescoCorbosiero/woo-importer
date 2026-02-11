@@ -52,6 +52,10 @@ class WooCommerceImporter
     // Category slug → ID cache
     private $category_cache = [];
 
+    // Image map for tracking sideloaded images
+    private $image_map = [];
+    private $image_map_dirty = false;
+
     // Stats
     private $stats = [
         'products_created' => 0,
@@ -60,6 +64,8 @@ class WooCommerceImporter
         'variations_updated' => 0,
         'batch_requests' => 0,
         'errors' => 0,
+        'images_tracked' => 0,
+        'stale_images_cleaned' => 0,
     ];
 
     /**
@@ -77,6 +83,7 @@ class WooCommerceImporter
 
         $this->setupLogger();
         $this->setupWooCommerceClient();
+        $this->loadImageMap();
     }
 
     /**
@@ -100,6 +107,34 @@ class WooCommerceImporter
             $this->config['woocommerce']['consumer_secret'],
             ['version' => $this->config['woocommerce']['version'], 'timeout' => 120]
         );
+    }
+
+    /**
+     * Load image map for tracking
+     */
+    private function loadImageMap(): void
+    {
+        $map_file = Config::projectRoot() . '/image-map.json';
+        if (file_exists($map_file)) {
+            $this->image_map = json_decode(file_get_contents($map_file), true) ?: [];
+        }
+    }
+
+    /**
+     * Save image map if modified
+     */
+    private function saveImageMap(): void
+    {
+        if (!$this->image_map_dirty) {
+            return;
+        }
+
+        $map_file = Config::projectRoot() . '/image-map.json';
+        file_put_contents(
+            $map_file,
+            json_encode($this->image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        );
+        $this->logger->info("  Image map updated: {$this->stats['images_tracked']} tracked, {$this->stats['stale_images_cleaned']} stale cleaned");
     }
 
     /**
@@ -327,7 +362,22 @@ class WooCommerceImporter
                         $this->stats['errors']++;
                         $sku = $item->sku ?? $chunk[$idx]['sku'] ?? 'unknown';
                         $code = $item->error->code ?? '';
-                        $this->logger->error("  Error [{$sku}]: " . ($item->error->message ?? 'Unknown') . ($code ? " [{$code}]" : ''));
+                        $msg = $item->error->message ?? 'Unknown';
+                        $this->logger->error("  Error [{$sku}]: {$msg}" . ($code ? " [{$code}]" : ''));
+
+                        // Clean stale image-map entries on invalid image ID errors
+                        if ($code === 'woocommerce_product_invalid_image_id'
+                            || strpos($msg, 'non valido') !== false
+                            || strpos($msg, 'invalid') !== false
+                        ) {
+                            if ($sku !== 'unknown' && isset($this->image_map[$sku])) {
+                                $stale_id = $this->image_map[$sku]['media_id'] ?? '?';
+                                unset($this->image_map[$sku]);
+                                $this->image_map_dirty = true;
+                                $this->stats['stale_images_cleaned']++;
+                                $this->logger->warning("  Removed stale image-map entry for {$sku} (media_id {$stale_id})");
+                            }
+                        }
                     } else {
                         if ($operation === 'create') {
                             $this->stats['products_created']++;
@@ -338,6 +388,9 @@ class WooCommerceImporter
                         } else {
                             $this->stats['products_updated']++;
                         }
+
+                        // Track image IDs from successful responses
+                        $this->trackImagesFromResponse($item);
                     }
                 }
 
@@ -348,6 +401,53 @@ class WooCommerceImporter
                 $this->logger->error("  Batch failed: " . $e->getMessage());
             }
         }
+    }
+
+    /**
+     * Track image IDs from a successful WC batch response item
+     *
+     * Captures sideloaded image IDs so they can be reused on subsequent imports
+     * instead of creating duplicates.
+     */
+    private function trackImagesFromResponse($item): void
+    {
+        $sku = $item->sku ?? '';
+        if (empty($sku) || empty($item->images)) {
+            return;
+        }
+
+        // Skip if already tracked with a non-sideload source
+        if (isset($this->image_map[$sku]) && ($this->image_map[$sku]['source'] ?? '') !== 'wc_sideload') {
+            return;
+        }
+
+        $images = $item->images;
+        $primary = $images[0] ?? null;
+        if (!$primary || empty($primary->id)) {
+            return;
+        }
+
+        $entry = [
+            'media_id' => $primary->id,
+            'url' => $primary->src ?? '',
+            'uploaded_at' => date('Y-m-d H:i:s'),
+            'source' => 'wc_sideload',
+        ];
+
+        // Gallery IDs (images after the primary)
+        $gallery_ids = [];
+        for ($i = 1; $i < count($images); $i++) {
+            if (!empty($images[$i]->id)) {
+                $gallery_ids[] = $images[$i]->id;
+            }
+        }
+        if (!empty($gallery_ids)) {
+            $entry['gallery_ids'] = $gallery_ids;
+        }
+
+        $this->image_map[$sku] = $entry;
+        $this->image_map_dirty = true;
+        $this->stats['images_tracked']++;
     }
 
     /**
@@ -496,11 +596,16 @@ class WooCommerceImporter
             }
             echo "\n";
 
+            // Save image map (tracked images + stale cleanup)
+            $this->saveImageMap();
+
             $this->printSummary($start_time);
             return true;
 
         } catch (\Exception $e) {
             $this->logger->error('Fatal error: ' . $e->getMessage());
+            // Still save image map on failure to persist any cleanup
+            $this->saveImageMap();
             return false;
         }
     }

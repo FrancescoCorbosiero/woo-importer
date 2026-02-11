@@ -219,6 +219,15 @@ return [
 
             // Rounding: 'whole' (ceil), 'half' (0.50 steps), 'none'
             'rounding' => env('PRICING_ROUNDING', 'whole'),
+
+            // Stock tiers: dynamic stock based on market price (KicksDB only)
+            // Lower price → higher stock, higher price → lower stock
+            'stock_tiers' => json_decode(env('PRICING_STOCK_TIERS', '[]'), true) ?: [
+                ['min' => 0, 'max' => 100, 'stock' => 80],
+                ['min' => 100, 'max' => 200, 'stock' => 50],
+                ['min' => 200, 'max' => 500, 'stock' => 25],
+                ['min' => 500, 'max' => null, 'stock' => 12],
+            ],
         ],
 
         // Price alert threshold (% change to trigger email). 0 = disabled

@@ -306,7 +306,7 @@ class KicksDbAdapter implements FeedAdapter
             $normalized_vars[] = [
                 'size_eu' => $size_eu,
                 'price' => $this->calculator->calculate($market_price),
-                'stock_quantity' => 0,
+                'stock_quantity' => $this->calculateStockQuantity($market_price),
                 'stock_status' => 'instock',
                 'meta_data' => $var_meta,
             ];
@@ -396,6 +396,41 @@ class KicksDbAdapter implements FeedAdapter
             }
         }
         return null;
+    }
+
+    // =========================================================================
+    // Stock Calculation
+    // =========================================================================
+
+    /**
+     * Calculate stock quantity based on market price tier
+     *
+     * Lower-priced items get higher stock (more demand),
+     * higher-priced items get lower stock (niche market).
+     *
+     * Tiers align with pricing margin tiers from config.
+     *
+     * @param float $marketPrice Raw market price (before margin)
+     * @return int Stock quantity for this price tier
+     */
+    private function calculateStockQuantity(float $marketPrice): int
+    {
+        $tiers = $this->config['pricing']['margin']['stock_tiers'] ?? [
+            ['min' => 0, 'max' => 100, 'stock' => 80],
+            ['min' => 100, 'max' => 200, 'stock' => 50],
+            ['min' => 200, 'max' => 500, 'stock' => 25],
+            ['min' => 500, 'max' => null, 'stock' => 12],
+        ];
+
+        foreach ($tiers as $tier) {
+            $min = $tier['min'] ?? 0;
+            $max = $tier['max'] ?? PHP_FLOAT_MAX;
+            if ($marketPrice >= $min && $marketPrice < $max) {
+                return (int) ($tier['stock'] ?? 25);
+            }
+        }
+
+        return 25;
     }
 
     // =========================================================================
