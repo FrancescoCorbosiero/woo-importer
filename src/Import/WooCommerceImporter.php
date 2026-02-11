@@ -483,6 +483,7 @@ class WooCommerceImporter
 
             $total = count($product_map);
             $current = 0;
+            $resave_ids = [];
 
             foreach ($product_map as $sku => $data) {
                 $current++;
@@ -493,8 +494,12 @@ class WooCommerceImporter
 
                 echo "\r  Processing: {$current}/{$total}          ";
                 $this->processVariations($data['id'], $data['variations']);
+                $resave_ids[] = $data['id'];
             }
             echo "\n";
+
+            // Re-save products to trigger WC_Product_Variable::sync()
+            $this->resaveProducts($resave_ids);
 
             // Flush WooCommerce caches so variations appear on frontend
             $this->flushWooCommerceCache();
@@ -506,6 +511,38 @@ class WooCommerceImporter
             $this->logger->error('Fatal error: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Re-save variable products to trigger WC_Product_Variable::sync()
+     *
+     * The WC REST API does NOT call sync() when variations are created via
+     * the batch endpoint, leaving _price meta, stock status, and attribute
+     * lookups stale. A PUT re-save triggers the same internal hooks that
+     * fire when clicking "Update" in the WP product editor.
+     *
+     * @param int[] $product_ids Product IDs to re-save
+     */
+    private function resaveProducts(array $product_ids): void
+    {
+        if (empty($product_ids) || $this->dry_run) {
+            return;
+        }
+
+        $this->logger->info('');
+        $this->logger->info('Re-saving products to sync variations...');
+
+        $saved = 0;
+        foreach ($product_ids as $id) {
+            try {
+                $this->wc_client->put("products/{$id}", ['status' => 'publish']);
+                $saved++;
+            } catch (\Exception $e) {
+                $this->logger->warning("  Re-save failed for product {$id}: " . $e->getMessage());
+            }
+        }
+
+        $this->logger->info("  Re-saved {$saved}/" . count($product_ids) . " products");
     }
 
     /**
