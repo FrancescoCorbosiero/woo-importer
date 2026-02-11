@@ -206,6 +206,7 @@ $logger->info('Step 2: Fetching from KicksDB and transforming...');
 // Show pricing config
 $adapter = new KicksDbAdapter($config, $skus, $logger);
 $builder = new WcProductBuilder($config, $logger);
+$builder->setStockOverride(null); // Use adapter's price-based stock, not hardcoded 90
 
 $pricing_summary = $adapter->getPricingSummary();
 $logger->info("  Pricing: flat {$pricing_summary['flat_margin']}, floor {$pricing_summary['floor_price']}, rounding {$pricing_summary['rounding']}");
