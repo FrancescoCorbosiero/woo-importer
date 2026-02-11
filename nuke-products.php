@@ -32,18 +32,33 @@ class ProductNuker
     private $dry_run = true;
     private $batch_size = 100;
     private $excluded_skus = [];
+    private $keep_media = false;
+
+    // WordPress media API
+    private $wp_url;
+    private $wp_auth;
 
     // Stats
     private $products_deleted = 0;
     private $products_skipped = 0;
     private $products_failed = 0;
     private $variations_deleted = 0;
+    private $media_deleted = 0;
+    private $media_failed = 0;
+    private $image_map_cleaned = 0;
 
     public function __construct(array $config)
     {
         $this->config = $config;
         $this->setupLogger();
         $this->setupWooCommerceClient();
+
+        // WordPress REST API for media deletion
+        $this->wp_url = rtrim($config['woocommerce']['url'] ?? '', '/');
+        $this->wp_auth = base64_encode(
+            ($config['wordpress']['username'] ?? '') . ':' .
+            ($config['wordpress']['app_password'] ?? '')
+        );
     }
 
     private function setupLogger()
@@ -97,6 +112,12 @@ class ProductNuker
     public function setBatchSize(int $size): self
     {
         $this->batch_size = max(1, min($size, 100));
+        return $this;
+    }
+
+    public function setKeepMedia(bool $keep): self
+    {
+        $this->keep_media = $keep;
         return $this;
     }
 
@@ -204,9 +225,42 @@ class ProductNuker
             }
         }
 
-        // Phase 3: Cleanup orphaned categories (optional)
-        $this->logger->info("\nPhase 3: Cleanup complete.\n");
+        // Phase 3: Clean up image-map.json
+        $this->logger->info("\nPhase 3: Cleaning up image-map.json...");
+        $map_file = __DIR__ . '/image-map.json';
+        if (file_exists($map_file)) {
+            $image_map = json_decode(file_get_contents($map_file), true) ?: [];
+            $deleted_skus = [];
+            foreach ($to_delete as $p) {
+                $s = $p->sku ?? '';
+                if (!empty($s)) {
+                    $deleted_skus[] = $s;
+                }
+            }
 
+            foreach ($deleted_skus as $dsku) {
+                if (isset($image_map[$dsku])) {
+                    unset($image_map[$dsku]);
+                    $this->image_map_cleaned++;
+                }
+            }
+
+            if ($this->image_map_cleaned > 0 && !$this->dry_run) {
+                file_put_contents(
+                    $map_file,
+                    json_encode($image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+                );
+                $this->logger->info("  Removed {$this->image_map_cleaned} entries from image-map.json");
+            } elseif ($this->image_map_cleaned > 0) {
+                $this->logger->info("  [DRY RUN] Would remove {$this->image_map_cleaned} entries from image-map.json");
+            } else {
+                $this->logger->info("  No entries to clean");
+            }
+        } else {
+            $this->logger->info("  No image-map.json found");
+        }
+
+        $this->logger->info("");
         $this->printSummary($start_time);
     }
 
@@ -254,16 +308,39 @@ class ProductNuker
         $id = $product->id;
 
         try {
+            // Collect image IDs for media cleanup
+            $image_ids = [];
+            if (!$this->keep_media && !empty($product->images)) {
+                foreach ($product->images as $img) {
+                    if (!empty($img->id)) {
+                        $image_ids[] = $img->id;
+                    }
+                }
+            }
+
             if ($this->dry_run) {
-                $this->logger->info("  [DRY RUN] Would delete: {$name} (SKU: {$sku}, ID: {$id})");
+                $media_note = !empty($image_ids) ? ' + ' . count($image_ids) . ' media' : '';
+                $this->logger->info("  [DRY RUN] Would delete: {$name} (SKU: {$sku}, ID: {$id}){$media_note}");
                 $this->products_deleted++;
+                $this->media_deleted += count($image_ids);
                 return true;
+            }
+
+            // Delete media first (before product deletion removes references)
+            foreach ($image_ids as $media_id) {
+                if ($this->deleteMediaItem($media_id)) {
+                    $this->media_deleted++;
+                } else {
+                    $this->media_failed++;
+                    $this->logger->debug("  Media delete failed: ID {$media_id}");
+                }
             }
 
             // Delete the product (force=true permanently deletes, bypasses trash)
             $this->wc_client->delete("products/{$id}", ['force' => true]);
 
-            $this->logger->info("  DELETED: {$name} (SKU: {$sku}, ID: {$id})");
+            $media_info = !empty($image_ids) ? " [" . count($image_ids) . " media]" : '';
+            $this->logger->info("  DELETED: {$name} (SKU: {$sku}, ID: {$id}){$media_info}");
             $this->products_deleted++;
             return true;
 
@@ -273,6 +350,29 @@ class ProductNuker
             $this->products_failed++;
             return false;
         }
+    }
+
+    /**
+     * Delete a media item from WordPress via REST API
+     */
+    private function deleteMediaItem(int $media_id): bool
+    {
+        $url = $this->wp_url . "/wp-json/wp/v2/media/{$media_id}?force=true";
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => 'DELETE',
+            CURLOPT_HTTPHEADER => ["Authorization: Basic {$this->wp_auth}"],
+            CURLOPT_TIMEOUT => 30,
+        ]);
+
+        curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        return $http_code === 200;
     }
 
     private function printBanner(): void
@@ -295,6 +395,9 @@ class ProductNuker
         $this->logger->info("  Products deleted:  {$this->products_deleted}");
         $this->logger->info("  Products skipped:  {$this->products_skipped}");
         $this->logger->info("  Products failed:   {$this->products_failed}");
+        $this->logger->info("  Media deleted:     {$this->media_deleted}");
+        $this->logger->info("  Media failed:      {$this->media_failed}");
+        $this->logger->info("  Image-map cleaned: {$this->image_map_cleaned}");
         $this->logger->info("  Time elapsed:      {$elapsed}s");
         $this->logger->info("═══════════════════════════════════════════════════════════");
 
@@ -315,6 +418,7 @@ $options = getopt('', [
     'keep:',
     'keep-file:',
     'batch:',
+    'keep-media',
     'help',
 ]);
 
@@ -334,6 +438,7 @@ Options:
   --keep=SKU1,SKU2       Comma-separated list of SKUs to keep
   --keep-file=file.txt   File containing SKUs to keep (one per line)
   --batch=N              Delete in batches of N products (default: 100, max: 100)
+  --keep-media           Skip media deletion (only delete products)
   --help                 Show this help message
 
 Examples:
@@ -350,6 +455,11 @@ $nuker = new ProductNuker($config);
 
 // Set dry run mode (default: true, unless --confirm is passed)
 $nuker->setDryRun(!isset($options['confirm']));
+
+// Keep media (skip media deletion)
+if (isset($options['keep-media'])) {
+    $nuker->setKeepMedia(true);
+}
 
 // Set batch size
 if (isset($options['batch'])) {
