@@ -3,9 +3,9 @@
 /**
  * CLI wrapper for KicksDB Product Discovery
  *
- * Auto-discovers popular products from KicksDB by searching popular sneaker
- * brands, deduplicates against the GS feed, and saves an assortment file
- * for use by the kicksdb-sync pipeline.
+ * Auto-discovers popular reselling sneakers from KicksDB using a single
+ * paginated query, deduplicates against the GS feed SKU cache, and saves
+ * an assortment file for use by the kicksdb-sync pipeline.
  *
  * Outputs: data/kicksdb-assortment.json
  *
@@ -26,14 +26,14 @@ use ResellPiacenza\KicksDb\Client;
 if (in_array('--help', $argv) || in_array('-h', $argv)) {
     echo <<<HELP
 KicksDB Product Discovery
-Discovers popular products from KicksDB for automated import.
+Discovers popular reselling sneakers from KicksDB for automated import.
 
 Usage:
   bin/kicksdb-discover [options]
 
 Options:
   --limit=N               Max products in assortment (default: from KICKSDB_ASSORTMENT_SIZE or 800)
-  --brands=Nike,Jordan    Override brand queries (default: from KICKSDB_DISCOVERY_BRANDS)
+  --query=TERM            Override search query (default: from KICKSDB_DISCOVERY_QUERY or "sneakers")
   --skip-dedup            Don't exclude SKUs already in the GS feed
   --dry-run               Preview without saving
   --verbose, -v           Detailed output
@@ -43,17 +43,16 @@ Output:
   data/kicksdb-assortment.json - Discovered product assortment
 
 How it works:
-  1. Searches KicksDB for each brand query (paginated)
-  2. Collects products with SKU, name, brand, rank, image URL
-  3. Deduplicates by SKU across brands
-  4. Excludes SKUs already present in the GS feed (data/feed-wc-latest.json)
-  5. Sorts by rank (most popular first)
-  6. Saves top N products
+  1. Loads GS SKU cache (data/gs-sku-cache.json) for deduplication
+  2. Paginates KicksDB browse results for a generic query (e.g. "sneakers")
+  3. Skips products already in the GS feed (on-the-fly filtering)
+  4. Collects products until target assortment size is reached
+  5. Sorts by rank (most popular first), saves top N
 
 Examples:
   bin/kicksdb-discover                                # Default (800 products)
   bin/kicksdb-discover --limit=100 --verbose          # Top 100, detailed
-  bin/kicksdb-discover --brands=Nike,Jordan --limit=50
+  bin/kicksdb-discover --query=jordans --limit=50     # Custom query
   bin/kicksdb-discover --skip-dedup                   # Don't exclude GS SKUs
 
 HELP;
@@ -64,14 +63,14 @@ $opt_verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
 $opt_dry_run = in_array('--dry-run', $argv);
 $opt_skip_dedup = in_array('--skip-dedup', $argv);
 $opt_limit = null;
-$opt_brands = null;
+$opt_query = null;
 
 foreach ($argv as $arg) {
     if (strpos($arg, '--limit=') === 0) {
         $opt_limit = (int) str_replace('--limit=', '', $arg);
     }
-    if (strpos($arg, '--brands=') === 0) {
-        $opt_brands = array_map('trim', explode(',', str_replace('--brands=', '', $arg)));
+    if (strpos($arg, '--query=') === 0) {
+        $opt_query = str_replace('--query=', '', $arg);
     }
 }
 
@@ -88,7 +87,7 @@ $logger = LoggerFactory::create('Discover', [
 ]);
 
 $assortment_size = $opt_limit ?? ($config['pricing']['kicksdb_assortment_size'] ?? 800);
-$brands = $opt_brands ?? ($config['pricing']['kicksdb_discovery_brands'] ?? ['Nike', 'Jordan', 'Adidas', 'New Balance', 'Yeezy']);
+$query = $opt_query ?? ($config['pricing']['kicksdb_discovery_query'] ?? 'sneakers');
 $page_size = $config['pricing']['kicksdb_discovery_page_size'] ?? 50;
 $market = $config['pricing']['kicksdb_market'] ?? 'IT';
 
@@ -97,7 +96,7 @@ $logger->info('========================================');
 $logger->info('  KicksDB Product Discovery');
 $logger->info('========================================');
 $logger->info("  Target: {$assortment_size} products");
-$logger->info("  Brands: " . implode(', ', $brands));
+$logger->info("  Query:  \"{$query}\"");
 $logger->info("  Market: {$market}");
 if ($opt_dry_run) {
     $logger->warning('  DRY RUN');
@@ -118,123 +117,126 @@ $client = new Client($api_key, [
 ], $logger);
 
 // ============================================================================
-// Step 1: Search by brand queries
+// Step 1: Load GS SKU cache for deduplication
 // ============================================================================
 
-$logger->info('Step 1: Searching KicksDB by brand...');
-
-$all_products = []; // Keyed by SKU for dedup
-$api_calls = 0;
-
-// Calculate products per brand — request a bit more per brand to allow for
-// cross-brand overlap and GS deduplication losses
-$products_per_brand = (int) ceil(($assortment_size * 1.5) / count($brands));
-$max_pages = (int) ceil($products_per_brand / $page_size);
-
-foreach ($brands as $brand) {
-    $brand_count = 0;
-
-    for ($page = 1; $page <= $max_pages; $page++) {
-        $logger->debug("  Searching: '{$brand}' page {$page}/{$max_pages} (limit={$page_size})");
-
-        $result = $client->browseProducts($brand, $page_size, $market, $page);
-        $api_calls++;
-
-        if ($result === null) {
-            $logger->warning("  API returned null for '{$brand}' page {$page}");
-            break;
-        }
-
-        $items = $result['data'] ?? [];
-        if (empty($items)) {
-            $logger->debug("  No more results for '{$brand}' at page {$page}");
-            break;
-        }
-
-        foreach ($items as $item) {
-            $sku = $item['sku'] ?? null;
-            if (!$sku || isset($all_products[$sku])) {
-                continue;
-            }
-
-            // Only include sneaker-like products (must have a valid SKU pattern)
-            $all_products[$sku] = [
-                'sku' => $sku,
-                'name' => $item['title'] ?? $item['name'] ?? '',
-                'brand' => $item['brand'] ?? $brand,
-                'slug' => $item['slug'] ?? '',
-                'rank' => $item['rank'] ?? 999999,
-                'weekly_orders' => $item['weekly_orders'] ?? 0,
-                'image_url' => $item['image'] ?? $item['image_url'] ?? '',
-                'product_type' => 'sneakers',
-            ];
-            $brand_count++;
-        }
-
-        // Stop paging if fewer results than requested (last page)
-        if (count($items) < $page_size) {
-            break;
-        }
-
-        // Throttle between pages
-        usleep(200000); // 200ms
-    }
-
-    $logger->info("  {$brand}: {$brand_count} unique products");
-
-    // Throttle between brands
-    usleep(200000);
-}
-
-$logger->info("  Total discovered: " . count($all_products) . " unique products ({$api_calls} API calls)");
-
-if (empty($all_products)) {
-    $logger->error('No products discovered from KicksDB.');
-    exit(1);
-}
-
-// ============================================================================
-// Step 2: Exclude GS SKUs
-// ============================================================================
-
+$gs_skus = [];
 $gs_excluded = 0;
 
 if (!$opt_skip_dedup) {
-    $logger->info('');
-    $logger->info('Step 2: Deduplicating against GS feed...');
+    $logger->info('Step 1: Loading GS SKU cache...');
 
-    $gs_feed_file = Config::projectRoot() . '/data/feed-wc-latest.json';
+    $cache_file = Config::projectRoot() . '/data/gs-sku-cache.json';
+    $feed_file = Config::projectRoot() . '/data/feed-wc-latest.json';
 
-    if (file_exists($gs_feed_file)) {
-        $gs_feed = json_decode(file_get_contents($gs_feed_file), true);
-
+    if (file_exists($cache_file)) {
+        $cached = json_decode(file_get_contents($cache_file), true);
+        if (is_array($cached)) {
+            $gs_skus = array_flip($cached);
+            $logger->info("  Loaded " . count($gs_skus) . " GS SKUs from cache");
+        } else {
+            $logger->warning("  Could not parse GS SKU cache, skipping dedup");
+        }
+    } elseif (file_exists($feed_file)) {
+        // Fallback: parse the full GS feed
+        $logger->info("  Cache not found, falling back to {$feed_file}");
+        $gs_feed = json_decode(file_get_contents($feed_file), true);
         if (is_array($gs_feed)) {
-            $gs_skus = [];
             foreach ($gs_feed as $product) {
                 $sku = $product['sku'] ?? null;
                 if ($sku) {
                     $gs_skus[$sku] = true;
                 }
             }
-
-            $before = count($all_products);
-            foreach ($gs_skus as $gs_sku => $_) {
-                unset($all_products[$gs_sku]);
-            }
-            $gs_excluded = $before - count($all_products);
-
-            $logger->info("  GS feed: " . count($gs_skus) . " SKUs");
-            $logger->info("  Excluded: {$gs_excluded} overlapping SKUs");
-            $logger->info("  Remaining: " . count($all_products));
+            $logger->info("  Loaded " . count($gs_skus) . " GS SKUs from feed");
         } else {
             $logger->warning("  Could not parse GS feed, skipping dedup");
         }
     } else {
-        $logger->info("  GS feed not found ({$gs_feed_file}), skipping dedup");
+        $logger->info("  No GS data found, skipping dedup");
     }
 } else {
-    $logger->info('');
-    $logger->info('Step 2: Skipped (--skip-dedup)');
+    $logger->info('Step 1: Skipped (--skip-dedup)');
+}
+
+// ============================================================================
+// Step 2: Paginate KicksDB browse results
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 2: Browsing KicksDB for popular products...');
+
+$all_products = []; // Keyed by SKU for dedup
+$api_calls = 0;
+
+// Over-fetch by 20% to account for GS exclusions and SKU-less items
+$fetch_target = (int) ceil($assortment_size * 1.2);
+$max_pages = (int) ceil(($fetch_target + count($gs_skus)) / $page_size) + 5; // extra pages buffer
+
+for ($page = 1; $page <= $max_pages; $page++) {
+    $logger->debug("  Page {$page} (limit={$page_size}, collected=" . count($all_products) . "/{$assortment_size})");
+
+    $result = $client->browseProducts($query, $page_size, $market, $page);
+    $api_calls++;
+
+    if ($result === null) {
+        $logger->warning("  API returned null at page {$page}");
+        break;
+    }
+
+    $items = $result['data'] ?? [];
+    if (empty($items)) {
+        $logger->debug("  No more results at page {$page}");
+        break;
+    }
+
+    foreach ($items as $item) {
+        $sku = $item['sku'] ?? null;
+        if (!$sku || isset($all_products[$sku])) {
+            continue;
+        }
+
+        // On-the-fly GS deduplication
+        if (isset($gs_skus[$sku])) {
+            $gs_excluded++;
+            continue;
+        }
+
+        $all_products[$sku] = [
+            'sku' => $sku,
+            'name' => $item['title'] ?? $item['name'] ?? '',
+            'brand' => $item['brand'] ?? '',
+            'slug' => $item['slug'] ?? '',
+            'rank' => $item['rank'] ?? 999999,
+            'weekly_orders' => $item['weekly_orders'] ?? 0,
+            'image_url' => $item['image'] ?? $item['image_url'] ?? '',
+            'product_type' => 'sneakers',
+        ];
+    }
+
+    // Stop early if we have enough products
+    if (count($all_products) >= $fetch_target) {
+        $logger->debug("  Reached fetch target ({$fetch_target}), stopping pagination");
+        break;
+    }
+
+    // Stop paging if fewer results than requested (last page)
+    if (count($items) < $page_size) {
+        break;
+    }
+
+    // Throttle between pages
+    usleep(200000); // 200ms
+}
+
+$logger->info("  Discovered: " . count($all_products) . " unique products ({$api_calls} API calls)");
+if ($gs_excluded > 0) {
+    $logger->info("  GS SKUs skipped: {$gs_excluded}");
+}
+
+if (empty($all_products)) {
+    $logger->error('No products discovered from KicksDB.');
+    exit(1);
 }
 
 // ============================================================================
@@ -278,7 +280,7 @@ if (!$opt_dry_run) {
         'discovered_at' => date('c'),
         'total' => count($products),
         'gs_skus_excluded' => $gs_excluded,
-        'brands_searched' => $brands,
+        'query' => $query,
         'market' => $market,
         'products' => $products,
     ];
@@ -306,9 +308,9 @@ $logger->info('');
 $logger->info('========================================');
 $logger->info('  DISCOVERY SUMMARY');
 $logger->info('========================================');
-$logger->info("  Brands searched:   " . count($brands));
+$logger->info("  Query:             \"{$query}\"");
 $logger->info("  API calls:         {$api_calls}");
-$logger->info("  Products found:    " . count($all_products) + $gs_excluded);
+$logger->info("  Products found:    " . (count($all_products) + $gs_excluded));
 $logger->info("  GS SKUs excluded:  {$gs_excluded}");
 $logger->info("  Final assortment:  " . count($products));
 $logger->info("  Duration:          {$duration}s");

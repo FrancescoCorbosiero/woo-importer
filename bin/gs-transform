@@ -97,6 +97,11 @@ try {
         json_encode($wc_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
     );
 
+    // Cache GS SKUs for KicksDB deduplication (lightweight alternative to parsing full feed)
+    $gs_skus = array_values(array_filter(array_map(fn($p) => $p['sku'] ?? null, $wc_products)));
+    file_put_contents($data_dir . '/gs-sku-cache.json', json_encode($gs_skus, JSON_PRETTY_PRINT));
+    $logger->info("Cached " . count($gs_skus) . " GS SKUs to data/gs-sku-cache.json");
+
     // Summary
     $duration = round(microtime(true) - $start_time, 1);
     $adapter_stats = $adapter->getStats();
