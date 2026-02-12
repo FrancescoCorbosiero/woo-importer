@@ -33,6 +33,10 @@ Usage:
 Options:
   --feed=FILE       Read WC-formatted feed from local file
                     (default: fetch from API)
+  --baseline=FILE   Path to saved baseline feed for delta comparison
+                    (default: data/feed-wc.json)
+  --diff=FILE       Path to write the diff file
+                    (default: data/diff-wc.json)
   --dry-run         Preview changes
   --check-only      Show diff only
   --force-full      Force full import
@@ -43,6 +47,7 @@ Examples:
   bin/sync-wc                                    # Fetch from API
   bin/sync-wc --feed=data/feed-wc-latest.json    # From local file
   bin/sync-wc --feed=data/feed-wc-latest.json --dry-run
+  bin/sync-wc --feed=data/feed-kicksdb-wc-latest.json --baseline=data/feed-kicksdb-wc.json --diff=data/diff-kicksdb-wc.json
 
 Cron (with full pipeline):
   */30 * * * * cd /path && ./sync.sh >> logs/cron.log 2>&1
@@ -62,6 +67,12 @@ $options = [
 foreach ($argv as $arg) {
     if (strpos($arg, '--feed=') === 0) {
         $options['feed_file'] = str_replace('--feed=', '', $arg);
+    }
+    if (strpos($arg, '--baseline=') === 0) {
+        $options['baseline_file'] = str_replace('--baseline=', '', $arg);
+    }
+    if (strpos($arg, '--diff=') === 0) {
+        $options['diff_file'] = str_replace('--diff=', '', $arg);
     }
 }
 

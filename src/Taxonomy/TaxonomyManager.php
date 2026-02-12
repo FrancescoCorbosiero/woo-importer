@@ -253,6 +253,9 @@ class TaxonomyManager
             case 'gs':
                 return $this->fetchBrandNamesFromGS();
 
+            case 'kicksdb':
+                return $this->fetchBrandNamesFromKicksDB();
+
             case 'file':
                 return $this->loadBrandNamesFromFile($this->brands_file);
 
@@ -261,7 +264,7 @@ class TaxonomyManager
                 return $this->brands_list;
 
             default:
-                $this->logger->info('  No brand source specified (use --from-gs, --brands-file, or --brands)');
+                $this->logger->info('  No brand source specified (use --from-gs, --from-kicksdb, --brands-file, or --brands)');
                 return [];
         }
     }
@@ -318,6 +321,36 @@ class TaxonomyManager
 
         sort($brands);
         $this->logger->info("  Found " . count($brands) . " unique brands in " . count($products) . " products");
+
+        return $brands;
+    }
+
+    /**
+     * Fetch brand names from KicksDB assortment file
+     */
+    private function fetchBrandNamesFromKicksDB(): array
+    {
+        $assortment_file = Config::projectRoot() . '/data/kicksdb-assortment.json';
+
+        if (!file_exists($assortment_file)) {
+            $this->logger->error("KicksDB assortment not found: {$assortment_file}");
+            $this->logger->error("Run bin/kicksdb-discover first");
+            return [];
+        }
+
+        $data = json_decode(file_get_contents($assortment_file), true);
+        $products = $data['products'] ?? [];
+
+        $brands = [];
+        foreach ($products as $product) {
+            $brand = $product['brand'] ?? '';
+            if ($brand && !in_array($brand, $brands)) {
+                $brands[] = $brand;
+            }
+        }
+
+        sort($brands);
+        $this->logger->info("  Found " . count($brands) . " unique brands in " . count($products) . " KicksDB products");
 
         return $brands;
     }

@@ -120,8 +120,9 @@ class Client
      * @param string $query Search term (SKU, name, etc.)
      * @param int $limit Max results to return
      * @param string $market Market code for pricing context
+     * @param int $page Page number (1-based) for pagination
      */
-    public function searchStockX(string $query, int $limit = 10, string $market = 'IT'): ?array
+    public function searchStockX(string $query, int $limit = 10, string $market = 'IT', int $page = 1): ?array
     {
         return $this->request('GET', '/stockx/products', array_merge(
             self::DISPLAY_FIELDS,
@@ -129,8 +130,30 @@ class Client
                 'query' => $query,
                 'limit' => $limit,
                 'market' => $market,
+                'page' => $page,
             ]
         ));
+    }
+
+    /**
+     * Browse StockX products with lightweight response (no variants/traits/identifiers)
+     *
+     * Used for discovery/assortment building where we only need
+     * SKU, name, brand, rank, and image URL — not full product details.
+     *
+     * @param string $query Search term (brand name, category, etc.)
+     * @param int $limit Results per page
+     * @param string $market Market code
+     * @param int $page Page number (1-based)
+     */
+    public function browseProducts(string $query, int $limit = 50, string $market = 'IT', int $page = 1): ?array
+    {
+        return $this->request('GET', '/stockx/products', [
+            'query' => $query,
+            'limit' => $limit,
+            'market' => $market,
+            'page' => $page,
+        ]);
     }
 
     /**

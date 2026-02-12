@@ -123,10 +123,12 @@ class MediaUploader
         switch ($this->image_source) {
             case 'gs':
                 return $this->fetchImagesFromGS();
+            case 'kicksdb':
+                return $this->fetchImagesFromKicksDB();
             case 'file':
                 return $this->loadImagesFromFile($this->urls_file);
             default:
-                throw new \Exception('No image source specified (use --from-gs or --urls-file=FILE)');
+                throw new \Exception('No image source specified (use --from-gs, --from-kicksdb, or --urls-file=FILE)');
         }
     }
 
@@ -188,6 +190,44 @@ class MediaUploader
             ];
             $seen[$img_url] = true;
         }
+
+        return $images;
+    }
+
+    /**
+     * Fetch images from KicksDB assortment file
+     */
+    private function fetchImagesFromKicksDB(): array
+    {
+        $assortment_file = Config::projectRoot() . '/data/kicksdb-assortment.json';
+
+        if (!file_exists($assortment_file)) {
+            throw new \Exception("KicksDB assortment not found: {$assortment_file}. Run bin/kicksdb-discover first.");
+        }
+
+        $data = json_decode(file_get_contents($assortment_file), true);
+        $products = $data['products'] ?? [];
+
+        $this->logger->info("  " . count($products) . " products in KicksDB assortment");
+
+        $images = [];
+        $seen = [];
+        foreach ($products as $product) {
+            $sku = $product['sku'] ?? null;
+            $url = $product['image_url'] ?? null;
+            if (!$sku || !$url || isset($seen[$url])) {
+                continue;
+            }
+            $images[] = [
+                'sku' => $sku,
+                'url' => $url,
+                'product_name' => $product['name'] ?? '',
+                'brand_name' => $product['brand'] ?? '',
+            ];
+            $seen[$url] = true;
+        }
+
+        $this->logger->info("  " . count($images) . " unique images from KicksDB assortment");
 
         return $images;
     }

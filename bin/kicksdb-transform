@@ -1,0 +1,181 @@
+#!/usr/bin/env php
+<?php
+/**
+ * CLI wrapper for KicksDB Feed Transformer
+ *
+ * Reads SKUs from the KicksDB assortment (data/kicksdb-assortment.json),
+ * fetches full product + variant data via KicksDbAdapter, and builds
+ * WooCommerce REST API payloads via WcProductBuilder.
+ *
+ * Mirrors bin/gs-transform but for the KicksDB source.
+ *
+ * Outputs: data/feed-kicksdb-wc-latest.json
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Import\KicksDbAdapter;
+use ResellPiacenza\Import\WcProductBuilder;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+KicksDB Feed Transformer
+Transforms KicksDB assortment into WooCommerce REST format.
+
+Usage:
+  bin/kicksdb-transform [options]
+
+Options:
+  --limit=N         Transform first N products only
+  --verbose, -v     Detailed output
+  --help, -h        Show help
+
+Requires:
+  data/kicksdb-assortment.json   (from kicksdb-discover)
+  data/taxonomy-map.json         (from prepare-taxonomies)
+  image-map.json                 (from prepare-media, optional)
+
+Output:
+  data/feed-kicksdb-wc-latest.json - WooCommerce REST API formatted products
+
+Examples:
+  bin/kicksdb-transform                    # Full transform
+  bin/kicksdb-transform --limit=10         # First 10 products
+  bin/kicksdb-transform --verbose          # Detailed output
+
+HELP;
+    exit(0);
+}
+
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$limit = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--limit=') === 0) {
+        $limit = (int) str_replace('--limit=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('KDBTransform', [
+    'file' => Config::projectRoot() . '/logs/kicksdb-transform.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('================================');
+$logger->info('  KicksDB Feed Transformer');
+$logger->info('  KicksDB assortment → WC REST format');
+$logger->info('================================');
+$logger->info('');
+
+// ============================================================================
+// Load Assortment
+// ============================================================================
+
+$assortment_file = Config::projectRoot() . '/data/kicksdb-assortment.json';
+
+if (!file_exists($assortment_file)) {
+    $logger->error("Assortment file not found: {$assortment_file}");
+    $logger->error("Run bin/kicksdb-discover first.");
+    exit(1);
+}
+
+$assortment = json_decode(file_get_contents($assortment_file), true);
+if (!is_array($assortment) || empty($assortment['products'])) {
+    $logger->error("Invalid or empty assortment file.");
+    exit(1);
+}
+
+$products = $assortment['products'];
+$logger->info("Loaded assortment: " . count($products) . " products (discovered {$assortment['discovered_at']})");
+
+// Extract SKU list
+$skus = array_column($products, 'sku');
+$skus = array_values(array_filter($skus));
+
+if ($limit && count($skus) > $limit) {
+    $skus = array_slice($skus, 0, $limit);
+    $logger->info("  Limited to first {$limit}");
+}
+
+$logger->info("  {" . count($skus) . "} SKUs to transform");
+
+// ============================================================================
+// Fetch + Build
+// ============================================================================
+
+try {
+    $adapter = new KicksDbAdapter($config, $skus, $logger);
+    $builder = new WcProductBuilder($config, $logger);
+    $builder->setStockOverride(null); // Use adapter's price-based stock
+
+    // Show pricing config
+    $pricing_summary = $adapter->getPricingSummary();
+    $logger->info("  Pricing: flat {$pricing_summary['flat_margin']}, floor {$pricing_summary['floor_price']}, rounding {$pricing_summary['rounding']}");
+    if (!empty($pricing_summary['tiers'])) {
+        foreach ($pricing_summary['tiers'] as $tier) {
+            $logger->info("    Tier: {$tier}");
+        }
+    }
+    $logger->info('');
+
+    $wc_products = $builder->buildAll($adapter->fetchProducts());
+
+    // Write output
+    $data_dir = Config::projectRoot() . '/data';
+    if (!is_dir($data_dir)) {
+        mkdir($data_dir, 0755, true);
+    }
+
+    $output_file = $data_dir . '/feed-kicksdb-wc-latest.json';
+    file_put_contents(
+        $output_file,
+        json_encode($wc_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    );
+
+    // Summary
+    $duration = round(microtime(true) - $start_time, 1);
+    $adapter_stats = $adapter->getStats();
+    $builder_stats = $builder->getStats();
+
+    $logger->info('');
+    $logger->info('================================');
+    $logger->info('  TRANSFORM SUMMARY');
+    $logger->info('================================');
+    $logger->info("  SKUs requested:       {$adapter_stats['total_skus']}");
+    $logger->info("  Products found:       {$adapter_stats['products_found']}");
+    $logger->info("  Products not found:   {$adapter_stats['products_not_found']}");
+    $logger->info("  Transformed:          {$builder_stats['transformed']}");
+    $logger->info("  Total variants:       {$adapter_stats['variants_total']}");
+    $logger->info("  Variants with price:  {$adapter_stats['variants_with_price']}");
+    $logger->info("  Variants no price:    {$adapter_stats['variants_no_price']}");
+    $logger->info("  Variants no EU size:  {$adapter_stats['variants_no_eu_size']}");
+    $logger->info("  With image:           {$builder_stats['with_image']}");
+    $logger->info("  With gallery:         {$builder_stats['with_gallery']}");
+    $logger->info("  Without image:        {$builder_stats['without_image']}");
+    $logger->info("  Duration:             {$duration}s");
+    $logger->info("  Output:               {$output_file}");
+    $logger->info('================================');
+
+    exit(0);
+
+} catch (\Exception $e) {
+    $logger->error('Error: ' . $e->getMessage());
+    exit(1);
+}

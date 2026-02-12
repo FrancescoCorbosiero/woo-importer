@@ -32,6 +32,7 @@ Usage:
 
 Brand sources (pick one):
   --from-gs               Discover brands from Golden Sneakers API
+  --from-kicksdb          Discover brands from KicksDB assortment (data/kicksdb-assortment.json)
   --brands-file=FILE      Load brands from JSON file (["Nike", "Adidas", ...])
   --brands=Nike,Adidas    Provide brands as comma-separated list
   (none)                  Only ensure categories + attributes, no brands
@@ -47,6 +48,7 @@ Output:
 
 Examples:
   bin/prepare-taxonomies --from-gs                    # GS pipeline
+  bin/prepare-taxonomies --from-kicksdb               # KicksDB pipeline
   bin/prepare-taxonomies --brands=Nike,Adidas,Puma    # Manual brands
   bin/prepare-taxonomies --brands-file=my-brands.json # From file
 
@@ -64,6 +66,9 @@ $options = [
 
 if (in_array('--from-gs', $argv)) {
     $options['brand_source'] = 'gs';
+}
+if (in_array('--from-kicksdb', $argv)) {
+    $options['brand_source'] = 'kicksdb';
 }
 
 foreach ($argv as $arg) {
