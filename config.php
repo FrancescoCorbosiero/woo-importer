@@ -194,7 +194,7 @@ return [
 
         // KicksDB Discovery (auto-assortment)
         'kicksdb_assortment_size' => (int) env('KICKSDB_ASSORTMENT_SIZE', 800),
-        'kicksdb_discovery_brands' => array_map('trim', explode(',', env('KICKSDB_DISCOVERY_BRANDS', 'Nike,Jordan,Adidas,New Balance,Yeezy'))),
+        'kicksdb_discovery_query' => env('KICKSDB_DISCOVERY_QUERY', 'sneakers'),
         'kicksdb_discovery_page_size' => (int) env('KICKSDB_DISCOVERY_PAGE_SIZE', 50),
 
         // KicksDB Webhook
