@@ -1,2 +1,33 @@
-# Every 6 hours, sync prices from KicksDB for all registered products
-0 */6 * * * cd /path/to/woo-importer && php bin/pricing-reconcile >> logs/cron.log 2>&1
+# =============================================================================
+# ResellPiacenza WooCommerce Importer - Crontab Configuration
+# =============================================================================
+#
+# Install with:  crontab crontab.txt
+# Verify with:   crontab -l
+#
+# Root directory: ~/resellpiacenza/woo-importer
+# =============================================================================
+
+# -------------------------------------------
+# Golden Sneakers (GS) - Stock & Price Sync
+# -------------------------------------------
+# Syncs products from the GS supplier feed.
+# Runs every 30 minutes to keep stock/prices fresh.
+# Pipeline: taxonomies → media → transform → delta sync → import
+*/30 * * * * cd ~/resellpiacenza/woo-importer && ./gs-sync.sh >> logs/cron-gs.log 2>&1
+
+# -------------------------------------------
+# KicksDB - Popular Sneakers Discovery & Sync
+# -------------------------------------------
+# Discovers top ~800 popular sneakers from KicksDB, skipping SKUs
+# already covered by GS. Runs every 6 hours (discovery is slow).
+# Pipeline: discover → taxonomies → media → transform → delta sync → import
+0 */6 * * * cd ~/resellpiacenza/woo-importer && ./kicksdb-sync.sh >> logs/cron-kicksdb.log 2>&1
+
+# -------------------------------------------
+# KicksDB - Price Reconciliation
+# -------------------------------------------
+# Fetches current market prices from KicksDB for all registered
+# WooCommerce products and updates stale variations.
+# Runs every 6 hours, offset by 3h from the full sync to spread load.
+0 3,9,15,21 * * * cd ~/resellpiacenza/woo-importer && php bin/pricing-reconcile >> logs/cron-pricing.log 2>&1
