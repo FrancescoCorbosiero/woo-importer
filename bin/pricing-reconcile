@@ -185,17 +185,27 @@ foreach ($skus_to_process as $sku) {
     $processed++;
     $logger->info("[{$processed}/{$total}] {$sku}");
 
-    // Fetch current market prices from KicksDB
-    $product = $kicksdb->getStockXProduct($sku);
+    // Fetch current market prices from KicksDB (includes embedded variants)
+    $product = $kicksdb->getStockXProduct($sku, $market);
     if ($product === null) {
         $logger->warning("  Not found in KicksDB, skipping");
         continue;
     }
 
-    $product_id = $product['id'] ?? $sku;
-    $variants = $kicksdb->getStockXVariants($product_id, $market);
+    $product_data = $product['data'] ?? $product;
 
-    if ($variants === null || empty($variants)) {
+    // Use embedded variants from getStockXProduct (display[variants]=true)
+    $variants = $product_data['variants'] ?? [];
+
+    // Fallback: dedicated variants endpoint if not embedded
+    if (empty($variants)) {
+        $product_id = $product_data['id'] ?? $product_data['slug'] ?? $sku;
+        $logger->debug("  No embedded variants, fetching from variants endpoint...");
+        $raw = $kicksdb->getStockXVariants($product_id, $market);
+        $variants = $raw['data'] ?? $raw ?? [];
+    }
+
+    if (empty($variants)) {
         $logger->warning("  No variant data from KicksDB");
         continue;
     }
