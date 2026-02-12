@@ -24,9 +24,9 @@ class WcProductBuilder
     private array $config;
     private $logger;
 
-    // When set (default 90), overrides adapter stock_quantity for all variations.
-    // Set to null to use adapter-provided stock (e.g. KicksDB price-based stock).
-    private ?int $stock_override = 90;
+    // When set, overrides adapter stock_quantity for all variations.
+    // Default null = use adapter-provided stock (GS: real availability, KicksDB: price-based).
+    private ?int $stock_override = null;
 
     private array $taxonomy_map = [];
     private array $image_map = [];
@@ -51,8 +51,8 @@ class WcProductBuilder
     }
 
     /**
-     * Set stock override. Default 90 = all variations get 90 (GS behavior).
-     * Pass null to use adapter-provided stock_quantity (KicksDB price-based).
+     * Set stock override. When set, all variations get this stock quantity.
+     * Default null = use adapter-provided stock (GS: real availability, KicksDB: price-based tiers).
      */
     public function setStockOverride(?int $override): self
     {
