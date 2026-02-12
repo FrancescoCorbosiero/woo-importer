@@ -60,8 +60,8 @@ class DeltaSync
         $this->feed_file_input = $options['feed_file'] ?? null;
 
         $this->data_dir = Config::projectRoot() . '/data';
-        $this->feed_file = $this->data_dir . '/feed-wc.json';
-        $this->diff_file = $this->data_dir . '/diff-wc.json';
+        $this->feed_file = $options['baseline_file'] ?? $this->data_dir . '/feed-wc.json';
+        $this->diff_file = $options['diff_file'] ?? $this->data_dir . '/diff-wc.json';
 
         $this->setupLogger();
         $this->ensureDataDirectory();

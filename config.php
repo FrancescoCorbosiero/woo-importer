@@ -192,6 +192,11 @@ return [
         'kicksdb_base_url' => env('KICKSDB_BASE_URL', 'https://api.kicks.dev/v3'),
         'kicksdb_market' => env('KICKSDB_MARKET', 'IT'),
 
+        // KicksDB Discovery (auto-assortment)
+        'kicksdb_assortment_size' => (int) env('KICKSDB_ASSORTMENT_SIZE', 800),
+        'kicksdb_discovery_brands' => array_map('trim', explode(',', env('KICKSDB_DISCOVERY_BRANDS', 'Nike,Jordan,Adidas,New Balance,Yeezy'))),
+        'kicksdb_discovery_page_size' => (int) env('KICKSDB_DISCOVERY_PAGE_SIZE', 50),
+
         // KicksDB Webhook
         'kicksdb_webhook_id' => env('KICKSDB_WEBHOOK_ID', null),
         'webhook_callback_url' => env('KICKSDB_WEBHOOK_CALLBACK_URL', ''),

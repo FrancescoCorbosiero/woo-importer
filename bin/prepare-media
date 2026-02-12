@@ -31,6 +31,7 @@ Usage:
 
 Image sources (pick one):
   --from-gs               Get image URLs from Golden Sneakers API
+  --from-kicksdb          Get image URLs from KicksDB assortment (data/kicksdb-assortment.json)
   --urls-file=FILE        Load from JSON file (see docs/bulk-upload-images.json)
 
 Options:
@@ -46,6 +47,7 @@ Output:
 
 Examples:
   bin/prepare-media --from-gs                        # GS pipeline
+  bin/prepare-media --from-kicksdb                   # KicksDB pipeline
   bin/prepare-media --from-gs --limit=10 --dry-run   # Preview 10
   bin/prepare-media --urls-file=my-images.json       # Custom source
 
@@ -77,6 +79,9 @@ $options = [
 
 if (in_array('--from-gs', $argv)) {
     $options['image_source'] = 'gs';
+}
+if (in_array('--from-kicksdb', $argv)) {
+    $options['image_source'] = 'kicksdb';
 }
 
 foreach ($argv as $arg) {
