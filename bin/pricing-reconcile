@@ -39,7 +39,7 @@ Options:
   --skip-registry     Skip SKU registry sync (prices only)
   --sku=SKU           Reconcile a single product only
   --limit=N           Process first N products
-  --market=CODE       KicksDB market code (default: US)
+  --market=CODE       KicksDB market code (default: from KICKSDB_MARKET or IT)
   --verbose, -v       Detailed output
   --help, -h          Show this help
 
@@ -61,7 +61,7 @@ $skip_registry = in_array('--skip-registry', $argv);
 $verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
 $single_sku = null;
 $limit = null;
-$market = 'US';
+$opt_market = null;
 
 foreach ($argv as $arg) {
     if (strpos($arg, '--sku=') === 0) {
@@ -71,7 +71,7 @@ foreach ($argv as $arg) {
         $limit = (int) str_replace('--limit=', '', $arg);
     }
     if (strpos($arg, '--market=') === 0) {
-        $market = str_replace('--market=', '', $arg);
+        $opt_market = str_replace('--market=', '', $arg);
     }
 }
 
@@ -81,6 +81,7 @@ foreach ($argv as $arg) {
 
 $config = Config::load();
 $pricing = $config['pricing'] ?? [];
+$market = $opt_market ?? ($pricing['kicksdb_market'] ?? 'IT');
 
 // Logger
 $logger = LoggerFactory::create('Reconcile', [
@@ -184,17 +185,27 @@ foreach ($skus_to_process as $sku) {
     $processed++;
     $logger->info("[{$processed}/{$total}] {$sku}");
 
-    // Fetch current market prices from KicksDB
-    $product = $kicksdb->getStockXProduct($sku);
+    // Fetch current market prices from KicksDB (includes embedded variants)
+    $product = $kicksdb->getStockXProduct($sku, $market);
     if ($product === null) {
         $logger->warning("  Not found in KicksDB, skipping");
         continue;
     }
 
-    $product_id = $product['id'] ?? $sku;
-    $variants = $kicksdb->getStockXVariants($product_id, $market);
+    $product_data = $product['data'] ?? $product;
 
-    if ($variants === null || empty($variants)) {
+    // Use embedded variants from getStockXProduct (display[variants]=true)
+    $variants = $product_data['variants'] ?? [];
+
+    // Fallback: dedicated variants endpoint if not embedded
+    if (empty($variants)) {
+        $product_id = $product_data['id'] ?? $product_data['slug'] ?? $sku;
+        $logger->debug("  No embedded variants, fetching from variants endpoint...");
+        $raw = $kicksdb->getStockXVariants($product_id, $market);
+        $variants = $raw['data'] ?? $raw ?? [];
+    }
+
+    if (empty($variants)) {
         $logger->warning("  No variant data from KicksDB");
         continue;
     }
