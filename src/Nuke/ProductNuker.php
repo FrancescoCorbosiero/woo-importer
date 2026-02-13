@@ -46,8 +46,23 @@ class ProductNuker
             'file' => Config::projectRoot() . '/logs/nuke.log',
         ]);
 
+        $url = trim($config['woocommerce']['url'] ?? '');
+        if (empty($url)) {
+            throw new \RuntimeException(
+                'WC_URL is not configured. Set it in your .env file (e.g. WC_URL=https://your-store.com).'
+            );
+        }
+        $url = rtrim($url, ':');
+
+        $parsed = parse_url($url);
+        if ($parsed === false || empty($parsed['scheme']) || empty($parsed['host'])) {
+            throw new \RuntimeException(
+                "WC_URL is malformed: '{$url}'. Expected format: https://your-store.com"
+            );
+        }
+
         $this->wc_client = new Client(
-            $config['woocommerce']['url'],
+            $url,
             $config['woocommerce']['consumer_key'],
             $config['woocommerce']['consumer_secret'],
             [
@@ -57,7 +72,7 @@ class ProductNuker
         );
 
         // WordPress REST API for media deletion
-        $this->wp_url = rtrim($config['woocommerce']['url'] ?? '', '/');
+        $this->wp_url = rtrim($url, '/');
         $this->wp_auth = base64_encode(
             ($config['wordpress']['username'] ?? '') . ':' .
             ($config['wordpress']['app_password'] ?? '')

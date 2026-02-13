@@ -98,11 +98,36 @@ class WooCommerceImporter
 
     /**
      * Setup WooCommerce client
+     *
+     * Validates the WC URL before constructing the client to catch
+     * common misconfigurations (empty URL, trailing colon, bad port)
+     * that would otherwise surface as cryptic cURL errors.
+     *
+     * @throws \RuntimeException If WC_URL is empty or malformed
      */
     private function setupWooCommerceClient(): void
     {
+        $url = trim($this->config['woocommerce']['url'] ?? '');
+
+        if (empty($url)) {
+            throw new \RuntimeException(
+                'WC_URL is not configured. Set it in your .env file (e.g. WC_URL=https://your-store.com).'
+            );
+        }
+
+        // Strip trailing colon (common typo: "https://store.com:")
+        // which causes cURL "Port number was not a decimal number" error
+        $url = rtrim($url, ':');
+
+        $parsed = parse_url($url);
+        if ($parsed === false || empty($parsed['scheme']) || empty($parsed['host'])) {
+            throw new \RuntimeException(
+                "WC_URL is malformed: '{$url}'. Expected format: https://your-store.com"
+            );
+        }
+
         $this->wc_client = new Client(
-            $this->config['woocommerce']['url'],
+            $url,
             $this->config['woocommerce']['consumer_key'],
             $this->config['woocommerce']['consumer_secret'],
             ['version' => $this->config['woocommerce']['version'], 'timeout' => 120]
@@ -207,6 +232,8 @@ class WooCommerceImporter
      *
      * WooCommerce REST API requires category IDs — slug-based assignment
      * is silently ignored. This resolves slugs to IDs before batch send.
+     * If a category doesn't exist, it is auto-created so that clean
+     * environments work without requiring a separate prepare-taxonomies step.
      *
      * @param array &$payload Product payload (modified in place)
      */
@@ -226,11 +253,11 @@ class WooCommerceImporter
                 continue;
             }
 
-            $id = $this->lookupCategoryBySlug($slug);
+            $id = $this->lookupOrCreateCategory($slug);
             if ($id) {
                 $cat = ['id' => $id];
             } else {
-                $this->logger->warning("  Category '{$slug}' not found in WooCommerce — product will be uncategorized");
+                $this->logger->warning("  Category '{$slug}' could not be found or created — product will be uncategorized");
                 unset($payload['categories'][$idx]);
             }
         }
@@ -239,17 +266,22 @@ class WooCommerceImporter
     }
 
     /**
-     * Look up a WooCommerce category by slug (cached)
+     * Look up a WooCommerce category by slug, creating it if it doesn't exist
+     *
+     * In a clean WooCommerce environment (no taxonomies pre-created),
+     * this ensures categories are created on-the-fly during import
+     * rather than silently dropping products into "uncategorized".
      *
      * @param string $slug Category slug
-     * @return int|null Category ID or null if not found
+     * @return int|null Category ID or null on failure
      */
-    private function lookupCategoryBySlug(string $slug): ?int
+    private function lookupOrCreateCategory(string $slug): ?int
     {
         if (array_key_exists($slug, $this->category_cache)) {
             return $this->category_cache[$slug];
         }
 
+        // Try to find existing category
         try {
             $categories = $this->wc_client->get('products/categories', ['slug' => $slug]);
 
@@ -260,11 +292,64 @@ class WooCommerceImporter
                 return $id;
             }
         } catch (\Exception $e) {
-            $this->logger->debug("  Category lookup failed for '{$slug}': " . $e->getMessage());
+            $this->logger->warning("  Category lookup failed for '{$slug}': " . $e->getMessage());
+        }
+
+        // Category doesn't exist — try to create it
+        $name = $this->getCategoryNameForSlug($slug);
+        try {
+            $result = $this->wc_client->post('products/categories', [
+                'name' => $name,
+                'slug' => $slug,
+            ]);
+
+            if (!empty($result->id)) {
+                $id = $result->id;
+                $this->category_cache[$slug] = $id;
+                $this->logger->info("  Auto-created category '{$name}' (slug: {$slug}) → ID {$id}");
+                return $id;
+            }
+        } catch (\Exception $e) {
+            // "term_exists" means the category was created between our lookup and create
+            if (strpos($e->getMessage(), 'term_exists') !== false) {
+                try {
+                    $categories = $this->wc_client->get('products/categories', ['slug' => $slug]);
+                    if (!empty($categories)) {
+                        $id = $categories[0]->id;
+                        $this->category_cache[$slug] = $id;
+                        $this->logger->info("  Found existing category '{$slug}' → ID {$id}");
+                        return $id;
+                    }
+                } catch (\Exception $e2) {
+                    // Fall through to null
+                }
+            }
+
+            $this->logger->warning("  Category auto-creation failed for '{$slug}': " . $e->getMessage());
         }
 
         $this->category_cache[$slug] = null;
         return null;
+    }
+
+    /**
+     * Resolve a human-readable category name for a given slug
+     *
+     * Checks the config categories map first, then falls back to
+     * capitalizing the slug (e.g. 'sneakers' → 'Sneakers').
+     *
+     * @param string $slug Category slug
+     * @return string Category name
+     */
+    private function getCategoryNameForSlug(string $slug): string
+    {
+        foreach ($this->config['categories'] ?? [] as $cat_config) {
+            if (($cat_config['slug'] ?? '') === $slug) {
+                return $cat_config['name'];
+            }
+        }
+
+        return ucfirst(str_replace('-', ' ', $slug));
     }
 
     /**
