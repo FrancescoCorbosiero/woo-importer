@@ -73,10 +73,34 @@ class TaxonomyManager
         ]);
     }
 
+    /**
+     * Setup WooCommerce client with URL validation
+     *
+     * @throws \RuntimeException If WC_URL is empty or malformed
+     */
     private function setupWooCommerceClient(): void
     {
+        $url = trim($this->config['woocommerce']['url'] ?? '');
+
+        if (empty($url)) {
+            throw new \RuntimeException(
+                'WC_URL is not configured. Set it in your .env file (e.g. WC_URL=https://your-store.com).'
+            );
+        }
+
+        // Strip trailing colon (common typo: "https://store.com:")
+        // which causes cURL "Port number was not a decimal number" error
+        $url = rtrim($url, ':');
+
+        $parsed = parse_url($url);
+        if ($parsed === false || empty($parsed['scheme']) || empty($parsed['host'])) {
+            throw new \RuntimeException(
+                "WC_URL is malformed: '{$url}'. Expected format: https://your-store.com"
+            );
+        }
+
         $this->wc_client = new Client(
-            $this->config['woocommerce']['url'],
+            $url,
             $this->config['woocommerce']['consumer_key'],
             $this->config['woocommerce']['consumer_secret'],
             ['version' => $this->config['woocommerce']['version'], 'timeout' => 60]
