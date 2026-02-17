@@ -27,6 +27,7 @@ image-map.json
 /data/sku-registry.json
 /data/feed-kicksdb.json
 /data/feed-wc-latest.json
+/data/shopify-import-feed.json
 !/data/.gitkeep
 
 # ===========================================

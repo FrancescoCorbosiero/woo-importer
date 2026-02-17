@@ -174,6 +174,7 @@ class BulkUploader
                 'brand' => $item['brand'] ?? $item['brand_name'] ?? '',
                 'category' => $item['category'] ?? 'sneakers',
                 'image_url' => $item['image_url'] ?? $item['image'] ?? null,
+                'gallery_urls' => $item['gallery_urls'] ?? [],
                 'short_description' => $item['short_description'] ?? null,
                 'description' => $item['description'] ?? null,
                 'sizes' => array_map(function ($s) {
@@ -588,6 +589,166 @@ class BulkUploader
         }
     }
 
+    /**
+     * Upload gallery images to WordPress media library
+     *
+     * @param string $sku Product SKU
+     * @param array $urls Gallery image URLs
+     * @param array $template_data Template placeholder values
+     * @return int[] Array of WordPress media IDs
+     */
+    private function uploadGalleryImages(string $sku, array $urls, array $template_data): array
+    {
+        if (empty($urls)) {
+            return [];
+        }
+
+        // Check for already-uploaded gallery images
+        $existing_gallery = $this->image_map[$sku]['gallery_ids'] ?? [];
+
+        $media_ids = [];
+        foreach ($urls as $idx => $url) {
+            // Already uploaded?
+            if (isset($existing_gallery[$idx])) {
+                $media_ids[] = $existing_gallery[$idx];
+                $this->stats['images_skipped']++;
+                continue;
+            }
+
+            if ($this->dry_run) {
+                $media_ids[] = 99995 - $idx;
+                $this->stats['images_uploaded']++;
+                continue;
+            }
+
+            try {
+                // Download
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $url,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_TIMEOUT => 30,
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_USERAGENT => 'Mozilla/5.0',
+                ]);
+                $content = curl_exec($ch);
+                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($http_code !== 200 || empty($content)) {
+                    throw new \Exception("Download failed: HTTP {$http_code}");
+                }
+
+                $temp = tempnam(sys_get_temp_dir(), 'woo_gal_');
+                file_put_contents($temp, $content);
+
+                $info = @getimagesize($temp);
+                if ($info === false) {
+                    @unlink($temp);
+                    throw new \Exception('Not a valid image');
+                }
+
+                $mime = $info['mime'];
+                $ext = image_type_to_extension($info[2], false);
+                $filename = preg_replace('/[^a-zA-Z0-9._-]/', '', $sku) . '-' . ($idx + 1) . '.' . $ext;
+
+                // Gallery SEO metadata
+                $title = $template_data['product_name'] . ' - ' . ($idx + 2);
+                $alt = $template_data['product_name'] . ' - ' . $template_data['brand_name'];
+
+                $boundary = 'BulkGallery' . time() . rand(1000, 9999);
+                $body = "--{$boundary}\r\n";
+                $body .= "Content-Disposition: form-data; name=\"file\"; filename=\"{$filename}\"\r\n";
+                $body .= "Content-Type: {$mime}\r\n\r\n";
+                $body .= file_get_contents($temp) . "\r\n";
+
+                foreach (['title' => $title, 'alt_text' => $alt] as $field => $value) {
+                    $body .= "--{$boundary}\r\n";
+                    $body .= "Content-Disposition: form-data; name=\"{$field}\"\r\n\r\n";
+                    $body .= $value . "\r\n";
+                }
+                $body .= "--{$boundary}--\r\n";
+
+                @unlink($temp);
+
+                $wp_url = rtrim($this->config['woocommerce']['url'], '/') . '/wp-json/wp/v2/media';
+                $auth = base64_encode(
+                    $this->config['wordpress']['username'] . ':' .
+                    $this->config['wordpress']['app_password']
+                );
+
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $wp_url,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => $body,
+                    CURLOPT_HTTPHEADER => [
+                        "Authorization: Basic {$auth}",
+                        "Content-Type: multipart/form-data; boundary={$boundary}",
+                    ],
+                    CURLOPT_TIMEOUT => 60,
+                ]);
+
+                $response = curl_exec($ch);
+                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($http_code !== 201) {
+                    $err = json_decode($response, true);
+                    throw new \Exception($err['message'] ?? "HTTP {$http_code}");
+                }
+
+                $result = json_decode($response, true);
+                $media_ids[] = $result['id'];
+                $this->stats['images_uploaded']++;
+
+            } catch (\Exception $e) {
+                $this->stats['images_failed']++;
+                $this->logger->debug("  Gallery image failed ({$sku} #{$idx}): " . $e->getMessage());
+            }
+        }
+
+        // Update image map with gallery IDs
+        if (!empty($media_ids)) {
+            if (!isset($this->image_map[$sku])) {
+                $this->image_map[$sku] = [];
+            }
+            $this->image_map[$sku]['gallery_ids'] = $media_ids;
+        }
+
+        return $media_ids;
+    }
+
+    // =========================================================================
+    // Category Auto-Detection
+    // =========================================================================
+
+    /**
+     * Auto-detect category from size format
+     *
+     * Same logic as WcProductBuilder::normalizeCategoryType():
+     * - Numeric sizes (36, 37.5, 42) → sneakers
+     * - Letter sizes (S, M, L, XL) → clothing
+     */
+    private function detectCategoryFromSizes(array $sizes): ?string
+    {
+        foreach ($sizes as $size) {
+            $s = $size['size'] ?? '';
+            if (strtolower($s) === 'unica') {
+                continue;
+            }
+            if (preg_match('/^(X{0,2}[SML]|XXL)$/i', $s)) {
+                return 'clothing';
+            }
+            if (is_numeric($s)) {
+                return 'sneakers';
+            }
+        }
+        return null;
+    }
+
     // =========================================================================
     // Transformation
     // =========================================================================
@@ -601,6 +762,12 @@ class BulkUploader
         $name = $product['name'];
         $brand = $product['brand'];
         $cat_slug = $product['category'] ?? 'sneakers';
+
+        // Auto-detect category from size format if not explicitly set
+        $detected = $this->detectCategoryFromSizes($product['sizes'] ?? []);
+        if ($detected) {
+            $cat_slug = $detected;
+        }
 
         // Template data
         $tpl = [
@@ -677,7 +844,7 @@ class BulkUploader
             }
         }
 
-        // Image
+        // Image (primary)
         if (!$this->skip_media && !empty($product['image_url'])) {
             $media_id = $this->uploadImage($sku, $product['image_url'], $tpl);
             if ($media_id) {
@@ -686,6 +853,21 @@ class BulkUploader
         } elseif (!empty($product['image_url'])) {
             // Skip media mode: use URL directly, WC will sideload
             $wc['images'] = [['src' => $product['image_url'], 'name' => $name]];
+        }
+
+        // Gallery images
+        $gallery_urls = $product['gallery_urls'] ?? [];
+        if (!empty($gallery_urls)) {
+            if (!$this->skip_media) {
+                $gallery_ids = $this->uploadGalleryImages($sku, $gallery_urls, $tpl);
+                foreach ($gallery_ids as $gid) {
+                    $wc['images'][] = ['id' => $gid];
+                }
+            } else {
+                foreach ($gallery_urls as $idx => $gurl) {
+                    $wc['images'][] = ['src' => $gurl, 'name' => $name . ' - ' . ($idx + 2)];
+                }
+            }
         }
 
         // Variations
