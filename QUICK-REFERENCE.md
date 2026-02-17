@@ -1,133 +1,59 @@
-# 🚀 QUICK REFERENCE: WOO-IMPORTER UPGRADE
+# Quick Reference
 
-## One-Liner Summary
-Add .env support, Italian localization, SEO image metadata, and proper WooCommerce attribute slugs.
+## Import Pipelines
 
----
+| Pipeline | Entry Point | Schedule | Source |
+|----------|-------------|----------|--------|
+| Golden Sneakers | `./gs-sync.sh` | Every 30 min | GS API |
+| KicksDB | `./kicksdb-sync.sh` | Every 6 hours | KicksDB API |
+| Shopify CSV | `bin/import-dir` | Manual (one-time) | CSV files |
+| Bulk Upload | `bin/bulk-upload` | Manual | CSV/JSON files |
 
-## Files to Change
-
-| File | Action | Priority |
-|------|--------|----------|
-| `composer.json` | Add `vlucas/phpdotenv` | 1 |
-| `.env.example` | CREATE new | 2 |
-| `.gitignore` | CREATE/UPDATE | 2 |
-| `config.php` | REFACTOR completely | 3 |
-| `import.php` | UPDATE attributes + add descriptions | 4 |
-| `import-images.php` | UPDATE SEO metadata to Italian | 5 |
-
----
-
-## Key Changes Summary
-
-### 1. Environment Variables
-```php
-// OLD: Hardcoded in config
-'bearer_token' => 'JWT_TOKEN',
-
-// NEW: From .env
-'bearer_token' => env('GS_BEARER_TOKEN', ''),
-```
-
-### 2. Attribute Slugs
-```php
-// OLD: Display name
-'name' => 'Brand',
-
-// NEW: Taxonomy slug with pa_ prefix
-'name' => 'pa_marca',
-```
-
-### 3. Image SEO (Italian)
-```php
-// OLD: English
-$alt_text = "Buy at ResellPiacenza";
-
-// NEW: Italian template
-$alt_text = "Acquista su ResellPiacenza";
-```
-
-### 4. Product Descriptions
-```php
-// OLD: None
-// No description field
-
-// NEW: Italian template
-'short_description' => '<p>Sneakers originali <strong>{brand_name}</strong>...</p>',
-'description' => '<p>Scopri le <strong>{product_name}</strong>...</p>',
-```
-
----
-
-## .env Variables Quick List
-
-```env
-# Required
-GS_BEARER_TOKEN=xxx
-WC_URL=https://store.com
-WC_CONSUMER_KEY=ck_xxx
-WC_CONSUMER_SECRET=cs_xxx
-WP_USERNAME=admin
-WP_APP_PASSWORD=xxxx
-
-# Optional (have defaults)
-STORE_NAME=ResellPiacenza
-IMPORT_SIZE_ATTRIBUTE_SLUG=taglia
-IMPORT_BRAND_ATTRIBUTE_SLUG=marca
-```
-
----
-
-## Testing Commands
+## Quick Test Commands
 
 ```bash
-# 1. Install dependencies
-composer install
+# GS - dry run
+./gs-sync.sh --dry-run --verbose
 
-# 2. Setup environment
-cp .env.example .env
-nano .env  # Fill in your credentials
+# KicksDB - dry run with limit
+./kicksdb-sync.sh --dry-run --limit=50 --verbose
 
-# 3. Test image import (dry concept - it will upload)
-php import-images.php --limit=2
+# Shopify CSV - preview
+bin/import-dir --dir=import/ --dry-run --verbose
 
-# 4. Test product import
-php import.php --dry-run --limit=3
+# Shopify CSV - import first 5
+bin/import-dir --dir=import/ --limit=5 --verbose
 
-# 5. Real import (small batch first)
-php import.php --limit=10
+# Bulk upload - dry run
+bin/bulk-upload --file=data/products.csv --dry-run --verbose
 
-# 6. Full import
-php import.php
+# Price reconciliation - preview
+php bin/pricing-reconcile --dry-run --verbose
 ```
 
----
+## Common Flags
 
-## Validation Points
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Preview without making API calls |
+| `--verbose` / `-v` | Detailed output |
+| `--skip-media` | Skip image uploads |
+| `--limit=N` | Process only first N products |
+| `--force-full` | Ignore delta, re-import everything |
 
-After import, verify in WooCommerce:
+## Verification After Import
 
-1. **Products → Attributes**
-   - "Taglia" attribute exists with slug `taglia`
-   - "Marca" attribute exists with slug `marca`
+1. Products appear in WooCommerce with correct names
+2. Size dropdown visible on product frontend page
+3. Images have Italian SEO metadata (alt, caption, description)
+4. Attributes: "Taglia" (size) and "Marca" (brand) are set
 
-2. **Products → [Any Product]**
-   - Short description shows Italian text
-   - Long description shows Italian HTML
-   - Attributes show "Taglia" and "Marca" (not "Size" and "Brand")
+## Troubleshooting
 
-3. **Media Library → [Any Image]**
-   - Alt text is in Italian
-   - Caption is in Italian
-   - Description is in Italian
+| Problem | Fix |
+|---------|-----|
+| Sizes not showing | Parent product needs `manage_stock: false` + `stock_status: instock` |
+| Images all skipped | Delete `image-map.json` and re-run |
+| Duplicate products | `import-dir` skips existing by default; use `bin/nuke-products` to clean up |
 
----
-
-## Common Issues
-
-| Issue | Solution |
-|-------|----------|
-| "Attribute not found" | Create `pa_taglia` and `pa_marca` in WooCommerce first |
-| "Invalid API key" | Check WC_CONSUMER_KEY and WC_CONSUMER_SECRET |
-| ".env not loading" | Run `composer install` to get phpdotenv |
-| "Images not linking" | Run `import-images.php` before `import.php` |
+See `docs/TEST-COMMANDS.md` for comprehensive command reference.
