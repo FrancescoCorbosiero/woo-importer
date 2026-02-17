@@ -155,6 +155,7 @@ $uploader = new BulkUploader($config, [
     'dry_run' => $dry_run,
     'verbose' => $verbose,
     'skip_media' => $skip_media,
+    'skip_existing' => true,
     'file' => $feed_file,
 ]);
 

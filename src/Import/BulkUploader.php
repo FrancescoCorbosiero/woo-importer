@@ -24,6 +24,7 @@ class BulkUploader
     private $dry_run = false;
     private $verbose = false;
     private $skip_media = false;
+    private $skip_existing = false;
     private $input_file = null;
 
     // Resolved ID caches
@@ -34,6 +35,7 @@ class BulkUploader
 
     private $stats = [
         'products_parsed' => 0,
+        'products_skipped' => 0,
         'brands_created' => 0,
         'images_uploaded' => 0,
         'images_skipped' => 0,
@@ -48,6 +50,7 @@ class BulkUploader
         $this->dry_run = $options['dry_run'] ?? false;
         $this->verbose = $options['verbose'] ?? false;
         $this->skip_media = $options['skip_media'] ?? false;
+        $this->skip_existing = $options['skip_existing'] ?? false;
         $this->input_file = $options['file'] ?? null;
 
         $this->setupLogger();
@@ -475,7 +478,7 @@ class BulkUploader
     private function uploadImage(string $sku, string $url, array $template_data): ?int
     {
         // Already uploaded?
-        if (isset($this->image_map[$sku])) {
+        if (isset($this->image_map[$sku]['media_id'])) {
             $this->stats['images_skipped']++;
             return $this->image_map[$sku]['media_id'];
         }
@@ -603,8 +606,16 @@ class BulkUploader
             return [];
         }
 
+        // Dry run: count gallery images but don't generate fake IDs
+        if ($this->dry_run) {
+            $this->stats['images_uploaded'] += count($urls);
+            return [];
+        }
+
         // Check for already-uploaded gallery images
         $existing_gallery = $this->image_map[$sku]['gallery_ids'] ?? [];
+        // Safety net: filter out fake IDs from prior dry-runs
+        $existing_gallery = array_filter($existing_gallery, fn($id) => is_int($id) && $id > 0 && $id < 90000);
 
         $media_ids = [];
         foreach ($urls as $idx => $url) {
@@ -612,12 +623,6 @@ class BulkUploader
             if (isset($existing_gallery[$idx])) {
                 $media_ids[] = $existing_gallery[$idx];
                 $this->stats['images_skipped']++;
-                continue;
-            }
-
-            if ($this->dry_run) {
-                $media_ids[] = 99995 - $idx;
-                $this->stats['images_uploaded']++;
                 continue;
             }
 
@@ -719,6 +724,41 @@ class BulkUploader
         }
 
         return $media_ids;
+    }
+
+    // =========================================================================
+    // Existing Product Detection
+    // =========================================================================
+
+    /**
+     * Fetch all existing product SKUs from WooCommerce
+     *
+     * @return array SKU => product ID mapping
+     */
+    private function fetchExistingSkus(): array
+    {
+        if ($this->dry_run) {
+            return [];
+        }
+
+        $skus = [];
+        $page = 1;
+        do {
+            $response = $this->wc_client->get('products', [
+                'per_page' => 100,
+                'page' => $page,
+                'status' => 'any',
+                '_fields' => 'id,sku',
+            ]);
+            foreach ($response as $product) {
+                if (!empty($product->sku)) {
+                    $skus[$product->sku] = $product->id;
+                }
+            }
+            $page++;
+        } while (count($response) === 100);
+
+        return $skus;
     }
 
     // =========================================================================
@@ -1005,6 +1045,15 @@ class BulkUploader
                 $this->resolveCategoryId($cat['slug']);
             }
 
+            // Step 2.5: Fetch existing products to skip duplicates
+            $existing_skus = [];
+            if ($this->skip_existing) {
+                $this->logger->info('');
+                $this->logger->info('Fetching existing products from WooCommerce...');
+                $existing_skus = $this->fetchExistingSkus();
+                $this->logger->info("  Found " . count($existing_skus) . " existing products");
+            }
+
             // Step 3: Transform (resolves brands and uploads images along the way)
             $this->logger->info('');
             $this->logger->info('Transforming products...');
@@ -1013,6 +1062,13 @@ class BulkUploader
                 $progress = $idx + 1;
                 $total = count($products);
                 echo "\r  [{$progress}/{$total}] {$product['sku']}                    ";
+
+                // Skip products that already exist in WooCommerce
+                if ($this->skip_existing && isset($existing_skus[$product['sku']])) {
+                    $this->logger->debug("  Skipped {$product['sku']}: already exists (WC ID: {$existing_skus[$product['sku']]})");
+                    $this->stats['products_skipped']++;
+                    continue;
+                }
 
                 $wc = $this->transformProduct($product);
                 if ($wc) {
@@ -1042,6 +1098,9 @@ class BulkUploader
             $this->logger->info('  BULK UPLOAD SUMMARY');
             $this->logger->info('================================');
             $this->logger->info("  Parsed:    {$this->stats['products_parsed']} products");
+            if ($this->stats['products_skipped'] > 0) {
+                $this->logger->info("  Skipped:   {$this->stats['products_skipped']} (already exist)");
+            }
             $this->logger->info("  Brands:    {$this->stats['brands_created']} created");
             $this->logger->info("  Images:    {$this->stats['images_uploaded']} uploaded, {$this->stats['images_skipped']} skipped, {$this->stats['images_failed']} failed");
             $this->logger->info("  Imported:  {$this->stats['products_imported']} products");
