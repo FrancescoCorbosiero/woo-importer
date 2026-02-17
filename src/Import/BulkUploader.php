@@ -405,7 +405,13 @@ class BulkUploader
         try {
             $attributes = $this->wc_client->get('products/attributes');
             foreach ($attributes as $attr) {
-                if ($attr->slug === $slug) {
+                $attr_slug = $attr->slug ?? '';
+                // Match with or without pa_ prefix (same as TaxonomyManager)
+                if ($attr_slug === $slug
+                    || $attr_slug === 'pa_' . $slug
+                    || 'pa_' . $attr_slug === $slug
+                    || strtolower($attr->name ?? '') === strtolower($slug)
+                ) {
                     if (!isset($this->taxonomy_map['attributes'])) {
                         $this->taxonomy_map['attributes'] = [];
                     }
@@ -445,6 +451,28 @@ class BulkUploader
                 return $result->id;
             }
         } catch (\Exception $e) {
+            // "slug already in use" — attribute exists but lookup missed it, retry
+            if (strpos($e->getMessage(), 'woocommerce_rest_cannot_create') !== false) {
+                try {
+                    $attributes = $this->wc_client->get('products/attributes');
+                    foreach ($attributes as $attr) {
+                        $attr_slug = $attr->slug ?? '';
+                        if ($attr_slug === $slug
+                            || $attr_slug === 'pa_' . $slug
+                            || 'pa_' . $attr_slug === $slug
+                        ) {
+                            if (!isset($this->taxonomy_map['attributes'])) {
+                                $this->taxonomy_map['attributes'] = [];
+                            }
+                            $this->taxonomy_map['attributes'][$slug] = $attr->id;
+                            $this->logger->debug("  Found attribute on retry: {$slug} (ID: {$attr->id})");
+                            return $attr->id;
+                        }
+                    }
+                } catch (\Exception $e2) {
+                    // ignore retry failure
+                }
+            }
             $this->logger->debug("  Attribute resolve error ({$slug}): " . $e->getMessage());
         }
 
@@ -830,6 +858,8 @@ class BulkUploader
             'sku' => $sku,
             'status' => 'publish',
             'catalog_visibility' => 'visible',
+            'manage_stock' => false,
+            'stock_status' => 'instock',
             'short_description' => $product['short_description']
                 ?? $this->parseTemplate($this->config['templates']['short_description'], $tpl),
             'description' => $product['description']
