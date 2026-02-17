@@ -226,11 +226,15 @@ class KicksDbAdapter implements FeedAdapter
         // Category info from KicksDB
         $kicksdb_category = $product['category'] ?? '';
         $kicksdb_secondary = $product['secondary_category'] ?? '';
+        $kicksdb_categories = $product['categories'] ?? [];
         if ($kicksdb_category) {
             $meta[] = ['key' => '_kicksdb_category', 'value' => $kicksdb_category];
         }
         if ($kicksdb_secondary) {
             $meta[] = ['key' => '_kicksdb_secondary_category', 'value' => $kicksdb_secondary];
+        }
+        if (!empty($kicksdb_categories)) {
+            $meta[] = ['key' => '_kicksdb_categories', 'value' => implode(',', $kicksdb_categories)];
         }
 
         // Store the original English description for future LLM translation
