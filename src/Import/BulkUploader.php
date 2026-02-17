@@ -858,6 +858,8 @@ class BulkUploader
             'sku' => $sku,
             'status' => 'publish',
             'catalog_visibility' => 'visible',
+            'manage_stock' => false,
+            'stock_status' => 'instock',
             'short_description' => $product['short_description']
                 ?? $this->parseTemplate($this->config['templates']['short_description'], $tpl),
             'description' => $product['description']
