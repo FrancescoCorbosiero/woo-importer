@@ -137,6 +137,64 @@ try {
 
     $wc_products = $builder->buildAll($adapter->fetchProducts());
 
+    // Enrich WC products with catalog category assignments
+    // (brand category + subcategory from the catalog hierarchy)
+    $catalog = $assortment['catalog'] ?? null;
+    if ($catalog) {
+        $taxonomy_map_file = Config::projectRoot() . '/data/taxonomy-map.json';
+        $taxonomy_map = file_exists($taxonomy_map_file)
+            ? (json_decode(file_get_contents($taxonomy_map_file), true) ?: [])
+            : [];
+        $category_map = $taxonomy_map['categories'] ?? [];
+
+        // Build SKU → catalog metadata lookup from assortment products
+        $catalog_meta = [];
+        foreach ($assortment['products'] as $p) {
+            if (!empty($p['catalog_subcategory'])) {
+                $catalog_meta[$p['sku']] = [
+                    'brand' => $p['catalog_brand'] ?? '',
+                    'subcategory' => $p['catalog_subcategory'] ?? '',
+                ];
+            }
+        }
+
+        $catalog_enriched = 0;
+        foreach ($wc_products as &$wc) {
+            $sku = $wc['sku'] ?? '';
+            if (!isset($catalog_meta[$sku])) {
+                continue;
+            }
+
+            $meta = $catalog_meta[$sku];
+            $brand_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $meta['brand']));
+            $brand_slug = preg_replace('/-+/', '-', trim($brand_slug, '-'));
+            $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $meta['subcategory']));
+            $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
+
+            // Add brand category
+            $brand_cat_id = $category_map[$brand_slug] ?? null;
+            if ($brand_cat_id) {
+                $wc['categories'][] = ['id' => $brand_cat_id];
+            }
+
+            // Add subcategory
+            $subcat_id = $category_map[$subcat_slug] ?? null;
+            if ($subcat_id) {
+                $wc['categories'][] = ['id' => $subcat_id];
+            }
+
+            // Store catalog metadata for reference
+            $wc['meta_data'] = $wc['meta_data'] ?? [];
+            $wc['meta_data'][] = ['key' => '_catalog_brand', 'value' => $meta['brand']];
+            $wc['meta_data'][] = ['key' => '_catalog_subcategory', 'value' => $meta['subcategory']];
+
+            $catalog_enriched++;
+        }
+        unset($wc);
+
+        $logger->info("Catalog enrichment: {$catalog_enriched}/{" . count($wc_products) . "} products assigned subcategories");
+    }
+
     // Write output
     $data_dir = Config::projectRoot() . '/data';
     if (!is_dir($data_dir)) {

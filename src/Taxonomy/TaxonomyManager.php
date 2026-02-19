@@ -109,8 +109,12 @@ class TaxonomyManager
 
     /**
      * Ensure a category exists in WooCommerce
+     *
+     * @param string $name Category display name
+     * @param string $slug Category URL slug
+     * @param int|null $parent Parent category ID for hierarchical categories
      */
-    private function ensureCategory(string $name, string $slug): ?int
+    private function ensureCategory(string $name, string $slug, ?int $parent = null): ?int
     {
         try {
             $categories = $this->wc_client->get('products/categories', ['slug' => $slug]);
@@ -124,17 +128,22 @@ class TaxonomyManager
 
             if ($this->dry_run) {
                 $this->stats['categories_created']++;
-                $this->logger->info("  [DRY RUN] Would create: {$name}");
-                return 99999;
+                $this->logger->info("  [DRY RUN] Would create: {$name}" . ($parent ? " (parent: {$parent})" : ''));
+                return 99999 - $this->stats['categories_created'];
             }
 
-            $result = $this->wc_client->post('products/categories', [
+            $payload = [
                 'name' => $name,
                 'slug' => $slug,
-            ]);
+            ];
+            if ($parent !== null) {
+                $payload['parent'] = $parent;
+            }
+
+            $result = $this->wc_client->post('products/categories', $payload);
 
             $this->stats['categories_created']++;
-            $this->logger->info("  Created: {$name} (ID: {$result->id})");
+            $this->logger->info("  Created: {$name} (ID: {$result->id})" . ($parent ? " under parent {$parent}" : ''));
             return $result->id;
 
         } catch (\Exception $e) {
@@ -280,6 +289,9 @@ class TaxonomyManager
             case 'kicksdb':
                 return $this->fetchBrandNamesFromKicksDB();
 
+            case 'catalog':
+                return $this->fetchBrandNamesFromCatalog();
+
             case 'file':
                 return $this->loadBrandNamesFromFile($this->brands_file);
 
@@ -288,7 +300,7 @@ class TaxonomyManager
                 return $this->brands_list;
 
             default:
-                $this->logger->info('  No brand source specified (use --from-gs, --from-kicksdb, --brands-file, or --brands)');
+                $this->logger->info('  No brand source specified (use --from-gs, --from-catalog, --brands-file, or --brands)');
                 return [];
         }
     }
@@ -377,6 +389,109 @@ class TaxonomyManager
         $this->logger->info("  Found " . count($brands) . " unique brands in " . count($products) . " KicksDB products");
 
         return $brands;
+    }
+
+    /**
+     * Fetch brand names from the catalog embedded in the KicksDB assortment
+     */
+    private function fetchBrandNamesFromCatalog(): array
+    {
+        $assortment_file = Config::projectRoot() . '/data/kicksdb-assortment.json';
+
+        if (!file_exists($assortment_file)) {
+            $this->logger->error("KicksDB assortment not found: {$assortment_file}");
+            $this->logger->error("Run bin/kicksdb-discover first");
+            return [];
+        }
+
+        $data = json_decode(file_get_contents($assortment_file), true);
+        $catalog = $data['catalog'] ?? null;
+
+        if (!$catalog || empty($catalog['brands'])) {
+            $this->logger->error("No catalog structure found in assortment. Was discovery run with a catalog file?");
+            return [];
+        }
+
+        $brands = [];
+        foreach ($catalog['brands'] as $brand_entry) {
+            $name = $brand_entry['name'] ?? '';
+            if ($name && !in_array($name, $brands)) {
+                $brands[] = $name;
+            }
+        }
+
+        sort($brands);
+        $this->logger->info("  Found " . count($brands) . " brands from catalog");
+
+        return $brands;
+    }
+
+    /**
+     * Create hierarchical WC categories from the catalog structure
+     *
+     * Creates: Root category (e.g., Sneakers) > Brand (e.g., Nike) > Subcategory (e.g., Nike Dunk)
+     * All category IDs are stored in the taxonomy map for downstream use.
+     */
+    private function ensureCatalogCategories(): void
+    {
+        $assortment_file = Config::projectRoot() . '/data/kicksdb-assortment.json';
+
+        if (!file_exists($assortment_file)) {
+            $this->logger->error("KicksDB assortment not found: {$assortment_file}");
+            return;
+        }
+
+        $data = json_decode(file_get_contents($assortment_file), true);
+        $catalog = $data['catalog'] ?? null;
+
+        if (!$catalog || empty($catalog['brands'])) {
+            $this->logger->error("No catalog structure found in assortment.");
+            return;
+        }
+
+        // Resolve root category (Sneakers)
+        $root_slug = $this->config['categories']['sneakers']['slug'] ?? 'sneakers';
+        $root_id = $this->map['categories'][$root_slug] ?? null;
+
+        if (!$root_id) {
+            $this->logger->warning("  Root category '{$root_slug}' not found in map, creating...");
+            $root_config = $this->config['categories']['sneakers'];
+            $root_id = $this->ensureCategory($root_config['name'], $root_config['slug']);
+            if ($root_id) {
+                $this->map['categories'][$root_slug] = $root_id;
+            }
+        }
+
+        $this->logger->info("  Root: {$root_slug} (ID: {$root_id})");
+
+        foreach ($catalog['brands'] as $brand_entry) {
+            $brand_name = $brand_entry['name'] ?? '';
+            if (empty($brand_name)) {
+                continue;
+            }
+
+            $brand_slug = $this->sanitizeSlug($brand_name);
+
+            // Create brand category under root
+            $brand_id = $this->ensureCategory($brand_name, $brand_slug, $root_id);
+            if ($brand_id) {
+                $this->map['categories'][$brand_slug] = $brand_id;
+            }
+
+            $subcategories = $brand_entry['products'] ?? [];
+            if (empty($subcategories)) {
+                continue;
+            }
+
+            // Create subcategory under brand
+            foreach ($subcategories as $subcat_name) {
+                $subcat_slug = $this->sanitizeSlug($subcat_name);
+                $subcat_id = $this->ensureCategory($subcat_name, $subcat_slug, $brand_id);
+                if ($subcat_id) {
+                    $this->map['categories'][$subcat_slug] = $subcat_id;
+                }
+            }
+        }
     }
 
     /**
@@ -469,7 +584,14 @@ class TaxonomyManager
                 }
             }
 
-            // Brands
+            // Catalog hierarchical categories (Brand > Subcategory under root)
+            if ($this->brand_source === 'catalog') {
+                $this->logger->info('');
+                $this->logger->info('Creating catalog category hierarchy...');
+                $this->ensureCatalogCategories();
+            }
+
+            // Brands (WC brands taxonomy)
             if ($this->config['brands']['enabled'] ?? true) {
                 $this->logger->info('');
                 $this->logger->info('Resolving brands...');

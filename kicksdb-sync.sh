@@ -78,9 +78,9 @@ else
     echo ""
 fi
 
-# Step 2: Ensure taxonomies exist (categories, attributes, brands from KicksDB)
+# Step 2: Ensure taxonomies exist (hierarchical categories + brands from catalog)
 echo "[Step 2/5] Preparing taxonomies..."
-php bin/prepare-taxonomies --from-kicksdb $DRY_RUN $VERBOSE
+php bin/prepare-taxonomies --from-catalog $DRY_RUN $VERBOSE
 echo ""
 
 # Step 3: Upload new images to WordPress media library
