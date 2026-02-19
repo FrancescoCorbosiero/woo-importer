@@ -1,0 +1,72 @@
+{
+  "brands": [
+    {
+      "name": "Nike",
+      "products": [
+        "Nike Travis Scott",
+        "Nike Nocta",
+        "Nike Off White",
+        "Nike Supreme",
+        "Nike Corteiz",
+        "Nike Air Force 1",
+        "Nike Dunk SB",
+        "Nike Dunk"
+      ]
+    },
+    {
+      "name": "Jordan",
+      "products": [
+        "Jordan 1 Low",
+        "Jordan 1 Mid",
+        "Jordan 1 High",
+        "Jordan 1",
+        "Jordan 3",
+        "Jordan 4",
+        "Jordan 5",
+        "Jordan 6",
+        "Jordan 11",
+        "Jordan 12",
+        "Jordan 13"
+      ]
+    },
+    {
+      "name": "Adidas",
+      "products": [
+        "Adidas Campus",
+        "Adidas Gazelle",
+        "Adidas Samba",
+        "Adidas Spezial"
+      ]
+    },
+    {
+      "name": "New Balance",
+      "products": [
+        "New Balance 9060",
+        "New Balance 1906R",
+        "New Balance 550",
+        "New Balance 530",
+        "New Balance 2002",
+        "New Balance 2041"
+      ]
+    },
+    {
+      "name": "Asics",
+      "products": [
+        "Asics Gel-Kayano",
+        "Asics Gel-NYC",
+        "Asics Gel-1130",
+        "Asics GT-2160"
+      ]
+    },
+    {
+      "name": "Yeezy",
+      "products": [
+        "Yeezy 350",
+        "Yeezy 500",
+        "Yeezy 700",
+        "Yeezy Foam",
+        "Yeezy Slide"
+      ]
+    }
+  ]
+}

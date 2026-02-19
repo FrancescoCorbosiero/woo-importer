@@ -197,14 +197,10 @@ return [
         'kicksdb_discovery_query' => env('KICKSDB_DISCOVERY_QUERY', 'sneakers'),
         'kicksdb_discovery_page_size' => (int) env('KICKSDB_DISCOVERY_PAGE_SIZE', 50),
 
-        // KicksDB Discovery Filters
-        // Brand allowlist: only accept products from these brands (comma-separated, case-insensitive)
-        // When set, products from unlisted brands are excluded during discovery.
-        // Leave empty to accept all brands (use product_type filter only).
-        'kicksdb_brand_allowlist' => array_filter(array_map('trim', explode(',', env('KICKSDB_BRAND_ALLOWLIST',
-            'Nike,Jordan,Adidas,New Balance,Puma,Converse,Vans,Reebok,ASICS,Saucony,'
-            . 'Diadora,Hoka,On Running,Salomon,Under Armour,Li-Ning,Mizuno,Brooks,'
-            . 'Anta,Crocs,Yeezy')))),
+        // KicksDB Brand Catalog: JSON file with hierarchical brand/subcategory structure
+        // When set, discovery fetches per subcategory label instead of generic search
+        'kicksdb_brand_catalog_file' => env('KICKSDB_BRAND_CATALOG_FILE', ''),
+        'kicksdb_products_per_label' => (int) env('KICKSDB_PRODUCTS_PER_LABEL', 50),
 
         // Accepted product types from KicksDB API (comma-separated, case-insensitive)
         // KicksDB returns product_type like "sneakers", "Shoes", etc.
