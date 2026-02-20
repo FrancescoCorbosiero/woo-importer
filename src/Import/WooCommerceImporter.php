@@ -499,48 +499,14 @@ class WooCommerceImporter
     /**
      * Track image IDs from a successful WC batch response item
      *
-     * Captures sideloaded image IDs so they can be reused on subsequent imports
-     * instead of creating duplicates.
+     * No longer tracks sideloaded images since sideloading is disabled.
+     * Images are handled exclusively by the prepare-media pipeline.
+     * Kept for backward compatibility with stale image cleanup logic.
      */
     private function trackImagesFromResponse($item): void
     {
-        $sku = $item->sku ?? '';
-        if (empty($sku) || empty($item->images)) {
-            return;
-        }
-
-        // Skip if already tracked with a non-sideload source
-        if (isset($this->image_map[$sku]) && ($this->image_map[$sku]['source'] ?? '') !== 'wc_sideload') {
-            return;
-        }
-
-        $images = $item->images;
-        $primary = $images[0] ?? null;
-        if (!$primary || empty($primary->id)) {
-            return;
-        }
-
-        $entry = [
-            'media_id' => $primary->id,
-            'url' => $primary->src ?? '',
-            'uploaded_at' => date('Y-m-d H:i:s'),
-            'source' => 'wc_sideload',
-        ];
-
-        // Gallery IDs (images after the primary)
-        $gallery_ids = [];
-        for ($i = 1; $i < count($images); $i++) {
-            if (!empty($images[$i]->id)) {
-                $gallery_ids[] = $images[$i]->id;
-            }
-        }
-        if (!empty($gallery_ids)) {
-            $entry['gallery_ids'] = $gallery_ids;
-        }
-
-        $this->image_map[$sku] = $entry;
-        $this->image_map_dirty = true;
-        $this->stats['images_tracked']++;
+        // Sideloading is disabled — images are managed by prepare-media.
+        // Nothing to track from batch responses.
     }
 
     /**
@@ -670,26 +636,12 @@ class WooCommerceImporter
             $this->logger->info('Importing products...');
             $product_map = $this->batchProcessProducts($wc_products, $existing);
 
-            // Variations
+            // Variations (parallel processing)
             $this->logger->info('');
             $this->logger->info('Processing variations...');
+            $this->processVariationsParallel($product_map);
 
-            $total = count($product_map);
-            $current = 0;
-
-            foreach ($product_map as $sku => $data) {
-                $current++;
-
-                if (empty($data['id']) || empty($data['variations'])) {
-                    continue;
-                }
-
-                echo "\r  Processing: {$current}/{$total}          ";
-                $this->processVariations($data['id'], $data['variations']);
-            }
-            echo "\n";
-
-            // Save image map (tracked images + stale cleanup)
+            // Save image map (stale cleanup)
             $this->saveImageMap();
 
             $this->printSummary($start_time);
@@ -697,10 +649,308 @@ class WooCommerceImporter
 
         } catch (\Exception $e) {
             $this->logger->error('Fatal error: ' . $e->getMessage());
-            // Still save image map on failure to persist any cleanup
             $this->saveImageMap();
             return false;
         }
+    }
+
+    // =========================================================================
+    // Parallel Variation Processing (curl_multi)
+    // =========================================================================
+
+    /**
+     * Process variations for all products with controlled concurrency
+     *
+     * Uses curl_multi to fetch existing variations and send batch
+     * create/update requests for multiple products simultaneously,
+     * instead of the default sequential per-product approach.
+     *
+     * @param array $product_map SKU => [id, variations] from batchProcessProducts
+     */
+    private function processVariationsParallel(array $product_map): void
+    {
+        $concurrency = (int) ($this->config['import']['variation_concurrency'] ?? 5);
+
+        // Build list of products that need variation processing
+        $queue = [];
+        foreach ($product_map as $sku => $data) {
+            if (empty($data['id']) || empty($data['variations'])) {
+                continue;
+            }
+            $queue[] = ['sku' => $sku, 'id' => $data['id'], 'variations' => $data['variations']];
+        }
+
+        $total = count($queue);
+        if ($total === 0) {
+            $this->logger->info('  No variations to process');
+            return;
+        }
+
+        $this->logger->info("  {$total} products with variations (concurrency: {$concurrency})");
+
+        if ($this->dry_run) {
+            foreach ($queue as $item) {
+                $this->stats['variations_created'] += count($item['variations']);
+            }
+            $this->logger->info("  [DRY RUN] Would process " . array_sum(array_map(fn($q) => count($q['variations']), $queue)) . " variations");
+            return;
+        }
+
+        // Process in concurrent groups
+        $chunks = array_chunk($queue, $concurrency);
+        $processed = 0;
+
+        foreach ($chunks as $chunk) {
+            // Step 1: Fetch existing variations for all products in this group concurrently
+            $existing_map = $this->fetchExistingVariationsConcurrent($chunk);
+
+            // Step 2: Build and send variation batch requests concurrently
+            $batch_requests = [];
+            foreach ($chunk as $product) {
+                $product_id = $product['id'];
+                $existing = $existing_map[$product_id] ?? [];
+
+                $to_create = [];
+                $to_update = [];
+
+                foreach ($product['variations'] as $var) {
+                    $var_sku = $var['sku'] ?? null;
+                    if (!$var_sku) {
+                        continue;
+                    }
+
+                    if (isset($existing[$var_sku])) {
+                        $var['id'] = $existing[$var_sku]['id'];
+                        $to_update[] = $var;
+                    } else {
+                        $to_create[] = $var;
+                    }
+                }
+
+                if (!empty($to_create)) {
+                    $batch_requests[] = [
+                        'product_id' => $product_id,
+                        'operation' => 'create',
+                        'items' => $to_create,
+                    ];
+                }
+                if (!empty($to_update)) {
+                    $batch_requests[] = [
+                        'product_id' => $product_id,
+                        'operation' => 'update',
+                        'items' => $to_update,
+                    ];
+                }
+            }
+
+            // Execute all variation batches for this group concurrently
+            $this->executeVariationBatchesConcurrent($batch_requests);
+
+            $processed += count($chunk);
+            echo "\r  Variations: {$processed}/{$total} products          ";
+        }
+        echo "\n";
+    }
+
+    /**
+     * Fetch existing variations for multiple products concurrently
+     *
+     * @param array $products Array of [id => product_id, ...]
+     * @return array product_id => [var_sku => [id => var_id], ...]
+     */
+    private function fetchExistingVariationsConcurrent(array $products): array
+    {
+        $results = [];
+        $handles = [];
+        $mh = curl_multi_init();
+
+        foreach ($products as $idx => $product) {
+            $product_id = $product['id'];
+            $results[$product_id] = [];
+
+            // Build paginated request (page 1, 100 per page — usually sufficient)
+            $url = $this->buildWcApiUrl("products/{$product_id}/variations", ['per_page' => 100, 'page' => 1]);
+            $ch = $this->createWcCurlHandle($url);
+            $handles[$idx] = ['ch' => $ch, 'product_id' => $product_id];
+            curl_multi_add_handle($mh, $ch);
+        }
+
+        // Execute all handles concurrently
+        $this->executeCurlMulti($mh);
+
+        // Process responses
+        foreach ($handles as $idx => $handle) {
+            $ch = $handle['ch'];
+            $product_id = $handle['product_id'];
+            $response = curl_multi_getcontent($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+            if ($http_code === 200 && $response) {
+                $variations = json_decode($response, false);
+                if (is_array($variations)) {
+                    foreach ($variations as $var) {
+                        if (!empty($var->sku)) {
+                            $results[$product_id][$var->sku] = ['id' => $var->id];
+                        }
+                    }
+                }
+            }
+
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+
+        curl_multi_close($mh);
+        return $results;
+    }
+
+    /**
+     * Execute variation batch requests concurrently
+     *
+     * @param array $batch_requests Array of [product_id, operation, items]
+     */
+    private function executeVariationBatchesConcurrent(array $batch_requests): void
+    {
+        if (empty($batch_requests)) {
+            return;
+        }
+
+        $handles = [];
+        $mh = curl_multi_init();
+
+        foreach ($batch_requests as $idx => $req) {
+            $product_id = $req['product_id'];
+            $operation = $req['operation'];
+
+            // WC batch API: chunk items to respect batch_size limit
+            $item_chunks = array_chunk($req['items'], $this->batch_size);
+            foreach ($item_chunks as $chunk_idx => $chunk) {
+                $url = $this->buildWcApiUrl("products/{$product_id}/variations/batch");
+                $body = json_encode([$operation => $chunk]);
+
+                $ch = $this->createWcCurlHandle($url, 'POST', $body);
+                $key = "{$idx}_{$chunk_idx}";
+                $handles[$key] = [
+                    'ch' => $ch,
+                    'product_id' => $product_id,
+                    'operation' => $operation,
+                    'count' => count($chunk),
+                ];
+                curl_multi_add_handle($mh, $ch);
+            }
+        }
+
+        // Execute all handles concurrently
+        $this->executeCurlMulti($mh);
+
+        // Process responses
+        foreach ($handles as $key => $handle) {
+            $ch = $handle['ch'];
+            $operation = $handle['operation'];
+            $product_id = $handle['product_id'];
+            $response = curl_multi_getcontent($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+            $this->stats['batch_requests']++;
+
+            if ($http_code === 200 && $response) {
+                $result = json_decode($response, false);
+                foreach ($result->$operation ?? [] as $item) {
+                    if (isset($item->error)) {
+                        $this->stats['errors']++;
+                        $var_sku = $item->sku ?? 'unknown';
+                        $this->logger->error("  Variation error [product:{$product_id} {$var_sku}]: " . ($item->error->message ?? 'Unknown'));
+                    } else {
+                        if ($operation === 'create') {
+                            $this->stats['variations_created']++;
+                        } else {
+                            $this->stats['variations_updated']++;
+                        }
+                    }
+                }
+            } else {
+                $this->stats['errors'] += $handle['count'];
+                $curl_error = curl_error($ch);
+                $this->logger->error("  Variation batch failed [product:{$product_id}]: HTTP {$http_code}" . ($curl_error ? " ({$curl_error})" : ''));
+            }
+
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+
+        curl_multi_close($mh);
+    }
+
+    /**
+     * Build a full WooCommerce REST API URL with authentication
+     *
+     * Uses query string authentication (consumer_key/consumer_secret)
+     * which is supported over HTTPS.
+     *
+     * @param string $endpoint API endpoint (e.g., "products/123/variations")
+     * @param array $params Additional query parameters
+     * @return string Full URL with auth
+     */
+    private function buildWcApiUrl(string $endpoint, array $params = []): string
+    {
+        $base = rtrim($this->config['woocommerce']['url'] ?? '', '/');
+        $base = rtrim($base, ':');
+        $version = $this->config['woocommerce']['version'] ?? 'wc/v3';
+
+        $params['consumer_key'] = $this->config['woocommerce']['consumer_key'];
+        $params['consumer_secret'] = $this->config['woocommerce']['consumer_secret'];
+
+        return "{$base}/wp-json/{$version}/{$endpoint}?" . http_build_query($params);
+    }
+
+    /**
+     * Create a cURL handle configured for WooCommerce API requests
+     *
+     * @param string $url Full URL (from buildWcApiUrl)
+     * @param string $method HTTP method (GET, POST)
+     * @param string|null $body JSON body for POST requests
+     * @return resource cURL handle
+     */
+    private function createWcCurlHandle(string $url, string $method = 'GET', ?string $body = null)
+    {
+        $ch = curl_init();
+        $headers = ['Accept: application/json'];
+
+        $opts = [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 120,
+        ];
+
+        if ($method === 'POST') {
+            $opts[CURLOPT_POST] = true;
+            if ($body !== null) {
+                $opts[CURLOPT_POSTFIELDS] = $body;
+                $headers[] = 'Content-Type: application/json';
+                $headers[] = 'Content-Length: ' . strlen($body);
+            }
+        }
+
+        $opts[CURLOPT_HTTPHEADER] = $headers;
+        curl_setopt_array($ch, $opts);
+
+        return $ch;
+    }
+
+    /**
+     * Execute curl_multi handle until all requests complete
+     *
+     * @param resource $mh curl_multi handle
+     */
+    private function executeCurlMulti($mh): void
+    {
+        $running = null;
+        do {
+            $status = curl_multi_exec($mh, $running);
+            if ($running > 0) {
+                curl_multi_select($mh, 1.0);
+            }
+        } while ($running > 0 && $status === CURLM_OK);
     }
 
     /**

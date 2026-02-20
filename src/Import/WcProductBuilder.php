@@ -182,6 +182,20 @@ class WcProductBuilder
             $wc_product['attributes'][] = $size_attr;
         }
 
+        // Release date attribute (visible, non-variation, for sorting/display)
+        if (!empty($release_date)) {
+            $formatted_date = $this->formatDate($release_date);
+            if ($formatted_date !== $release_date || !empty($formatted_date)) {
+                $wc_product['attributes'][] = [
+                    'name' => 'Data di Rilascio',
+                    'position' => count($wc_product['attributes']),
+                    'visible' => true,
+                    'variation' => false,
+                    'options' => [$formatted_date],
+                ];
+            }
+        }
+
         // Brand taxonomy
         if ($brand && ($this->config['brands']['enabled'] ?? true)) {
             $brand_id = $this->getBrandId($brand);
@@ -358,10 +372,13 @@ class WcProductBuilder
     // =========================================================================
 
     /**
-     * Build WC images array from primary + gallery URLs
+     * Build WC images array from pre-uploaded media IDs only
      *
      * Primary image is first. Gallery images follow.
-     * If image is already in media library (by SKU), use its ID.
+     * Only uses pre-uploaded media from image-map.json (via prepare-media).
+     * Never falls back to sideloading (src URLs) — that causes WooCommerce
+     * to download images during batch import, making it extremely slow and
+     * creating duplicate media entries.
      */
     private function buildWcImages(
         string $sku,
@@ -373,36 +390,19 @@ class WcProductBuilder
     ): array {
         $images = [];
 
-        // Check media library first for pre-uploaded image
+        // Primary image: only use pre-uploaded media ID
         $image_id = $this->image_map[$sku]['media_id'] ?? null;
 
         if ($image_id) {
-            // Primary from media library
             $images[] = ['id' => $image_id];
-        } elseif ($image_url) {
-            // Primary via sideload
-            $images[] = [
-                'src' => $image_url,
-                'name' => $sku,
-                'alt' => $this->parseTemplate(
-                    $this->config['templates']['image_alt'] ?? '{product_name} - {sku} - Acquista su {store_name}',
-                    $tpl
-                ),
-            ];
+        } else {
+            $this->log('debug', "  No pre-uploaded image for {$sku}, skipping (run prepare-media to upload)");
         }
 
-        // Gallery images: check map first, then sideload
+        // Gallery images: only use pre-uploaded IDs
         $gallery_ids = $this->image_map[$sku]['gallery_ids'] ?? [];
-        foreach ($gallery_urls as $idx => $url) {
-            if (isset($gallery_ids[$idx])) {
-                $images[] = ['id' => $gallery_ids[$idx]];
-            } else {
-                $images[] = [
-                    'src' => $url,
-                    'name' => $sku . '-' . ($idx + 1),
-                    'alt' => $name . ' - ' . $brand,
-                ];
-            }
+        foreach ($gallery_ids as $gal_id) {
+            $images[] = ['id' => $gal_id];
         }
 
         return $images;
