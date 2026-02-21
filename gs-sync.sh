@@ -57,7 +57,7 @@ done
 # Resolve DATA_DIR for file paths (must match what PHP sees via Config::dataDir())
 if [ -n "$ENV_ARG" ]; then
     ENV_PATH="${ENV_ARG#--env=}"
-    DATA_DIR=$(grep -s '^DATA_DIR=' "$ENV_PATH" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"'"'" || true)
+    DATA_DIR=$(grep -s '^DATA_DIR=' "$ENV_PATH" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"'"'" | tr -d ' \r' || true)
 fi
 DATA_DIR="${DATA_DIR:-data}"
 mkdir -p "$DATA_DIR" logs
