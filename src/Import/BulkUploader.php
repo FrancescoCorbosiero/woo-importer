@@ -983,7 +983,8 @@ class BulkUploader
         }
 
         $cmd = 'php ' . escapeshellarg(Config::projectRoot() . '/bin/import-wc') .
-               ' --feed=' . escapeshellarg($feed_file);
+               ' --feed=' . escapeshellarg($feed_file) .
+               Config::envArgFragment();
 
         $this->logger->info("Executing: {$cmd}");
         $this->logger->info('');

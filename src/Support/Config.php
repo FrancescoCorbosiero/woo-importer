@@ -119,6 +119,23 @@ class Config
     }
 
     /**
+     * Get the --env=... CLI argument fragment for forwarding to subprocesses
+     *
+     * Returns e.g. " --env='/path/to/client.env'" or empty string if not set.
+     *
+     * @return string Shell-safe argument fragment (with leading space) or ''
+     */
+    public static function envArgFragment(): string
+    {
+        foreach ($_SERVER['argv'] ?? [] as $arg) {
+            if (strpos($arg, '--env=') === 0) {
+                return ' --env=' . escapeshellarg(str_replace('--env=', '', $arg));
+            }
+        }
+        return '';
+    }
+
+    /**
      * Reset cached config (useful for testing)
      */
     public static function reset(): void
