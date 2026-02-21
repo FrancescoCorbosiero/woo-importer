@@ -179,24 +179,15 @@ class ProductNuker
             return;
         }
 
-        // Delete in batches
-        $batches = array_chunk($to_delete, $this->batch_size);
-        $batch_num = 0;
-        $total_batches = count($batches);
-
-        foreach ($batches as $batch) {
-            $batch_num++;
-            $this->logger->info("Batch {$batch_num}/{$total_batches}...");
-
-            foreach ($batch as $product) {
-                $this->deleteProduct($product);
-            }
-
-            // Small delay between batches
-            if ($batch_num < $total_batches) {
-                usleep(500000);
-            }
+        // Phase 2a: Delete media in parallel (before products, while references exist)
+        if (!$this->keep_media) {
+            $this->logger->info("Phase 2a: Deleting media in parallel...\n");
+            $this->deleteMediaBatch($to_delete);
         }
+
+        // Phase 2b: Delete products using WC batch API (100 at a time)
+        $this->logger->info("\nPhase 2b: Batch-deleting products...\n");
+        $this->deleteProductsBatch($to_delete);
 
         // Phase 3: Clean up image-map.json
         $this->logger->info("\nPhase 3: Cleaning up image-map.json...");
@@ -242,78 +233,132 @@ class ProductNuker
         return $all_products;
     }
 
-    private function deleteProduct($product): bool
+    /**
+     * Delete products using the WC batch API (up to 100 per request)
+     *
+     * Much faster than per-product DELETE calls.
+     * WC batch delete also removes all associated variations automatically.
+     */
+    private function deleteProductsBatch(array $products): void
     {
-        $name = $product->name ?? 'Unknown';
-        $sku = $product->sku ?? 'N/A';
-        $id = $product->id;
+        $ids = array_map(fn($p) => $p->id, $products);
+        $chunks = array_chunk($ids, $this->batch_size);
+        $total_batches = count($chunks);
 
-        try {
-            // Collect image IDs for media cleanup
-            $image_ids = [];
-            if (!$this->keep_media && !empty($product->images)) {
-                foreach ($product->images as $img) {
-                    if (!empty($img->id)) {
-                        $image_ids[] = $img->id;
-                    }
-                }
-            }
+        foreach ($chunks as $batch_num => $chunk) {
+            $this->logger->info("  Batch " . ($batch_num + 1) . "/{$total_batches}: " . count($chunk) . " products...");
 
             if ($this->dry_run) {
-                $media_note = !empty($image_ids) ? ' + ' . count($image_ids) . ' media' : '';
-                $this->logger->info("  [DRY RUN] Would delete: {$name} (SKU: {$sku}, ID: {$id}){$media_note}");
-                $this->products_deleted++;
-                $this->media_deleted += count($image_ids);
-                return true;
+                $this->products_deleted += count($chunk);
+                $this->logger->info("    [DRY RUN] Would delete " . count($chunk) . " products");
+                continue;
             }
 
-            // Delete media first (before product deletion removes references)
-            foreach ($image_ids as $media_id) {
-                if ($this->deleteMediaItem($media_id)) {
-                    $this->media_deleted++;
-                } else {
-                    $this->media_failed++;
-                    $this->logger->debug("  Media delete failed: ID {$media_id}");
+            try {
+                $result = $this->wc_client->post('products/batch', [
+                    'delete' => $chunk,
+                ]);
+
+                foreach ($result->delete ?? [] as $item) {
+                    if (isset($item->error)) {
+                        $this->products_failed++;
+                        $this->logger->error("    FAILED: ID {$item->id} - " . ($item->error->message ?? 'Unknown'));
+                    } else {
+                        $this->products_deleted++;
+                    }
                 }
+
+                $this->logger->info("    Deleted " . count($result->delete ?? []) . " products");
+
+            } catch (\Exception $e) {
+                $this->products_failed += count($chunk);
+                $this->logger->error("    Batch failed: " . $e->getMessage());
             }
-
-            // Delete the product (force=true permanently deletes, bypasses trash)
-            $this->wc_client->delete("products/{$id}", ['force' => true]);
-
-            $media_info = !empty($image_ids) ? " [" . count($image_ids) . " media]" : '';
-            $this->logger->info("  DELETED: {$name} (SKU: {$sku}, ID: {$id}){$media_info}");
-            $this->products_deleted++;
-            return true;
-
-        } catch (\Exception $e) {
-            $error = $e->getMessage();
-            $this->logger->error("  FAILED: {$name} (SKU: {$sku}, ID: {$id}) - {$error}");
-            $this->products_failed++;
-            return false;
         }
     }
 
     /**
-     * Delete a media item from WordPress via REST API
+     * Delete media items in parallel using curl_multi
+     *
+     * Collects all media IDs from the product list and deletes them
+     * concurrently (10 at a time) via the WordPress REST API.
      */
-    private function deleteMediaItem(int $media_id): bool
+    private function deleteMediaBatch(array $products): void
     {
-        $url = $this->wp_url . "/wp-json/wp/v2/media/{$media_id}?force=true";
+        // Collect all unique media IDs
+        $media_ids = [];
+        foreach ($products as $product) {
+            foreach ($product->images ?? [] as $img) {
+                if (!empty($img->id)) {
+                    $media_ids[$img->id] = true;
+                }
+            }
+        }
 
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CUSTOMREQUEST => 'DELETE',
-            CURLOPT_HTTPHEADER => ["Authorization: Basic {$this->wp_auth}"],
-            CURLOPT_TIMEOUT => 30,
-        ]);
+        $media_ids = array_keys($media_ids);
+        $total = count($media_ids);
 
-        curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        if ($total === 0) {
+            $this->logger->info("  No media to delete");
+            return;
+        }
 
-        return $http_code === 200;
+        if ($this->dry_run) {
+            $this->media_deleted = $total;
+            $this->logger->info("  [DRY RUN] Would delete {$total} media items");
+            return;
+        }
+
+        $this->logger->info("  Deleting {$total} media items (concurrency: 10)...");
+
+        // Process in groups of 10 concurrent requests
+        $chunks = array_chunk($media_ids, 10);
+        $processed = 0;
+
+        foreach ($chunks as $chunk) {
+            $handles = [];
+            $mh = curl_multi_init();
+
+            foreach ($chunk as $media_id) {
+                $url = $this->wp_url . "/wp-json/wp/v2/media/{$media_id}?force=true";
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $url,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_CUSTOMREQUEST => 'DELETE',
+                    CURLOPT_HTTPHEADER => ["Authorization: Basic {$this->wp_auth}"],
+                    CURLOPT_TIMEOUT => 30,
+                ]);
+                $handles[$media_id] = $ch;
+                curl_multi_add_handle($mh, $ch);
+            }
+
+            // Execute concurrently
+            $running = null;
+            do {
+                $status = curl_multi_exec($mh, $running);
+                if ($running > 0) {
+                    curl_multi_select($mh, 1.0);
+                }
+            } while ($running > 0 && $status === CURLM_OK);
+
+            // Process results
+            foreach ($handles as $media_id => $ch) {
+                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                if ($http_code === 200) {
+                    $this->media_deleted++;
+                } else {
+                    $this->media_failed++;
+                }
+                curl_multi_remove_handle($mh, $ch);
+                curl_close($ch);
+            }
+
+            curl_multi_close($mh);
+            $processed += count($chunk);
+            echo "\r  Media: {$processed}/{$total}          ";
+        }
+        echo "\n";
     }
 
     /**
