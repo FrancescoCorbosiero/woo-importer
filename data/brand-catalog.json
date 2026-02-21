@@ -2,6 +2,7 @@
   "brands": [
     {
       "name": "Nike",
+      "per_label": 30,
       "products": [
         "Nike Travis Scott",
         "Nike Nocta",
@@ -15,6 +16,7 @@
     },
     {
       "name": "Jordan",
+      "per_label": 25,
       "products": [
         "Jordan 1 Low",
         "Jordan 1 Mid",
@@ -31,6 +33,7 @@
     },
     {
       "name": "Adidas",
+      "per_label": 30,
       "products": [
         "Adidas Campus",
         "Adidas Gazelle",
@@ -40,6 +43,7 @@
     },
     {
       "name": "New Balance",
+      "per_label": 30,
       "products": [
         "New Balance 9060",
         "New Balance 1906R",
@@ -51,6 +55,7 @@
     },
     {
       "name": "Asics",
+      "per_label": 25,
       "products": [
         "Asics Gel-Kayano",
         "Asics Gel-NYC",
@@ -60,6 +65,7 @@
     },
     {
       "name": "Yeezy",
+      "per_label": 20,
       "products": [
         "Yeezy 350",
         "Yeezy 500",

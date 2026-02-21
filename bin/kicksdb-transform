@@ -137,6 +137,41 @@ try {
 
     $wc_products = $builder->buildAll($adapter->fetchProducts());
 
+    // Sort by release_date (newest first) for menu_order assignment
+    // This makes WooCommerce's "Default sorting" show newest releases first
+    usort($wc_products, function ($a, $b) {
+        $date_a = 0;
+        $date_b = 0;
+        foreach ($a['meta_data'] ?? [] as $m) {
+            if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                $date_a = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                break;
+            }
+        }
+        foreach ($b['meta_data'] ?? [] as $m) {
+            if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                $date_b = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                break;
+            }
+        }
+        return $date_b - $date_a; // Newest first
+    });
+
+    // Assign menu_order based on release recency (0 = most recent)
+    $release_ordered = 0;
+    foreach ($wc_products as $idx => &$wc_tmp) {
+        $wc_tmp['menu_order'] = $idx;
+        // Check if this product has a release_date
+        foreach ($wc_tmp['meta_data'] ?? [] as $m) {
+            if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                $release_ordered++;
+                break;
+            }
+        }
+    }
+    unset($wc_tmp);
+    $logger->info("Release ordering: {$release_ordered}/{" . count($wc_products) . "} products have release dates");
+
     // Enrich WC products with catalog category assignments
     // (brand category + subcategory from the catalog hierarchy)
     $catalog = $assortment['catalog'] ?? null;

@@ -60,11 +60,13 @@ How it works:
     "brands": [
       {
         "name": "Nike",
+        "per_label": 30,
         "products": ["Nike Travis Scott", "Nike Dunk", ...]
       }
     ]
   }
 
+  Each brand can specify "per_label" to override the global --per-label limit.
   Brands without "products" are searched using the brand name as query.
 
 Examples:
@@ -251,11 +253,13 @@ foreach ($catalog['brands'] as $brand_entry) {
         $subcategories = [$catalog_brand];
     }
 
-    $logger->info("  Brand: {$catalog_brand} (" . count($subcategories) . " subcategories)");
+    // Per-brand limit: use brand-level per_label if set, otherwise global
+    $brand_per_label = $brand_entry['per_label'] ?? $per_label;
+    $logger->info("  Brand: {$catalog_brand} (" . count($subcategories) . " subcategories, {$brand_per_label}/label)");
 
     foreach ($subcategories as $label) {
         $collected_for_label = 0;
-        $pages_needed = (int) ceil($per_label / $page_size);
+        $pages_needed = (int) ceil($brand_per_label / $page_size);
 
         for ($page = 1; $page <= $pages_needed + 2; $page++) { // +2 buffer for filtering
             $result = $client->browseProducts($label, $page_size, $market, $page);
@@ -272,7 +276,7 @@ foreach ($catalog['brands'] as $brand_entry) {
             }
 
             foreach ($items as $item) {
-                if ($collected_for_label >= $per_label) {
+                if ($collected_for_label >= $brand_per_label) {
                     break 2;
                 }
 
@@ -374,7 +378,15 @@ $logger->info('Step 3: Sorting by popularity and applying limit...');
 
 $products = array_values($all_products);
 usort($products, function ($a, $b) {
-    return ($a['rank'] ?? 999999) - ($b['rank'] ?? 999999);
+    // Primary: sort by rank ascending (lower = more popular)
+    $rank_diff = ($a['rank'] ?? 999999) - ($b['rank'] ?? 999999);
+    if ($rank_diff !== 0) {
+        return $rank_diff;
+    }
+    // Secondary: sort by release_date descending (newest first)
+    $date_a = strtotime($a['release_date'] ?? '1970-01-01') ?: 0;
+    $date_b = strtotime($b['release_date'] ?? '1970-01-01') ?: 0;
+    return $date_b - $date_a;
 });
 
 if ($opt_limit && count($products) > $opt_limit) {

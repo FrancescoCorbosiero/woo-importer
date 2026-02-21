@@ -98,6 +98,10 @@ return [
         // Behavior
         'batch_size' => (int) env('IMPORT_BATCH_SIZE', 100),
         'create_out_of_stock' => env('IMPORT_CREATE_OUT_OF_STOCK', true),
+
+        // Parallel variation processing: how many products' variations to process concurrently
+        // Higher = faster but more WC API load. Recommended: 3-8
+        'variation_concurrency' => (int) env('IMPORT_VARIATION_CONCURRENCY', 5),
     ],
 
     // ===========================================
