@@ -278,7 +278,8 @@ file_put_contents(
 );
 
 $import_cmd = escapeshellarg(__DIR__ . '/import-wc') .
-    ' --feed=' . escapeshellarg($temp_feed);
+    ' --feed=' . escapeshellarg($temp_feed) .
+    Config::envArgFragment();
 
 if ($opt_dry_run) {
     $import_cmd .= ' --dry-run';
