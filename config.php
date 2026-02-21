@@ -13,7 +13,7 @@
  * @package ResellPiacenza\WooImport
  */
 
-require __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 use Dotenv\Dotenv;
 
@@ -22,7 +22,8 @@ use Dotenv\Dotenv;
 //   2. ENV_FILE environment variable
 //   3. .env in project root (default)
 $env_file = null;
-foreach ($argv ?? [] as $arg) {
+$cli_args = $_SERVER['argv'] ?? $argv ?? [];
+foreach ($cli_args as $arg) {
     if (strpos($arg, '--env=') === 0) {
         $env_file = str_replace('--env=', '', $arg);
         break;
