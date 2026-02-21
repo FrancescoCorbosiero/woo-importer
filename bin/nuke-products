@@ -1,0 +1,85 @@
+#!/usr/bin/env php
+<?php
+/**
+ * CLI wrapper for Nuclear Product Deletion
+ *
+ * Deletes ALL WooCommerce products except those in the exclusion list.
+ * Also cleans up associated media and orphaned image-map entries.
+ *
+ * Usage:
+ *   bin/nuke-products                              # Dry run
+ *   bin/nuke-products --confirm                    # Actually delete
+ *   bin/nuke-products --confirm --keep=SKU1,SKU2   # Keep specific SKUs
+ *   bin/nuke-products --confirm --keep-file=f.txt  # Keep SKUs from file
+ *   bin/nuke-products --confirm --batch=50         # Delete in batches of 50
+ *   bin/nuke-products --confirm --keep-media       # Skip media deletion
+ *
+ * @package ResellPiacenza\Nuke
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Nuke\ProductNuker;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Nuclear Product Deletion
+Deletes ALL WooCommerce products except those in the exclusion list.
+Also cleans up associated media and orphaned image-map entries.
+
+Usage:
+  bin/nuke-products [options]
+
+Options:
+  --confirm              Actually delete products (without this, it's a dry run)
+  --keep=SKU1,SKU2       Comma-separated list of SKUs to keep
+  --keep-file=file.txt   File containing SKUs to keep (one per line)
+  --batch=N              Delete in batches of N products (default: 100, max: 100)
+  --keep-media           Skip media deletion (only delete products)
+  --help, -h             Show this help
+
+Examples:
+  bin/nuke-products                              # Dry run, see what would be deleted
+  bin/nuke-products --confirm                    # Delete everything
+  bin/nuke-products --confirm --keep=ABC-123     # Delete all except SKU ABC-123
+  bin/nuke-products --confirm --keep-file=keep.txt --batch=50
+
+HELP;
+    exit(0);
+}
+
+$options = getopt('', [
+    'confirm',
+    'keep:',
+    'keep-file:',
+    'batch:',
+    'keep-media',
+]);
+
+$config = Config::load();
+$nuker = new ProductNuker($config);
+
+$nuker->setDryRun(!isset($options['confirm']));
+
+if (isset($options['keep-media'])) {
+    $nuker->setKeepMedia(true);
+}
+
+if (isset($options['batch'])) {
+    $nuker->setBatchSize((int) $options['batch']);
+}
+
+if (isset($options['keep'])) {
+    $nuker->setExcludedSkus(explode(',', $options['keep']));
+}
+
+if (isset($options['keep-file'])) {
+    $nuker->loadExcludedSkusFromFile($options['keep-file']);
+}
+
+$nuker->run();

@@ -1,0 +1,2112 @@
+[
+    {
+        "title": "Get Products by Query",
+        "curl": "curl 'https://api.kicks.dev/v3/stockx/products/?display%5Btraits%5D=true&display%5Bvariants%5D=true&display%5Bidentifiers%5D=true&display%5Bprices%5D=true&query=air%20jordan%201&limit=1&market=IT' \\ --header 'Authorization:  KICKS-SECRET'",
+        "response": {
+            "$schema": "https://api.kicks.dev/schemas/RespListStockXProductBody.json",
+            "data": [
+                {
+                    "id": "1f27cf59-74c3-4ace-a94b-717b0c84465e",
+                    "title": "Jordan 1 Retro High OG Rare Air",
+                    "brand": "Jordan",
+                    "model": "Jordan 1 Retro High OG",
+                    "gender": "men",
+                    "description": "The Jordan 1 Retro High OG Rare Air pays homage to the original 1985 design with a contemporary twist, blending classic elements with modern updates. This iteration features a white leather base complemented by neutral grey collars and overlays, reminiscent of the OG \"Storm Blue\" colorway. Deep royal blue accents on the ankle flaps and outsole inject a vibrant touch, while the wear-away black Swooshes reveal a layer of red beneath, adding a dynamic and customizable aspect to the sneaker’s aesthetic.<br><br>Notable design details include alternating \"Air Jordan\" and \"Nike Air\" lettering on the Wings logos, offering a unique nod to the brand’s heritage. The muslin midsole enhances the vintage-inspired look, making this pair a must-have for collectors and new enthusiasts alike.<br><br>Released on April 5, 2025, the Jordan 1 Retro High OG Rare Air was available at a retail price of $180.",
+                    "image": "https://images.stockx.com/images/Air-Jordan-1-Retro-High-OG-Rare-Air-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1741385112",
+                    "sku": "DZ5485-100",
+                    "slug": "air-jordan-1-retro-high-og-rare-air",
+                    "product_type": "sneakers",
+                    "category": "Air Jordan",
+                    "secondary_category": "One",
+                    "categories": [
+                        "sneakers"
+                    ],
+                    "breadcrumbs": [
+                        {
+                            "value": "Sneakers",
+                            "alias": "sneakers",
+                            "level": 1
+                        },
+                        {
+                            "value": "Lifestyle",
+                            "alias": "lifestyle",
+                            "level": 2
+                        }
+                    ],
+                    "gallery": [
+                        "https://images.stockx.com/images/Air-Jordan-1-Retro-High-OG-Rare-Air-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1741385112"
+                    ],
+                    "gallery_360": [
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img01.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img02.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img03.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img04.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img05.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img06.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img07.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img08.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img09.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img10.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img11.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img12.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img13.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img14.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img15.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img16.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img17.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img18.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img19.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img20.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img21.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img22.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img23.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img24.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img25.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img26.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img27.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img28.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img29.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img30.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img31.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img32.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img33.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img34.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img35.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073",
+                        "https://images.stockx.com/360/Air-Jordan-1-Retro-High-OG-Rare-Air/Images/Air-Jordan-1-Retro-High-OG-Rare-Air/Lv2/img36.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1741361073"
+                    ],
+                    "updated_at": "2026-02-06T04:28:12Z",
+                    "created_at": "2026-02-06T04:28:12Z",
+                    "link": "https://stockx.pvxt.net/c/4722526/1023711/9060?u=https%3A%2F%2Fstockx.com%2Fair-jordan-1-retro-high-og-rare-air",
+                    "rank": 232,
+                    "weekly_orders": 78,
+                    "country_of_manufacture": "CN",
+                    "primary_title": "Jordan 1 Retro High OG",
+                    "secondary_title": "Rare Air",
+                    "min_price": 93,
+                    "max_price": 542,
+                    "avg_price": 141.2608695652174,
+                    "short_description": "",
+                    "upcoming": false,
+                    "traits": [
+                        {
+                            "trait": "Style",
+                            "value": "DZ5485-100"
+                        },
+                        {
+                            "trait": "Colorway",
+                            "value": "White/Black-Neutral Grey-Deep Royal Blue-Muslin"
+                        },
+                        {
+                            "trait": "Retail Price",
+                            "value": "180"
+                        },
+                        {
+                            "trait": "Release Date",
+                            "value": "2025-04-05"
+                        },
+                        {
+                            "trait": "Featured",
+                            "value": "false"
+                        },
+                        {
+                            "trait": "Requester",
+                            "value": "Matt M"
+                        },
+                        {
+                            "trait": "Uploaded By",
+                            "value": "MM"
+                        }
+                    ],
+                    "variants": [
+                        {
+                            "id": "b7b6be5b-7cf5-474c-b058-0b6faec11fba",
+                            "size": "3.5",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 3.5",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 3",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 22.5",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 225",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 35.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 150,
+                            "total_asks": 3,
+                            "position": 0,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859475254",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 297,
+                                    "asks": 1,
+                                    "beat_us_price": 52,
+                                    "sell_faster": 89,
+                                    "earn_more": 99,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 52,
+                                    "sell_faster": 89,
+                                    "earn_more": 99,
+                                    "type": "express_expedited"
+                                },
+                                {
+                                    "price": 150,
+                                    "asks": 2,
+                                    "beat_us_price": 52,
+                                    "sell_faster": 89,
+                                    "earn_more": 99,
+                                    "type": "standard"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 0,
+                            "sales_count_30_days": 0,
+                            "sales_count_60_days": 0
+                        },
+                        {
+                            "id": "d708d563-1a92-484c-86ad-56a7d9da68d6",
+                            "size": "4",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 4",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 3.5",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 23",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 230",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 36",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 5.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 114,
+                            "total_asks": 21,
+                            "position": 1,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859436637",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 114,
+                                    "asks": 13,
+                                    "beat_us_price": 33,
+                                    "sell_faster": 62,
+                                    "earn_more": 69,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 116,
+                                    "asks": 8,
+                                    "beat_us_price": 33,
+                                    "sell_faster": 62,
+                                    "earn_more": 69,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 33,
+                                    "sell_faster": 62,
+                                    "earn_more": 69,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 0,
+                            "sales_count_30_days": 0,
+                            "sales_count_60_days": 2
+                        },
+                        {
+                            "id": "db4d25cf-f9b5-4de6-9da6-77bab6a18960",
+                            "size": "4.5",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 4.5",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 4",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 23.5 (US M 4.5)",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 235 (US M 4.5)",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 36.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 6",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 98,
+                            "total_asks": 29,
+                            "position": 2,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859429356",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 99,
+                                    "asks": 11,
+                                    "beat_us_price": 24,
+                                    "sell_faster": 50,
+                                    "earn_more": 55,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 24,
+                                    "sell_faster": 50,
+                                    "earn_more": 55,
+                                    "type": "express_expedited"
+                                },
+                                {
+                                    "price": 98,
+                                    "asks": 18,
+                                    "beat_us_price": 24,
+                                    "sell_faster": 50,
+                                    "earn_more": 55,
+                                    "type": "standard"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 1,
+                            "sales_count_30_days": 1,
+                            "sales_count_60_days": 2
+                        },
+                        {
+                            "id": "e85628ef-cee7-430a-986d-eb34a9c3219f",
+                            "size": "5",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 5",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 4.5",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 23.5 (US M 5)",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 235 (US M 5)",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 37.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 6.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 119,
+                            "total_asks": 42,
+                            "position": 3,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859441471",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 119,
+                                    "asks": 26,
+                                    "beat_us_price": 35,
+                                    "sell_faster": 65,
+                                    "earn_more": 72,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 121,
+                                    "asks": 16,
+                                    "beat_us_price": 35,
+                                    "sell_faster": 65,
+                                    "earn_more": 72,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 35,
+                                    "sell_faster": 65,
+                                    "earn_more": 72,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 0,
+                            "sales_count_30_days": 0,
+                            "sales_count_60_days": 0
+                        },
+                        {
+                            "id": "95b5b6fd-7775-4255-90b8-814b595c11b5",
+                            "size": "5.5",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 5.5",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 5",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 24 (US M 5.5)",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 240 (US M 5.5)",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 38",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 7",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 113,
+                            "total_asks": 40,
+                            "position": 4,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859494910",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 113,
+                                    "asks": 24,
+                                    "beat_us_price": 33,
+                                    "sell_faster": 61,
+                                    "earn_more": 68,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 114,
+                                    "asks": 16,
+                                    "beat_us_price": 33,
+                                    "sell_faster": 61,
+                                    "earn_more": 68,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 33,
+                                    "sell_faster": 61,
+                                    "earn_more": 68,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 0,
+                            "sales_count_30_days": 2,
+                            "sales_count_60_days": 6
+                        },
+                        {
+                            "id": "38d5a49a-ccef-416c-8262-f6b9ef1378cf",
+                            "size": "6",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 6",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 5.5",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 24 (US M 6)",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 240 (US M 6)",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 38.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 7.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 98,
+                            "total_asks": 34,
+                            "position": 5,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859472109",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 98,
+                                    "asks": 21,
+                                    "beat_us_price": 24,
+                                    "sell_faster": 19,
+                                    "earn_more": 38,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 101,
+                                    "asks": 13,
+                                    "beat_us_price": 24,
+                                    "sell_faster": 19,
+                                    "earn_more": 38,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 24,
+                                    "sell_faster": 19,
+                                    "earn_more": 38,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 1,
+                            "sales_count_30_days": 4,
+                            "sales_count_60_days": 7
+                        },
+                        {
+                            "id": "772a2476-c359-4aee-856a-87a085b7d67d",
+                            "size": "6.5",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 6.5",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 6 (EU 39)",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 24.5",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 245",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 39",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 8",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 100,
+                            "total_asks": 56,
+                            "position": 6,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859476329",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 100,
+                                    "asks": 33,
+                                    "beat_us_price": 25,
+                                    "sell_faster": 51,
+                                    "earn_more": 64,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 101,
+                                    "asks": 23,
+                                    "beat_us_price": 25,
+                                    "sell_faster": 51,
+                                    "earn_more": 64,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 25,
+                                    "sell_faster": 51,
+                                    "earn_more": 64,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 2,
+                            "sales_count_30_days": 2,
+                            "sales_count_60_days": 6
+                        },
+                        {
+                            "id": "7abebd49-53b2-4e02-a557-9a0491e534cf",
+                            "size": "7",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 7",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 6 (EU 40)",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 25",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 250",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 40",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 8.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 108,
+                            "total_asks": 26,
+                            "position": 7,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859420049",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 29,
+                                    "sell_faster": 57,
+                                    "earn_more": 98,
+                                    "type": "express_expedited"
+                                },
+                                {
+                                    "price": 108,
+                                    "asks": 10,
+                                    "beat_us_price": 29,
+                                    "sell_faster": 57,
+                                    "earn_more": 98,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 108,
+                                    "asks": 16,
+                                    "beat_us_price": 29,
+                                    "sell_faster": 57,
+                                    "earn_more": 98,
+                                    "type": "standard"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 2,
+                            "sales_count_30_days": 9,
+                            "sales_count_60_days": 19
+                        },
+                        {
+                            "id": "82fb3b45-1f0c-4604-8b4e-603da41b642c",
+                            "size": "7.5",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 7.5",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 6.5",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 25.5",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 255",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 40.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 9",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 129,
+                            "total_asks": 22,
+                            "position": 8,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859463008",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 129,
+                                    "asks": 16,
+                                    "beat_us_price": 45,
+                                    "sell_faster": 39,
+                                    "earn_more": 66,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 129,
+                                    "asks": 6,
+                                    "beat_us_price": 45,
+                                    "sell_faster": 39,
+                                    "earn_more": 66,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 45,
+                                    "sell_faster": 39,
+                                    "earn_more": 66,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 1,
+                            "sales_count_30_days": 3,
+                            "sales_count_60_days": 10
+                        },
+                        {
+                            "id": "b9ca700b-fdd0-46b9-be4a-9927a1a9ee1d",
+                            "size": "8",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 8",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 7",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 26",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 260",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 41",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 9.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 119,
+                            "total_asks": 54,
+                            "position": 9,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859484133",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 119,
+                                    "asks": 35,
+                                    "beat_us_price": 35,
+                                    "sell_faster": 54,
+                                    "earn_more": 54,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 35,
+                                    "sell_faster": 54,
+                                    "earn_more": 54,
+                                    "type": "express_expedited"
+                                },
+                                {
+                                    "price": 119,
+                                    "asks": 19,
+                                    "beat_us_price": 35,
+                                    "sell_faster": 54,
+                                    "earn_more": 54,
+                                    "type": "express_standard"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 7,
+                            "sales_count_30_days": 17,
+                            "sales_count_60_days": 37
+                        },
+                        {
+                            "id": "6464739c-8772-4fbb-8474-36a8625fd401",
+                            "size": "8.5",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 8.5",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 7.5",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 26.5",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 265",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 42",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 10",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 103,
+                            "total_asks": 34,
+                            "position": 10,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859477890",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 123,
+                                    "asks": 6,
+                                    "beat_us_price": 34,
+                                    "sell_faster": 63,
+                                    "earn_more": 73,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 103,
+                                    "asks": 28,
+                                    "beat_us_price": 34,
+                                    "sell_faster": 63,
+                                    "earn_more": 73,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 34,
+                                    "sell_faster": 63,
+                                    "earn_more": 73,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 5,
+                            "sales_count_30_days": 18,
+                            "sales_count_60_days": 46
+                        },
+                        {
+                            "id": "96df4b1a-6d0b-47b9-8eb6-02916167e33b",
+                            "size": "9",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 9",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 8",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 27",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 270",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 42.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 10.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 114,
+                            "total_asks": 97,
+                            "position": 11,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859499816",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 114,
+                                    "asks": 69,
+                                    "beat_us_price": 33,
+                                    "sell_faster": 62,
+                                    "earn_more": 106,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 118,
+                                    "asks": 28,
+                                    "beat_us_price": 33,
+                                    "sell_faster": 62,
+                                    "earn_more": 106,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 33,
+                                    "sell_faster": 62,
+                                    "earn_more": 106,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 14,
+                            "sales_count_30_days": 27,
+                            "sales_count_60_days": 57
+                        },
+                        {
+                            "id": "58618822-5b1a-4e27-af27-e3454cffbc14",
+                            "size": "9.5",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 9.5",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 8.5",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 27.5",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 275",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 43",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 11",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 107,
+                            "total_asks": 72,
+                            "position": 12,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859490219",
+                                    "identifier_type": "UPC"
+                                },
+                                {
+                                    "identifier": "0197859490219",
+                                    "identifier_type": "EAN-13"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 108,
+                                    "asks": 19,
+                                    "beat_us_price": 29,
+                                    "sell_faster": 56,
+                                    "earn_more": 66,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 29,
+                                    "sell_faster": 56,
+                                    "earn_more": 66,
+                                    "type": "express_expedited"
+                                },
+                                {
+                                    "price": 107,
+                                    "asks": 53,
+                                    "beat_us_price": 29,
+                                    "sell_faster": 56,
+                                    "earn_more": 66,
+                                    "type": "standard"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 15,
+                            "sales_count_30_days": 34,
+                            "sales_count_60_days": 65
+                        },
+                        {
+                            "id": "cbf65a19-98ab-4620-9923-507ee82e393a",
+                            "size": "10",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 10",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 9",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 28",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 280",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 44",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 11.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 119,
+                            "total_asks": 20,
+                            "position": 13,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859443147",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 119,
+                                    "asks": 7,
+                                    "beat_us_price": 39,
+                                    "sell_faster": 54,
+                                    "earn_more": 69,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 119,
+                                    "asks": 13,
+                                    "beat_us_price": 39,
+                                    "sell_faster": 54,
+                                    "earn_more": 69,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 39,
+                                    "sell_faster": 54,
+                                    "earn_more": 69,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 18,
+                            "sales_count_30_days": 36,
+                            "sales_count_60_days": 84
+                        },
+                        {
+                            "id": "960bff7c-e2b9-4a63-9e87-54d420817c7d",
+                            "size": "10.5",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 10.5",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 9.5",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 28.5",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 285",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 44.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 12",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 98,
+                            "total_asks": 42,
+                            "position": 14,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859520350",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 120,
+                                    "asks": 7,
+                                    "beat_us_price": 35,
+                                    "sell_faster": 77,
+                                    "earn_more": 77,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 35,
+                                    "sell_faster": 77,
+                                    "earn_more": 77,
+                                    "type": "express_expedited"
+                                },
+                                {
+                                    "price": 98,
+                                    "asks": 35,
+                                    "beat_us_price": 35,
+                                    "sell_faster": 77,
+                                    "earn_more": 77,
+                                    "type": "standard"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 13,
+                            "sales_count_30_days": 28,
+                            "sales_count_60_days": 69
+                        },
+                        {
+                            "id": "88f16260-e16e-44a1-b3d1-9db0b1619b2a",
+                            "size": "11",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 11",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 10",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 29",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 290",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 45",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 12.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 93,
+                            "total_asks": 32,
+                            "position": 15,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859416974",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 93,
+                                    "asks": 29,
+                                    "beat_us_price": 37,
+                                    "sell_faster": 78,
+                                    "earn_more": 78,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 123,
+                                    "asks": 3,
+                                    "beat_us_price": 37,
+                                    "sell_faster": 78,
+                                    "earn_more": 78,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 37,
+                                    "sell_faster": 78,
+                                    "earn_more": 78,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 14,
+                            "sales_count_30_days": 29,
+                            "sales_count_60_days": 70
+                        },
+                        {
+                            "id": "0dac3b77-728c-409e-a634-553b5e00081e",
+                            "size": "11.5",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 11.5",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 10.5",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 29.5",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 295",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 45.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 13",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 135,
+                            "total_asks": 15,
+                            "position": 16,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859484362",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 135,
+                                    "asks": 12,
+                                    "beat_us_price": 44,
+                                    "sell_faster": 38,
+                                    "earn_more": 58,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 137,
+                                    "asks": 3,
+                                    "beat_us_price": 44,
+                                    "sell_faster": 38,
+                                    "earn_more": 58,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 44,
+                                    "sell_faster": 38,
+                                    "earn_more": 58,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 6,
+                            "sales_count_30_days": 16,
+                            "sales_count_60_days": 28
+                        },
+                        {
+                            "id": "893c04c0-6f74-4a07-a498-adefd697b8d5",
+                            "size": "12",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 12",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 11",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 30",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 300",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 46",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 13.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 128,
+                            "total_asks": 32,
+                            "position": 17,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859419241",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 136,
+                                    "asks": 9,
+                                    "beat_us_price": 40,
+                                    "sell_faster": 83,
+                                    "earn_more": 83,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 40,
+                                    "sell_faster": 83,
+                                    "earn_more": 83,
+                                    "type": "express_expedited"
+                                },
+                                {
+                                    "price": 128,
+                                    "asks": 23,
+                                    "beat_us_price": 40,
+                                    "sell_faster": 83,
+                                    "earn_more": 83,
+                                    "type": "standard"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 5,
+                            "sales_count_30_days": 14,
+                            "sales_count_60_days": 40
+                        },
+                        {
+                            "id": "35a3a787-c007-4308-bc98-8ebb132b40da",
+                            "size": "12.5",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 12.5",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 11.5",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 30.5",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 305",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 47",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 14",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 129,
+                            "total_asks": 2,
+                            "position": 18,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859419456",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 129,
+                                    "asks": 2,
+                                    "beat_us_price": 61,
+                                    "sell_faster": 101,
+                                    "earn_more": 142,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 61,
+                                    "sell_faster": 101,
+                                    "earn_more": 142,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 61,
+                                    "sell_faster": 101,
+                                    "earn_more": 142,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 3,
+                            "sales_count_30_days": 4,
+                            "sales_count_60_days": 7
+                        },
+                        {
+                            "id": "ad3e67d8-e3f0-4e7a-89ba-2ad56ff69bfc",
+                            "size": "13",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 13",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 12",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 31",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 310",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 47.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 14.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 182,
+                            "total_asks": 14,
+                            "position": 19,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859421909",
+                                    "identifier_type": "UPC"
+                                },
+                                {
+                                    "identifier": "2024205031308",
+                                    "identifier_type": "EAN-13"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 182,
+                                    "asks": 12,
+                                    "beat_us_price": 60,
+                                    "sell_faster": 85,
+                                    "earn_more": 85,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 196,
+                                    "asks": 2,
+                                    "beat_us_price": 60,
+                                    "sell_faster": 85,
+                                    "earn_more": 85,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 60,
+                                    "sell_faster": 85,
+                                    "earn_more": 85,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 4,
+                            "sales_count_30_days": 13,
+                            "sales_count_60_days": 34
+                        },
+                        {
+                            "id": "37fbc010-16de-4a54-9bec-0eeee4c7c480",
+                            "size": "14",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 14",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 13",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 32",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 320",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 48.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 15.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 192,
+                            "total_asks": 5,
+                            "position": 20,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859459735",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 64,
+                                    "sell_faster": 106,
+                                    "earn_more": 111,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 192,
+                                    "asks": 5,
+                                    "beat_us_price": 64,
+                                    "sell_faster": 106,
+                                    "earn_more": 111,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 64,
+                                    "sell_faster": 106,
+                                    "earn_more": 111,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 3,
+                            "sales_count_30_days": 6,
+                            "sales_count_60_days": 10
+                        },
+                        {
+                            "id": "20a3492e-de10-49cd-af50-0e905534bde0",
+                            "size": "15",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 15",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 14",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 33",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 330",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 49.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 16.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 159,
+                            "total_asks": 9,
+                            "position": 21,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859448487",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 394,
+                                    "asks": 1,
+                                    "beat_us_price": 56,
+                                    "sell_faster": 95,
+                                    "earn_more": 97,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 56,
+                                    "sell_faster": 95,
+                                    "earn_more": 97,
+                                    "type": "express_expedited"
+                                },
+                                {
+                                    "price": 159,
+                                    "asks": 8,
+                                    "beat_us_price": 56,
+                                    "sell_faster": 95,
+                                    "earn_more": 97,
+                                    "type": "standard"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 1,
+                            "sales_count_30_days": 3,
+                            "sales_count_60_days": 5
+                        },
+                        {
+                            "id": "38d7064a-29a3-4241-8543-c6882a6b48ac",
+                            "size": "16",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 16",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 15",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 34",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 340",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 50.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 17.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 542,
+                            "total_asks": 2,
+                            "position": 22,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859428151",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 542,
+                                    "asks": 2,
+                                    "beat_us_price": 226,
+                                    "sell_faster": 338,
+                                    "earn_more": 372,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 226,
+                                    "sell_faster": 338,
+                                    "earn_more": 372,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 226,
+                                    "sell_faster": 338,
+                                    "earn_more": 372,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 0,
+                            "sales_count_30_days": 0,
+                            "sales_count_60_days": 0
+                        },
+                        {
+                            "id": "6a68d15e-f7fb-4346-853f-a2d80258abc3",
+                            "size": "17",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 17",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 16",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 35",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 350",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 51.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 18.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 0,
+                            "total_asks": 0,
+                            "position": 23,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859454938",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 0,
+                                    "sell_faster": 0,
+                                    "earn_more": 0,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 0,
+                                    "sell_faster": 0,
+                                    "earn_more": 0,
+                                    "type": "express_standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 0,
+                                    "sell_faster": 0,
+                                    "earn_more": 0,
+                                    "type": "express_expedited"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 0,
+                            "sales_count_30_days": 0,
+                            "sales_count_60_days": 0
+                        },
+                        {
+                            "id": "13c1280f-a951-4edc-a4de-4e4edeed19e8",
+                            "size": "18",
+                            "size_type": "us m",
+                            "sizes": [
+                                {
+                                    "size": "US M 18",
+                                    "type": "us m"
+                                },
+                                {
+                                    "size": "UK 17",
+                                    "type": "uk"
+                                },
+                                {
+                                    "size": "CM 36",
+                                    "type": "cm"
+                                },
+                                {
+                                    "size": "KR 360",
+                                    "type": "kr"
+                                },
+                                {
+                                    "size": "EU 52.5",
+                                    "type": "eu"
+                                },
+                                {
+                                    "size": "US W 19.5",
+                                    "type": "us w"
+                                }
+                            ],
+                            "lowest_ask": 0,
+                            "total_asks": 0,
+                            "position": 24,
+                            "hidden": false,
+                            "updated_at": "2026-02-06T04:28:12Z",
+                            "identifiers": [
+                                {
+                                    "identifier": "197859510191",
+                                    "identifier_type": "UPC"
+                                }
+                            ],
+                            "prices": [
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 0,
+                                    "sell_faster": 0,
+                                    "earn_more": 0,
+                                    "type": "standard"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 0,
+                                    "sell_faster": 0,
+                                    "earn_more": 0,
+                                    "type": "express_expedited"
+                                },
+                                {
+                                    "price": 0,
+                                    "asks": 0,
+                                    "beat_us_price": 0,
+                                    "sell_faster": 0,
+                                    "earn_more": 0,
+                                    "type": "express_standard"
+                                }
+                            ],
+                            "currency": "EUR",
+                            "market": "IT",
+                            "sales_count_15_days": 0,
+                            "sales_count_30_days": 0,
+                            "sales_count_60_days": 0
+                        }
+                    ]
+                }
+            ],
+            "meta": {
+                "current_page": 1,
+                "facets": null,
+                "per_page": 1,
+                "total": 1000
+            }
+        }
+    },
+    {
+        "title": "Get Products by ID",
+        "curl": "curl 'https://api.kicks.dev/v3/stockx/products/d073dbea-bc16-47b9-8006-851e6bd9faa7?display%5Btraits%5D=true&display%5Bvariants%5D=true&display%5Bidentifiers%5D=true&display%5Bprices%5D=true&display%5Bstatistics%5D=&limit=1&market=IT' \\ --header 'Authorization: KICKS-SECRET'",
+        "response": {
+            "$schema": "https://api.kicks.dev/schemas/RespStockXProductBody.json",
+            "data": {
+                "id": "d073dbea-bc16-47b9-8006-851e6bd9faa7",
+                "title": "Onitsuka Tiger Mexico 66 SD Metallic Series Crystal Pink Cream",
+                "brand": "Onitsuka Tiger",
+                "model": "Onitsuka Tiger Mexico 66 SD",
+                "gender": "men",
+                "description": "",
+                "image": "https://images.stockx.com/images/Onitsuka-Tiger-Mexico-66-SD-Metallic-Series-Crystal-Pink-Cream.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1737477233",
+                "sku": "1183C468-700",
+                "slug": "onitsuka-tiger-mexico-66-sd-metallic-series-crystal-pink-cream",
+                "product_type": "sneakers",
+                "category": "ASICS",
+                "secondary_category": "Onitsuka Tiger",
+                "categories": [
+                    "sneakers"
+                ],
+                "breadcrumbs": [
+                    {
+                        "value": "Sneakers",
+                        "alias": "sneakers",
+                        "level": 1
+                    },
+                    {
+                        "value": "Lifestyle",
+                        "alias": "lifestyle",
+                        "level": 2
+                    }
+                ],
+                "gallery": [
+                    "https://images.stockx.com/images/Onitsuka-Tiger-Mexico-66-SD-Metallic-Series-Crystal-Pink-Cream.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1737477233",
+                    "https://images.stockx.com/images/Onitsuka-Tiger-Mexico-66-SD-Metallic-Series-Crystal-Pink-Cream.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1737477233",
+                    "https://images.stockx.com/images/Onitsuka-Tiger-Mexico-66-SD-Metallic-Series-Crystal-Pink-Cream-2.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1737477233"
+                ],
+                "gallery_360": [],
+                "updated_at": "2026-02-06T07:05:36Z",
+                "created_at": "2026-02-06T07:05:36Z",
+                "link": "https://stockx.pvxt.net/c/4722526/1023711/9060?u=https%3A%2F%2Fstockx.com%2Fonitsuka-tiger-mexico-66-sd-metallic-series-crystal-pink-cream",
+                "rank": 13078,
+                "weekly_orders": 1,
+                "country_of_manufacture": "VN",
+                "primary_title": "Onitsuka Tiger Mexico 66 SD",
+                "secondary_title": "Metallic Series Crystal Pink Cream",
+                "min_price": 162,
+                "max_price": 460,
+                "avg_price": 191.88235294117646,
+                "short_description": "",
+                "upcoming": false
+            },
+            "meta": null
+        }
+    },
+    {
+        "title": "Get Products by Slug",
+        "curl": "curl 'https://api.kicks.dev/v3/stockx/products/nike-dunk-sb-low-fog?display%5Btraits%5D=true&display%5Bvariants%5D=true&display%5Bidentifiers%5D=true&display%5Bprices%5D=true&market=IT' \\ --header 'Authorization: KICKS-SECRET'",
+        "response": {
+            "$schema": "https://api.kicks.dev/schemas/RespStockXProductBody.json",
+            "data": {
+                "id": "2f15e74e-7d99-44a3-8ecb-04fe09bc4116",
+                "title": "Nike SB Dunk Low Fog",
+                "brand": "Nike",
+                "model": "Nike SB Dunk Low",
+                "gender": "men",
+                "description": "The Nike Dunk SB Low Fog is a skateboarding sneaker that slightly resembles the Nike Dunk SB High Fog released in 2005. Designed to provide individuals with the comfort they need while skateboarding, this sneaker features a black suede upper contrasted with a gray leather Nike Swoosh logo on its side and a grey Nike SB branding on its heel. It also features a mesh tongue, black laces, a dark midsole, a black rubber sole, and a gum rubber outsole.\n<br>\n<br>\nThe Nike Dunk SB Low Fog was released in 2021. Originally, it had a retail price of $100.",
+                "image": "https://images.stockx.com/images/Nike-Dunk-SB-Low-Fog-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1738193358",
+                "sku": "BQ6817-010",
+                "slug": "nike-dunk-sb-low-fog",
+                "product_type": "sneakers",
+                "category": "Nike SB",
+                "secondary_category": "SB Dunk Low",
+                "categories": [
+                    "sneakers"
+                ],
+                "breadcrumbs": [
+                    {
+                        "value": "Sneakers",
+                        "alias": "sneakers",
+                        "level": 1
+                    },
+                    {
+                        "value": "Performance",
+                        "alias": "performance",
+                        "level": 2
+                    }
+                ],
+                "gallery": [
+                    "https://images.stockx.com/images/Nike-Dunk-SB-Low-Fog-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1738193358"
+                ],
+                "gallery_360": [
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img01.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img02.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img03.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img04.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img05.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img06.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img07.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img08.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img09.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img10.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img11.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img12.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img13.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img14.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img15.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img16.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img17.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img18.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img19.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img20.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img21.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img22.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img23.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img24.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img25.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img26.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img27.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img28.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img29.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img30.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img31.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img32.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img33.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img34.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img35.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965",
+                    "https://images.stockx.com/360/Nike-Dunk-SB-Low-Fog/Images/Nike-Dunk-SB-Low-Fog/Lv2/img36.jpg?fm=webp&auto=compress&w=559&q=90&dpr=2&updated_at=1635539965"
+                ],
+                "updated_at": "2026-02-06T06:18:58Z",
+                "created_at": "2026-02-06T06:18:58Z",
+                "link": "https://stockx.pvxt.net/c/4722526/1023711/9060?u=https%3A%2F%2Fstockx.com%2Fnike-dunk-sb-low-fog",
+                "rank": 3398,
+                "weekly_orders": 6,
+                "country_of_manufacture": "VN",
+                "primary_title": "Nike SB Dunk Low",
+                "secondary_title": "Fog",
+                "min_price": 172,
+                "max_price": 375,
+                "avg_price": 237,
+                "short_description": "",
+                "upcoming": false
+            },
+            "meta": null
+        }
+    }
+]

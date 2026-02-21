@@ -1,0 +1,89 @@
+[
+  {
+    "sku": "TEST-AF1-001",
+    "name": "Nike Air Force 1 '07 Low White",
+    "brand": "Nike",
+    "category": "sneakers",
+    "image_url": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800",
+    "sizes": [
+      {"size": "38",   "price": 119.00, "stock": 2},
+      {"size": "38.5", "price": 119.00, "stock": 4},
+      {"size": "39",   "price": 119.00, "stock": 3},
+      {"size": "40",   "price": 119.00, "stock": 5},
+      {"size": "41",   "price": 125.00, "stock": 1},
+      {"size": "42",   "price": 125.00, "stock": 6},
+      {"size": "43",   "price": 130.00, "stock": 0},
+      {"size": "44",   "price": 130.00, "stock": 2}
+    ]
+  },
+  {
+    "sku": "TEST-DUNK-002",
+    "name": "Nike Dunk Low Retro Panda Black White",
+    "brand": "Nike",
+    "category": "sneakers",
+    "image_url": "https://images.unsplash.com/photo-1600269452121-4f2416e55c28?w=800",
+    "sizes": [
+      {"size": "36",   "price": 139.00, "stock": 1},
+      {"size": "37.5", "price": 139.00, "stock": 3},
+      {"size": "38",   "price": 139.00, "stock": 2},
+      {"size": "38.5", "price": 145.00, "stock": 4},
+      {"size": "39",   "price": 145.00, "stock": 0},
+      {"size": "40",   "price": 145.00, "stock": 5}
+    ]
+  },
+  {
+    "sku": "TEST-SAMBA-003",
+    "name": "Adidas Samba OG Cloud White Core Black",
+    "brand": "Adidas",
+    "category": "sneakers",
+    "image_url": "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=800",
+    "sizes": [
+      {"size": "40",   "price": 109.00, "stock": 6},
+      {"size": "41",   "price": 109.00, "stock": 4},
+      {"size": "42",   "price": 109.00, "stock": 2},
+      {"size": "42.5", "price": 109.00, "stock": 3},
+      {"size": "43",   "price": 115.00, "stock": 1},
+      {"size": "44",   "price": 115.00, "stock": 7}
+    ]
+  },
+  {
+    "sku": "TEST-NB550-004",
+    "name": "New Balance 550 White Green",
+    "brand": "New Balance",
+    "category": "sneakers",
+    "image_url": "https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=800",
+    "sizes": [
+      {"size": "40",   "price": 129.00, "stock": 3},
+      {"size": "41",   "price": 129.00, "stock": 2},
+      {"size": "42",   "price": 129.00, "stock": 5},
+      {"size": "43",   "price": 135.00, "stock": 1}
+    ]
+  },
+  {
+    "sku": "TEST-HOODIE-005",
+    "name": "Nike Sportswear Tech Fleece Windrunner Hoodie Black",
+    "brand": "Nike",
+    "category": "clothing",
+    "image_url": "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800",
+    "sizes": [
+      {"size": "S",  "price": 94.00, "stock": 3},
+      {"size": "M",  "price": 94.00, "stock": 5},
+      {"size": "L",  "price": 94.00, "stock": 4},
+      {"size": "XL", "price": 94.00, "stock": 2}
+    ]
+  },
+  {
+    "sku": "TEST-JOGGER-006",
+    "name": "Adidas Essentials 3-Stripes Jogger Pants Navy",
+    "brand": "Adidas",
+    "category": "clothing",
+    "image_url": "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=800",
+    "sizes": [
+      {"size": "S",   "price": 45.00, "stock": 8},
+      {"size": "M",   "price": 45.00, "stock": 12},
+      {"size": "L",   "price": 45.00, "stock": 6},
+      {"size": "XL",  "price": 49.00, "stock": 4},
+      {"size": "XXL", "price": 49.00, "stock": 2}
+    ]
+  }
+]

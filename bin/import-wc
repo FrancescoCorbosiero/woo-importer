@@ -1,0 +1,108 @@
+#!/usr/bin/env php
+<?php
+/**
+ * CLI wrapper for WooCommerce Direct Importer
+ *
+ * Accepts WooCommerce REST API formatted JSON and pushes directly to WooCommerce.
+ * NO transformation - expects data already in WC format.
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Import\WooCommerceImporter;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+WooCommerce Direct Importer
+Accepts WooCommerce REST API formatted JSON - NO transformation.
+
+Usage:
+  bin/import-wc --feed=FILE         # Import from JSON file
+  cat products.json | bin/import-wc # Import from stdin
+  bin/import-wc --dry-run --feed=x  # Preview mode
+
+Options:
+  --feed=FILE       JSON file with WC-formatted products
+  --dry-run         Preview without making changes
+  --limit=N         Limit to N products
+  --help, -h        Show this help
+
+Expected JSON format:
+  [
+    {
+      "name": "Product Name",
+      "sku": "SKU-123",
+      "type": "variable",
+      "categories": [{"id": 123}],
+      "attributes": [...],
+      "_variations": [
+        {
+          "sku": "SKU-123-36",
+          "regular_price": "99.00",
+          "stock_quantity": 5,
+          "stock_status": "instock",
+          "attributes": [{"id": 1, "option": "36"}]
+        }
+      ]
+    }
+  ]
+
+Note: _variations is the only non-standard key (nested for convenience).
+      All other fields map 1:1 to WooCommerce REST API.
+
+HELP;
+    exit(0);
+}
+
+// Parse options
+$options = [
+    'dry_run' => in_array('--dry-run', $argv),
+    'limit' => null,
+];
+
+$feed_file = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--limit=') === 0) {
+        $options['limit'] = (int) str_replace('--limit=', '', $arg);
+    }
+    if (strpos($arg, '--feed=') === 0) {
+        $feed_file = str_replace('--feed=', '', $arg);
+    }
+}
+
+// Load data from file or stdin
+$wc_products = null;
+
+if ($feed_file) {
+    if (!file_exists($feed_file)) {
+        fwrite(STDERR, "Error: File not found: {$feed_file}\n");
+        exit(1);
+    }
+    $wc_products = json_decode(file_get_contents($feed_file), true);
+} elseif (!posix_isatty(STDIN)) {
+    // Read from stdin
+    $input = stream_get_contents(STDIN);
+    $wc_products = json_decode($input, true);
+} else {
+    fwrite(STDERR, "Error: No input. Use --feed=FILE or pipe JSON to stdin.\n");
+    fwrite(STDERR, "Run with --help for usage.\n");
+    exit(1);
+}
+
+if ($wc_products === null || json_last_error() !== JSON_ERROR_NONE) {
+    fwrite(STDERR, "Error: Invalid JSON - " . json_last_error_msg() . "\n");
+    exit(1);
+}
+
+// Run importer
+$config = Config::load();
+$importer = new WooCommerceImporter($config, $options);
+exit($importer->import($wc_products) ? 0 : 1);

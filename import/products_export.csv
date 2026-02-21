@@ -1,0 +1,748 @@
+Handle,Title,Body (HTML),Vendor,Product Category,Type,Tags,Published,Option1 Name,Option1 Value,Option1 Linked To,Option2 Name,Option2 Value,Option2 Linked To,Option3 Name,Option3 Value,Option3 Linked To,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare At Price,Variant Requires Shipping,Variant Taxable,Unit Price Total Measure,Unit Price Total Measure Unit,Unit Price Base Measure,Unit Price Base Measure Unit,Variant Barcode,Image Src,Image Position,Image Alt Text,Gift Card,SEO Title,SEO Description,Attività (product.metafields.shopify.activity),Età (product.metafields.shopify.age-group),Stile dello stivale (product.metafields.shopify.boot-style),Istruzioni per la cura (product.metafields.shopify.care-instructions),Tipo di chiusura (product.metafields.shopify.closure-type),Color (product.metafields.shopify.color-pattern),Materiale per calzature (product.metafields.shopify.footwear-material),Tipo di altezza del tacco (product.metafields.shopify.heel-height-type),Stile dell’occasione (product.metafields.shopify.occasion-style),Funzionalità della scarpa (product.metafields.shopify.shoe-features),Vestibilità della scarpa (product.metafields.shopify.shoe-fit),Numero di scarpa (product.metafields.shopify.shoe-size),Stile pantofola (product.metafields.shopify.slipper-style),Stile scarpa da ginnastica (product.metafields.shopify.sneaker-style),Genere di destinazione (product.metafields.shopify.target-gender),Punta della scarpa (product.metafields.shopify.toe-style),Variant Image,Variant Weight Unit,Variant Tax Code,Cost per item,Status
+air-force-1-custom,Air Force 1 Custom - Richiesta Preventivo,"<p><strong>Richiedi il tuo preventivo personalizzato per Air Force 1 Custom</strong></p>
+<p>Ogni paio di Air Force viene personalizzato a mano nel nostro laboratorio secondo le tue specifiche.</p>
+<p><strong>Come funziona:</strong></p>
+<ol>
+<li>
+<strong>Richiedi preventivo gratuito:</strong> Seleziona la tua taglia e completa l'ordine (nessun pagamento richiesto)</li>
+<li>
+<strong>Descrivi la personalizzazione:</strong> Nelle note dell'ordine, indica il tipo di customizzazione che desideri o il modello che hai visto nelle foto</li>
+<li>
+<strong>Ricevi il preventivo:</strong> Ti contatteremo entro 24 ore con il preventivo dettagliato (da 150€ a 299€ in base alla complessità)</li>
+<li>
+<strong>Conferma e paga:</strong> Se accetti, riceverai un link per completare il pagamento</li>
+<li>
+<strong>Lavorazione:</strong> La tua sneaker verrà realizzata in 3-7 giorni lavorativi</li>
+</ol>
+<p><strong>Sfoglia la galleria</strong> per vedere esempi delle nostre personalizzazioni!</p>
+<p><strong>Fascia di prezzo:</strong> 150€ - 250€ in base al tipo di lavorazione</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,"","""ordina la tua custom"", ""sneakers"", Nike, sneakers uomo, “sneakers donna”",true,Taglie,35-5-36-36-5-37-37-5-38-38-5-39-40-40-5-41-42-42-5-43-44-44-5-45-45-5-46-46-5-47,product.metafields.shopify.activity,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/C5518160-3333-4525-8A25-BF2B90D27708.jpg?v=1769297148,1,"",false,Air Force Custom Personalizzate - Sneaker Su Misura,Crea le tue Nike Air Force 1 personalizzate. Lavorazione artigianale su ordinazione in 3-7 giorni. Personalizzazione unica per il tuo stile.,35-5-36-36-5-37-37-5-38-38-5-39-40-40-5-41-42-42-5-43-44-44-5-45-45-5-46-46-5-47,,,,,,,,,,,,,,,,,kg,,,active
+air-force-1-custom,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/26BF1E57-BE66-4E53-B9BB-3587666A09B3.jpg?v=1769297148,2,"",,,,,,,,,,,,,,,,,,,,,,,,
+air-force-1-custom,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/80114161-C428-4C5A-B49D-D11C2C9EE7EC.jpg?v=1769297148,3,"",,,,,,,,,,,,,,,,,,,,,,,,
+air-force-1-custom,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/402D42E2-DFAD-46E5-B82B-ED4C12523C02.jpg?v=1769297148,4,"",,,,,,,,,,,,,,,,,,,,,,,,
+air-force-1-custom,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/75C64CA3-F311-42BF-A0E8-2F1092526562.jpg?v=1769297148,5,"",,,,,,,,,,,,,,,,,,,,,,,,
+air-force-1-custom,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/19A709E8-15D7-444E-8F59-01682EC4843C.jpg?v=1769297148,6,"",,,,,,,,,,,,,,,,,,,,,,,,
+air-force-1-custom,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/89CE4DDC-BACD-433D-B6F9-97391B38C427.jpg?v=1769297148,7,"",,,,,,,,,,,,,,,,,,,,,,,,
+air-force-1-custom,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/7F0A51F5-F07E-457F-B42E-2E16557AD826.jpg?v=1769297148,8,"",,,,,,,,,,,,,,,,,,,,,,,,
+air-force-1-custom,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/7D552C13-03E5-43A8-AEE0-61D4B43E6A0C.jpg?v=1769297148,9,"",,,,,,,,,,,,,,,,,,,,,,,,
+air-force-1-custom,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/1E45CF61-36D1-43B9-B43D-4EF96F85C84B.jpg?v=1769297148,10,"",,,,,,,,,,,,,,,,,,,,,,,,
+air-force-1-custom,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/5A85C1FB-5893-4B87-AE3C-2B08EE89221E.jpg?v=1769297148,11,"",,,,,,,,,,,,,,,,,,,,,,,,
+air-force-1-custom,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/BECAE5A8-C350-442A-BF63-B78901AE81BF.jpg?v=1769255296,12,"",,,,,,,,,,,,,,,,,,,,,,,,
+labubu-pin-for-love-pop-mart,Labubu Pin For Love Pop Mart,"<p>Peluche Labubu della collezione Pop Mart.</p><p>Collezione disponibile dalla lettera A alla lettera M.</p><p>Prodotto originale Pop Mart di alta qualità, perfetto per collezionisti e appassionati.</p>",Shoes&clothing_reselling,"Toys & Games > Toys > Dolls, Playsets & Toy Figures > Action & Toy Figures > Action Figures","",collezionabili,true,Title,Default Title,,,,,,,,,0.0,shopify,deny,manual,35.00,,true,true,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/FullSizeRender_54079fd9-6eb3-457c-b5a5-05d9785a40a8.jpg?v=1769496963,1,"",false,Labubu Pop Mart - Peluche Collezione A-M,Peluche Labubu originale Pop Mart. Collezione dalla lettera A alla M. Prodotto di qualità per collezionisti.,,,,,,,,,,,,,,,,,,kg,,,active
+nike-hot-step-2-drake-nocta-white,Nike Hot Step 2 Drake NOCTA White,"<p>Nike Hot Step 2 Drake NOCTA White - Sneaker esclusiva della collezione NOCTA by Drake. Design premium con dettagli distintivi e qualità Nike.</p>
+<p><span>Perfette per ogni occasione, le </span><strong data-start=""1050"" data-end=""1076"">Hot Step 2 NOCTA White</strong><span> rappresentano un equilibrio tra </span><strong data-start=""1109"" data-end=""1138"">minimalismo e performance</strong><span>, diventando un must-have per sneakerhead e amanti dello streetwear contemporaneo.</span></p>
+<ul>
+<li data-start=""1226"" data-end=""1246""><strong data-start=""1226"" data-end=""1244"">100% Autentico</strong></li>
+<li data-start=""1249"" data-end=""1272"">
+<strong data-start=""1249"" data-end=""1264"">Condizioni:</strong><span> </span>Nuovo</li>
+<li data-start=""1275"" data-end=""1302"">
+<strong data-start=""1275"" data-end=""1291"">Vestibilità:</strong><span> </span>Regolare</li>
+<li data-start=""1305"" data-end=""1326"">
+<strong data-start=""1305"" data-end=""1313"">SKU:</strong><span> </span>DZ7293-100</li>
+<li data-start=""1329"" data-end=""1364"">
+<strong data-start=""1329"" data-end=""1350"">Data di uscita:</strong><span> </span>Maggio 2024</li>
+<li data-start=""1367"" data-end=""1415"">
+<strong data-start=""1367"" data-end=""1380"">Colorway:</strong><span> </span>White / Chrome / University Gold</li>
+<li data-start=""1418"" data-end=""1438"">
+<strong data-start=""1418"" data-end=""1429"">Colore:</strong><span> </span>Bianco</li>
+</ul>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Drake, Nike, NOCTA, sneakers uomo, “sneakers donna”",true,TAGLIA,36,,,,,,,,,0.0,shopify,deny,manual,432.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/NikeHotStep2DrakeNOCTAWhite.webp?v=1769369811,1,"",false,Nike Hot Step 2 Drake NOCTA White - Sneaker Esclusiva,Acquista le Nike Hot Step 2 Drake NOCTA White. Sneaker esclusiva della collezione NOCTA by Drake. Disponibili in tutte le taglie dal 36 al 47.,universale,adulti,,,allaccio,bianco,mesh; sintetico,piatto,casual,con-imbottitura; design-traspirante; leggero,regular,42; 36; 37-5; 38; 38-5; 39; 40; 40-5; 41; 42-5; 43; 44; 44-5; 45; 45-5; 46; 47,,atletico; in-basso,unisex,rotondo,,kg,,360.00,active
+nike-hot-step-2-drake-nocta-white,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,534.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/NikeHotStep2DrakeNOCTAWhite1.webp?v=1769369810,2,"",,,,,,,,,,,,,,,,,,,,,kg,,445.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,594.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/NikeHotStep2DrakeNOCTAWhite2.webp?v=1769369811,3,"",,,,,,,,,,,,,,,,,,,,,kg,,495.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,534.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/NikeHotStep2DrakeNOCTAWhite3.webp?v=1769369811,4,"",,,,,,,,,,,,,,,,,,,,,kg,,445.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,528.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/NikeHotStep2DrakeNOCTAWhite4.webp?v=1769369811,5,"",,,,,,,,,,,,,,,,,,,,,kg,,440.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,864.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/NikeHotStep2DrakeNOCTAWhite5.webp?v=1769369811,6,"",,,,,,,,,,,,,,,,,,,,,kg,,720.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,756.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/NikeHotStep2DrakeNOCTAWhite6.webp?v=1769369810,7,"",,,,,,,,,,,,,,,,,,,,,kg,,630.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,875.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,728.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,657.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,548.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,733.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,611.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,625.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,521.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,700.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,584.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,765.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,638.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,648.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,540.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,45.5,,,,,,,,,0.0,shopify,deny,manual,875.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,728.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,898.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,665.00,
+nike-hot-step-2-drake-nocta-white,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,805.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,656.00,
+nike-dunk-high-gs-electro-purple-midnight-navy,Nike Dunk High (GS) Electro Purple Midnight Navy,"<p><span>Sneaker high-top dallo stile deciso, pensata per chi ama distinguersi. La tomaia combina pannelli in pelle bianca con inserti in Electro Purple e Midnight Navy, creando un contrasto elegante e moderno. Comfort garantito dalla suola in gomma resistente e dalla calzata stabile, ideale per l’uso quotidiano e per completare outfit streetwear.</span></p>
+<p> </p>
+<p><span>Perfetta per giovani sneakerhead e collezionisti.</span></p>
+<p><span>Autentica. Iconica. Sempre attuale.</span></p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Nike, Sneakers&shoes Donna, “sneakers donna”",true,Numero di scarpa,36,product.metafields.shopify.shoe-size,,,,,,,,0.0,shopify,deny,manual,80.00,,true,true,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/FullSizeRender.jpg?v=1769459002,1,"",false,,,universale,bambini; adolescenti,,,allaccio,bianco; blu-navy,pelle; gomma,piatto,casual,con-imbottitura; leggero,,36; 38; 39,,in-cima,unisex,rotondo,,kg,,,active
+nike-dunk-high-gs-electro-purple-midnight-navy,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,80.00,,true,true,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/FullSizeRender_43089c90-bda0-4505-b8d8-680e761ba4c3.jpg?v=1769459026,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-dunk-high-gs-electro-purple-midnight-navy,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/FullSizeRender_12001ab7-5ba7-49e3-a419-c46db46f5e6a.jpg?v=1769459046,3,"",,,,,,,,,,,,,,,,,,,,,,,,
+nike-dunk-high-gs-electro-purple-midnight-navy,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.shopify.com/s/files/1/0970/8027/9414/files/FullSizeRender_4dbd33e6-e741-4d19-9ee1-f52b9ee45d75.jpg?v=1769459053,4,"",,,,,,,,,,,,,,,,,,,,,,,,
+jordan-4-tex-denim-word-blue,JORDAN 4 TEX DENIM WORD BLUE,"<p><span>Air Jordan 4 TEX Denim Worn Blue</span></p>
+<p> </p>
+<p><span>Le Air Jordan 4 TEX Denim Worn Blue segnano una nuova interpretazione della celebre silhouette Jordan, dove stile streetwear, ispirazione denim e cura artigianale si fondono in un design unico. Questa edizione, realizzata in taglie da donna, reimmagina l’iconica AJ4 con un’estetica contemporanea che unisce carattere casual ed eleganza urbana.</span></p>
+<p> </p>
+<p><span>La tomaia è costruita con diversi lavaggi di denim nelle tonalità Worn Blue, alternando sfumature chiare e scure per creare un effetto vissuto e autentico. Le cuciture a vista e le finiture leggermente sbiadite donano profondità al design, richiamando il fascino del jeans vintage. I pannelli laterali in rete, le ali di supporto e i lace dubrae dorati completano il look, bilanciando robustezza e dettagli raffinati.</span></p>
+<p> </p>
+<p><span>La suola in gomma Gum Light Brown aggiunge un tocco rétro e assicura trazione e resistenza, mentre l’intersuola color Sail con unità Air visibile garantisce comfort e ammortizzazione ideali per l’uso quotidiano. Le Air Jordan 4 Denim Worn Blue rappresentano un perfetto equilibrio tra heritage e modernità, diventando una scelta ideale per collezionisti e amanti della moda.</span></p>
+<p> </p>
+<p><span>Dettagli prodotto</span></p>
+<p> </p>
+<ul>
+<li><span>100% Autentico</span></li>
+<li><span>Condizioni: Nuovo</span></li>
+<li><span>Vestibilità: leggermente stretta (consigliata mezza taglia in più)</span></li>
+<li><span>SKU: IB6716-100</span></li>
+<li><span>Data di uscita: Agosto 2025</span></li>
+<li><span>Colorway: Sail / Gum Light Brown / Worn Blue / Sail / Metallic Gold</span></li>
+<li><span>Colore: Blu / Beige / Oro</span></li>
+</ul>
+<p> </p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Sneakers&shoes Donna, “sneakers donna”",true,taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,258.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/96F7A51D-D912-40DF-8E9D-9C6EBBCB2B96.jpg?v=1769490921,1,"",false,,,,,,,,,,,,,,,,,,,,kg,,,active
+jordan-4-tex-denim-word-blue,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/86EF2742-2453-4903-B2ED-13D414A044DD.png?v=1769492854,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,258.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/CA1D5387-0D32-4990-9492-9F0741460D45.png?v=1769492871,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/84A5F221-4804-49C9-83AD-B61801835BEE.png?v=1769492889,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,258.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/06734156-3F63-48EA-AD14-4FDA3A44E594.png?v=1769492905,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,268.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/E7940A97-DE75-4B2A-B079-C1FB2889BC62.png?v=1769492920,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,279.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/D316AEC5-FAF3-44E7-83ED-86F527B50DC9.png?v=1769492938,7,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,279.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/42F253CD-0F15-4958-A04E-A25E0CDD4D31.png?v=1769492957,8,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,268.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/EBAFA11A-7C30-4DE7-BA36-7B8B60BBDCAF.png?v=1769492972,9,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,258.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,215.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-tex-denim-word-blue,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,NIKE HOT STEP 2 DRAKE NOCTA ORANGE,"<p data-start=""182"" data-end=""586"">Le <strong data-start=""185"" data-end=""223"">Nike Hot Step 2 NOCTA Total Orange</strong>nascono dalla collaborazione tra <strong data-start=""257"" data-end=""265"">Nike</strong> e <strong data-start=""268"" data-end=""277"">Drake</strong>, una partnership che continua a ridefinire i confini tra streetwear e performance. Presentata durante il tour <em data-start=""388"" data-end=""407"">“It’s All a Blur”</em>, questa colorazione Total Orange cattura immediatamente l’attenzione per la sua energia e la sua personalità audace, diventando una delle varianti più vivaci della linea NOCTA.</p>
+<p data-start=""588"" data-end=""1063"">La tomaia combina <strong data-start=""606"" data-end=""645"">materiali in maglia e pelle premium</strong>, offrendo resistenza e comfort, mentre le <strong data-start=""688"" data-end=""706"">linee ondulate</strong> donano al design un aspetto dinamico e distintivo. L’<strong data-start=""760"" data-end=""794"">unità Air visibile nel tallone</strong>, ispirata all’eredità Air Max, garantisce ammortizzazione e stabilità, rendendo la sneaker perfetta per un utilizzo quotidiano. Gli <strong data-start=""927"" data-end=""950"">accenti riflettenti</strong> su tallone e lato completano il look con un tocco futuristico che amplifica l’impatto visivo della silhouette.</p>
+<p data-start=""1065"" data-end=""1247"">Le <strong data-start=""1068"" data-end=""1095"">Hot Step 2 Total Orange</strong> incarnano perfettamente lo stile di Drake e l’identità NOCTA: una sneaker moderna, accattivante e costruita per distinguersi in ogni contesto urbano.</p>
+<ul>
+<li data-start=""1251"" data-end=""1271""><strong data-start=""1251"" data-end=""1269"">100% Autentico</strong></li>
+<li data-start=""1274"" data-end=""1297"">
+<strong data-start=""1274"" data-end=""1289"">Condizioni:</strong> Nuovo</li>
+<li data-start=""1300"" data-end=""1327"">
+<strong data-start=""1300"" data-end=""1316"">Vestibilità:</strong> Regolare</li>
+<li data-start=""1330"" data-end=""1351"">
+<strong data-start=""1330"" data-end=""1338"">SKU:</strong> DZ7293-800</li>
+<li data-start=""1354"" data-end=""1389"">
+<strong data-start=""1354"" data-end=""1375"">Data di uscita:</strong> Aprile 2024</li>
+<li data-start=""1392"" data-end=""1447"">
+<strong data-start=""1392"" data-end=""1405"">Colorway:</strong> Total Orange / University Gold / Chrome</li>
+<li data-start=""1450"" data-end=""1473"">
+<strong data-start=""1450"" data-end=""1461"">Colore:</strong> Arancione</li>
+</ul>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Drake, Nike, NOCTA, sneakers uomo",true,taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,399.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/BA64F274-A044-4241-9B97-61DE2FD177E5.jpg?v=1769490949,1,"",false,,,,,,,,,,,,,,,,,,,,kg,,,active
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,658.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/1E479DE4-A8C3-439F-ACC1-E8424E3F0D42.jpg?v=1769490950,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,388.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/932345DF-AC53-4EC6-8F01-42EE8B753398.jpg?v=1769490949,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,485.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/E487AE96-52B6-411C-B80B-52EBEB0BF473.jpg?v=1769490949,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,571.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/C9DAFFF7-9E2F-49FD-A454-14F4CE350C8D.jpg?v=1769490949,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,484.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/F39A0A36-9167-4B2A-9B24-B65137C5431A.jpg?v=1769490949,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,538.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,603.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,560.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,507.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,690.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,615.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,528.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,592.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,820.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,45.5,,,,,,,,,0.0,shopify,deny,manual,722.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,585.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+nike-hot-step-2-drake-nocta-orange,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,646.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,JORDAN 4 RARE AIR,"<p><span>Air Jordan 4 Rare Air (2025)</span></p>
+<p> </p>
+<p><span>Le Air Jordan 4 Rare Air (2025) riportano sotto i riflettori una delle silhouette più iconiche di Jordan Brand, aggiornata con un’estetica contemporanea e dettagli esclusivi. Questa edizione speciale unisce heritage, innovazione e spirito da collezione, dando vita a una sneaker pensata per gli amanti dello streetwear e della sneaker culture più autentica.</span></p>
+<p> </p>
+<p><span>La tomaia in nubuck nero premium garantisce eleganza e durabilità, arricchita da pannelli in Dark Smoke Grey e accenti Fire Red e Deep Royal Blue che creano un contrasto forte ma equilibrato. La fodera interna blu elettrico e l’intersuola con finitura vintage-aged aggiungono un raffinato richiamo retrò alla storia delle Jordan.</span></p>
+<p> </p>
+<p><span>Elemento distintivo di questa release è il patch rimovibile sulla linguetta: sotto di esso, in una quantità estremamente limitata, solo il 2% delle paia presenta una scritta dorata esclusiva, rendendo ogni esemplare ancora più prezioso per i collezionisti.</span></p>
+<p> </p>
+<p><span>Il branding Nike Air sul tallone sottolinea il legame con i modelli storici, mentre la speciale box con il volto di Michael Jordan richiama le confezioni iconiche degli anni ’90 e 2000. Le Air Jordan 4 Rare Air non sono solo una sneaker, ma un vero pezzo da collezione che racchiude stile, storia e passione per il basket e la cultura urbana.</span></p>
+<p> </p>
+<p><span>Dettagli prodotto</span></p>
+<p> </p>
+<ul>
+<li><span>100% Autentico</span></li>
+<li><span>Condizioni: Nuovo</span></li>
+<li><span>Vestibilità: leggermente stretta (consigliata mezza taglia in più)</span></li>
+<li><span>SKU: FV5029-003</span></li>
+<li><span>Data di uscita: Luglio 2025</span></li>
+<li><span>Colorway: Black / Fire Red / Deep Royal Blue / Dark Smoke Grey / Tech Grey</span></li>
+<li><span>Colore: Nero / Blu / Rosso / Grigio</span></li>
+</ul>
+<p> </p>
+<p> </p>
+<p><span>Se vuoi, posso adattarla ancora di più allo stile del tuo brand o renderla più corta per la scheda Shopify.</span></p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", sneakers uomo",true,taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,185.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/C2B6F820-795A-402B-AD97-8CAA6681CE0A.png?v=1769492180,1,"",false,,,,,,,,,,,,,,,,,,,,kg,,,active
+jordan-4-rare-air,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,193.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/775F8AEF-7FF5-4739-B685-62EB9BF74DBF.png?v=1769492203,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,185.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/EDD313FE-31F6-42BA-8A3B-237FA4770997.png?v=1769492223,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,185.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/088A5AD2-12B8-4C8C-A001-ADB2DB0480D9.png?v=1769492241,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/C6B6BD41-28A1-43CE-8912-011B65A0D0D9.png?v=1769492257,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/F4538DD8-FEAA-433C-AE07-E535E941DA9F.png?v=1769492273,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,215.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,45.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-rare-air,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,JORDAN 4 METALLIC GOLD,"<p><span>Air Jordan 4 Metallic Gold</span></p>
+<p> </p>
+<p><span>Le Air Jordan 4 Metallic Gold uniscono l’iconico design Jordan a dettagli raffinati in oro metallizzato, per un look elegante e deciso. La tomaia in pelle premium garantisce comfort e resistenza, mentre l’unità Air visibile assicura un’ammortizzazione ottimale per l’uso quotidiano.</span></p>
+<p> </p>
+<p><span>Ideali per chi cerca una sneaker esclusiva, perfetta sia per outfit streetwear che più ricercati </span></p>
+<ul>
+<li data-start=""1426"" data-end=""1617""><strong data-start=""1554"" data-end=""1569"">100% Autentico</strong></li>
+<li data-start=""1426"" data-end=""1617"">
+<strong data-start=""1554"" data-end=""1569"">Condizioni:</strong> Nuovo con scatola</li>
+<li data-start=""1426"" data-end=""1617"">
+<strong data-start=""1590"" data-end=""1606"">Vestibilità:</strong> Leggermente stretta (selezionare mezza taglia in più)</li>
+<li data-start=""1426"" data-end=""1617"">
+<strong data-start=""1426"" data-end=""1434"">SKU:</strong> AQ9129-170</li>
+<li data-start=""1426"" data-end=""1617"">
+<strong data-start=""1448"" data-end=""1467"">Data di uscita:</strong> Marzo 2024</li>
+<li data-start=""1426"" data-end=""1617"">
+<strong data-start=""1481"" data-end=""1494"">Colorway:</strong> White / Metallic Gold – White</li>
+<li data-start=""1426"" data-end=""1617"">
+<strong data-start=""1527"" data-end=""1538"">Colore:</strong> Bianco / Oro</li>
+</ul>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Sneakers&shoes Donna, “sneakers donna”",true,taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,290.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/A992C2FC-0C76-48C6-9B22-53A28D7747D6.jpg?v=1769491785,1,"",false,,,basket; universale,adulti,,,allaccio,bianco,pelle,piatto,,con-imbottitura; leggero,regular,40,,,unisex,rotondo,,kg,,,active
+jordan-4-metallic-gold,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,344.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/7BD3E35D-1EAC-4C5B-9769-0ECDC9065C57.jpg?v=1769491785,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,344.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/539C1CAF-FBCF-412A-9559-8B6A0E7FC437.jpg?v=1769491785,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,315.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/074542ED-0DE9-43A7-82E0-EDDD966B6566.jpg?v=1769491784,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,322.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,335.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,410.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,355.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,300.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,315.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,305.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-metallic-gold,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,389.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,Jordan 1 High Denim 1,"<p data-start=""93"" data-end=""116""><strong data-start=""93"" data-end=""116"">Jordan 1 High Denim</strong></p>
+<p data-start=""118"" data-end=""372"">Le <strong data-start=""121"" data-end=""148"">Air Jordan 1 High Denim</strong> uniscono l’iconico design Jordan a dettagli in <strong data-start=""196"" data-end=""213"">denim premium</strong>, creando una sneaker unica e di forte impatto. La tomaia combina <strong data-start=""279"" data-end=""320"">pelle di alta qualità e tessuto denim</strong>, offrendo uno stile streetwear ricercato e moderno.</p>
+<p data-start=""374"" data-end=""629"">La classica silhouette High garantisce <strong data-start=""413"" data-end=""439"">supporto alla caviglia</strong>, mentre l’intersuola con <strong data-start=""465"" data-end=""478"">unità Air</strong> assicura comfort e ammortizzazione ideali per l’uso quotidiano. La suola in gomma offre <strong data-start=""567"" data-end=""599"">ottima trazione e resistenza</strong>, perfetta per ogni occasione.</p>
+<p data-start=""631"" data-end=""759"">Perfette per chi vuole distinguersi, le Jordan 1 High Denim sono un must-have per <strong data-start=""713"" data-end=""758"">collezionisti e amanti dello street style</strong>.</p>
+<p data-start=""761"" data-end=""774""><strong data-start=""761"" data-end=""774"">Dettagli:</strong></p>
+<ul data-start=""775"" data-end=""941"">
+<li data-start=""775"" data-end=""805"">
+<p data-start=""777"" data-end=""805"">Modello: Air Jordan 1 High</p>
+</li>
+<li data-start=""806"" data-end=""829"">
+<p data-start=""808"" data-end=""829"">Colore: Denim / Blu</p>
+</li>
+<li data-start=""830"" data-end=""866"">
+<p data-start=""832"" data-end=""866"">Materiali: Pelle premium e denim</p>
+</li>
+<li data-start=""867"" data-end=""886"">
+<p data-start=""869"" data-end=""886"">Chiusura: Lacci</p>
+</li>
+<li data-start=""887"" data-end=""915"">
+<p data-start=""889"" data-end=""915"">Suola: Gomma antiscivolo</p>
+</li>
+<li data-start=""916"" data-end=""941"">
+<p data-start=""918"" data-end=""941"">Vestibilità: Regolare</p>
+</li>
+</ul>
+<p data-start=""943"" data-end=""985"">🔥 <strong data-start=""946"" data-end=""985"">Sneaker iconica dal carattere unico</strong></p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Sneakers&shoes Donna, “sneakers donna”",true,taglia,35.5,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighDenim1_18f42ca5-e3c8-415d-a9b3-0a616a8d3d02.webp?v=1769551849,1,"",false,Jordan 1 High Denim 1 - Sneaker Premium,Acquista le Jordan 1 High Denim 1. Sneaker premium in denim di alta qualità. Disponibili in varie taglie.,universale,adulti; adolescenti,,,allaccio,blu,pelle; gomma,piatto,casual,con-imbottitura; resistente-allo-scivolamento; leggero,regular,42; 36,,moda; in-cima,unisex; femmina,rotondo,,kg,,,active
+jordan-1-high-denim-1,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,355.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighDenim_64773b84-40bb-428c-b827-0a1038864b05.webp?v=1769551849,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,409.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighDenim2_8cf7c887-6914-44f0-8364-2cec760818e9.webp?v=1769551850,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,388.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighDenim3_d5f7b93f-9320-4bb5-8dc1-e2a38170d58d.webp?v=1769551849,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,453.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,465.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,485.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,571.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,506.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,378.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,430.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-denim-1,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,Jordan 1 High Lost And Found,"<p data-start=""163"" data-end=""523"">Le <strong data-start=""166"" data-end=""202"">Air Jordan 1 High Lost and Found</strong> rivisitano la storica colorway <em data-start=""234"" data-end=""243"">Chicago</em> celebrando l’eredità delle prime Jordan attraverso un’estetica vintage ricca di dettagli narrativi. Questa release del <strong data-start=""363"" data-end=""371"">2022</strong> rende omaggio al modello originale del <strong data-start=""411"" data-end=""419"">1985</strong>, immaginando una sneaker ritrovata in un vecchio magazzino, segnata dal tempo ma carica di significato.</p>
+<p data-start=""525"" data-end=""1029"">La tomaia è realizzata in <strong data-start=""551"" data-end=""578"">pelle bianca screpolata</strong>, abbinata a sovrapposizioni in <strong data-start=""610"" data-end=""625"">Varsity Red</strong> e dettagli <strong data-start=""637"" data-end=""645"">neri</strong> su Swoosh e colletto, fedeli al design iconico originale. Il colletto con finitura invecchiata e l’<strong data-start=""745"" data-end=""772"">intersuola color avorio</strong> accentuano il look vissuto, mentre la <strong data-start=""811"" data-end=""835"">suola in gomma rossa</strong> mantiene intatto il DNA classico della Jordan 1. Il tutto è completato da un <strong data-start=""913"" data-end=""935"">packaging speciale</strong> con scatola dal design vintage e ricevuta retrò, per un’esperienza autenticamente nostalgica.</p>
+<p data-start=""1031"" data-end=""1285"">Le Jordan 1 High Lost and Found rappresentano un perfetto equilibrio tra <strong data-start=""1104"" data-end=""1126"">storia e modernità</strong>, diventando un pezzo imprescindibile per <strong data-start=""1168"" data-end=""1219"">collezionisti e appassionati di sneaker culture</strong>, grazie all’elevata cura dei dettagli e al loro valore simbolico.</p>
+<p data-start=""1287"" data-end=""1309""><strong data-start=""1287"" data-end=""1309"">Dettagli prodotto:</strong></p>
+<ul data-start=""1310"" data-end=""1528"">
+<li data-start=""1310"" data-end=""1328"">
+<p data-start=""1312"" data-end=""1328"">100% Autentico</p>
+</li>
+<li data-start=""1329"" data-end=""1362"">
+<p data-start=""1331"" data-end=""1362"">Condizioni: Nuovo con scatola</p>
+</li>
+<li data-start=""1363"" data-end=""1388"">
+<p data-start=""1365"" data-end=""1388"">Vestibilità: Regolare</p>
+</li>
+<li data-start=""1389"" data-end=""1408"">
+<p data-start=""1391"" data-end=""1408"">SKU: DZ5485-612</p>
+</li>
+<li data-start=""1409"" data-end=""1444"">
+<p data-start=""1411"" data-end=""1444"">Data di rilascio: Novembre 2022</p>
+</li>
+<li data-start=""1445"" data-end=""1494"">
+<p data-start=""1447"" data-end=""1494"">Colorway: Varsity Red / Black – Sail – Muslin</p>
+</li>
+<li data-start=""1495"" data-end=""1528"">
+<p data-start=""1497"" data-end=""1528"">Colore: Rosso / Nero / Bianco</p>
+</li>
+</ul>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", sneakers uomo",true,taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,290.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighLostAndFound.webp?v=1769553552,1,"",false,,,,,,,,,,,,,,,,,,,,kg,,,active
+jordan-1-high-lost-and-found,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,290.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighLostAndFound1.webp?v=1769553552,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,245.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighLostAndFound3.webp?v=1769553552,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,214.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighLostAndFound4.webp?v=1769553552,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,376.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,300.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,312.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,312.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,355.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,322.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,333.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,355.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,333.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,376.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,376.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,376.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,45.5,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,387.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,430.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,47.5,,,,,,,,,0.0,shopify,deny,manual,387.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-lost-and-found,,,,,,,,,48.5,,,,,,,,,0.0,shopify,deny,manual,376.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-cream-fossil,Asics Gel-NYC Cream Fossil,"<p> </p>
+<p><span>Le ASICS Gel-NYC Cream Fossil si distinguono per la loro estetica pulita e contemporanea, ideali per chi desidera una sneaker che unisca design raffinato, comfort tecnico e versatilità urbana.</span></p>
+<p><span>L’intersuola è dotata di tecnologia GEL™ visibile sul tallone e sull’avampiede, combinata con schiuma FF Blast™, per garantire un’ammortizzazione reattiva e un comfort costante. La suola in gomma, con battistrada a trazione multidirezionale, assicura stabilità e grip su ogni superficie.</span></p>
+<ul>
+<li><strong>100% Autentico</strong></li>
+<li>
+<strong>Condizioni</strong>: Nuovo</li>
+<li>
+<strong>Vestibilità</strong>: Regolare</li>
+<li>
+<strong>SKU</strong>: 1203A383-112</li>
+<li>
+<strong>Data di uscita</strong>: Giugno 2025</li>
+</ul>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Sneakers&shoes Donna, “sneakers donna”",true,TAGLIE,38,,,,,,,,,0.0,shopify,deny,manual,180.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCCreamFossil_ca6a3fc7-fc05-4c3b-aa51-7241575863dc.webp?v=1769639265,1,"",false,,,universale,adulti,,,allaccio,beige,mesh; gomma,piatto,casual,con-imbottitura; resistente-allo-scivolamento; design-traspirante,regular,42,,in-basso,unisex,rotondo,,kg,,,active
+asics-gel-nyc-cream-fossil,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,180.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCCreamFossil.webp6.webp?v=1769639265,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-cream-fossil,,,,,,,,,39.5,,,,,,,,,0.0,shopify,deny,manual,180.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCCreamFossil1_9c922259-2574-4513-9866-a3712aee0ec8.webp?v=1769639265,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-cream-fossil,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,180.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCCreamFossil1.webp6.webp?v=1769639265,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-cream-fossil,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,180.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCCreamFossil2_d254e696-7276-4c8b-b6f0-8f50ed868799.webp?v=1769639265,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-cream-fossil,,,,,,,,,41.5,,,,,,,,,0.0,shopify,deny,manual,180.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCCreamFossil.webp5.webp?v=1769639265,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-black-grey,Adidas XLG Runner Deluxe Black Grey,"<p><strong>Sneakers dal design rétro-running con estetica chunky, ammortizzazione avanzata e una palette elegante in nero e grigio per uno stile urbano e moderno.</strong></p>
+<p>La combinazione di nero e grigio dona profondità e versatilità al design, rendendo queste sneakers perfette per outfit streetwear, casual o sportivi. Inoltre, la scarpa è realizzata con almeno il 20% di materiali riciclati, in linea con l’impegno sostenibile di adidas.</p>
+<ul>
+<li><strong>100% Autentico</strong></li>
+<li>
+<strong>Condizioni</strong>: Nuovo</li>
+<li>
+<strong>Vestibilità</strong>: Regolare</li>
+<li>
+<strong>SKU</strong>: JR3086</li>
+<li>
+<strong>Data di uscita:</strong> 4 Ottobre 2024</li>
+<li>
+<strong>Colorway</strong>: Core Black / Grey Six / Carbon</li>
+<li>
+<strong>Colore</strong>: Nero / Grigio</li>
+</ul>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", sneakers uomo, “sneakers donna”",true,TAGLIE,36,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeBlackGrey1.webp?v=1769638851,1,"",false,,,corsa; universale,adulti; adolescenti,,,allaccio,nero,mesh; gomma; sintetico,piatto,casual,con-imbottitura; ecologico; materiali-riciclati,regular,41,,moda; in-basso,unisex,rotondo,,kg,,,active
+adidas-xlg-runner-deluxe-black-grey,,,,,,,,,36 2/3,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeBlackGrey2.webp?v=1769638851,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-black-grey,,,,,,,,,37 1/3,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeBlackGrey3.webp?v=1769638851,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-black-grey,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,229.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeBlackGrey4.webp?v=1769638851,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-black-grey,,,,,,,,,39 1/3,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeBlackGrey5.webp?v=1769638850,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-black-grey,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeBlackGrey6.webp?v=1769638850,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-black-grey,,,,,,,,,40 2/3,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-black-grey,,,,,,,,,41 1/3,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-black-grey,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-black-grey,,,,,,,,,42 2/3,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-black-grey,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-black-grey,,,,,,,,,44 2/3,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,PUMA LAMELO BALL LAFRANCÉ AMOUR MOMENT BEIGE CREAM,"<p><span>Le Puma LaMelo Ball LaFrancé Amour Moment rappresentano la perfetta fusione tra moda retrò e design contemporaneo, nate dalla collaborazione tra Puma e il brand LaFrancé, firmato dal campione NBA LaMelo Ball. Questa sneaker unisce estetica esagerata, materiali premium e dettagli esclusivi che riflettono lo stile audace e distintivo del giocatore.</span></p>
+<p><span>La tomaia in canvas resistente color Alpine Snow è impreziosita da sovrapposizioni in vernice lucida, che aggiungono brillantezza e un tocco moderno al design. L’imbottitura spessa intorno al collo e ai pannelli laterali crea una silhouette chunky ispirata alla moda dei primi anni 2000, mentre l’intersuola in EVA a tutta lunghezza offre un’ammortizzazione confortevole e una calzata stabile. La cupsole in gomma avvolgente assicura trazione e durabilità, mentre il branding “LaFrancé” inciso sulla suola e sull’intersuola celebra l’identità del giocatore.</span></p>
+<ul>
+<li><strong>100% Autentico</strong></li>
+<li><span><strong>Condizioni</strong>: Nuovo</span></li>
+<li><span><strong>Vestibilità</strong>: Regolare</span></li>
+<li><span><strong>SKU</strong>: <chrome_annotation role=""link"">310864-01</chrome_annotation></span></li>
+<li><span><strong>Data di uscita:</strong> Luglio 2024</span></li>
+<li><span><strong>Colorway</strong>: Alpine Snow</span></li>
+<li><span><strong>Colore</strong>: Beige</span></li>
+</ul>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,"","""sneakers"", sneakers uomo, Sneakers&shoes Donna, “sneakers donna”",true,taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/310864-01_Puma_LaMelo_Ball_LaFrance_Amour_Moment_Beige_Cream_2.webp?v=1769718076,1,"",false,,,,,,,,,,,,,,,,,,,,kg,,,active
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,258.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/310864-01_Puma_LaMelo_Ball_LaFrance_Amour_Moment_Beige_Cream_34.webp?v=1769718076,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,37,,,,,,,,,0.0,shopify,deny,manual,210.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/310864-01_Puma_LaMelo_Ball_LaFrance_Amour_Moment_Beige_Cream_46.webp?v=1769718076,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,195.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/PumaLaMeloBallLaFranceAmourMomentBeigeCream1.webp?v=1769718076,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,195.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/PumaLaMeloBallLaFranceAmourMomentBeigeCream2.webp?v=1769718076,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,465.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,495.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,258.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,290.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-moment-beige-cream,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,185.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,Adidas XLG Runner Deluxe Grey Metallic Silver,"<p><span>La tonalità </span><span>Grey Metallic Silver</span><span>aggiunge un tocco contemporaneo e versatile, ideale per outfit urban o sportivi. Inoltre, il modello è realizzato</span><span>con almeno il 20% di materiali riciclati</span><span>, confermando l’impegno di Adidas verso una produzione più sostenibile.</span></p>
+<ul>
+<li><strong>100% Autentico</strong></li>
+<li>
+<strong>Condizioni</strong>: Nuovo</li>
+<li>
+<strong>Vestibilità</strong>: Regolare</li>
+<li>
+<strong>SKU</strong>: JR9631</li>
+<li>
+<strong>Data di uscita</strong>: 15 Gennaio 2025</li>
+<li>
+<strong>Colorway</strong>: Grey / Metallic Silver / Cloud White</li>
+<li>
+<strong>Colore</strong>: Grigio / Argento</li>
+</ul>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Athletic Shoes,Sneakers,"""sneakers"", sneakers uomo, Sneakers&shoes Donna, “sneakers donna”",true,Taglie,36,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeGreyMetallicSilver.webp?v=1769720435,1,"",false,,,,,,,,,,,,,,,,,,,,kg,,,active
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,36 2/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeGreyMetallicSilver2.jpg?v=1769720435,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,37 1/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeGreyMetallicSilver2.webp?v=1769720433,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeGreyMetallicSilver3.webp?v=1769720434,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,38 2/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeGreyMetallicSilver6.webp?v=1769720434,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,39 1/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeGreyMetallicSilver7.webp?v=1769720434,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeGreyMetallicSilver9.webp?v=1769720434,7,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,40 2/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,41 1/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,42 2/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,43 1/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,44 2/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,45 1/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,46 2/3,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-grey-metallic-silver,,,,,,,,,47 1/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,Adidas XLG Runner Deluxe Gray,"<p><span>Ideali per chi cerca performance e stile in un’unica scarpa, queste XLG Runner Deluxe si inseriscono nel percorso di Adidas verso la sostenibilità, con almeno il 20% di materiali riciclati. Perfette per la città come per il tempo libero, incarnano la visione del brand: innovazione, comfort e responsabilità ambientale.</span></p>
+<ul>
+<li><strong>100% Autentico</strong></li>
+<li>
+<strong>Condizioni</strong>: Nuovo</li>
+<li>
+<strong>Vestibilità</strong>: Regolare</li>
+<li>
+<strong>SKU</strong>: JR9633</li>
+<li>
+<strong>Data di uscita</strong>: 6 Febbraio 2025</li>
+<li>
+<strong>Colorway</strong>: Grey / Silver Metallic / Black</li>
+<li>
+<strong>Colore</strong>: Grigio</li>
+</ul>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", sneakers uomo, Sneakers&shoes Donna, “sneakers donna”",true,Taglie,36,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AdidasXLGRunnerDeluxeGray.webp?v=1769720797,1,"",false,,,corsa; universale,adulti; adolescenti,,,allaccio,grigi,mesh; sintetico,piatto,casual,,regular,42,,moda; in-basso,unisex,rotondo,,kg,,,active
+adidas-xlg-runner-deluxe-gray,,,,,,,,,36 2/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JR9633_Adidas_XLG_Runner_Deluxe_Gray_1.webp?v=1769720797,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,37 1/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JR9633_Adidas_XLG_Runner_Deluxe_Gray_2.webp?v=1769720797,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JR9633_Adidas_XLG_Runner_Deluxe_Gray_3.webp?v=1769720797,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,38 2/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JR9633_Adidas_XLG_Runner_Deluxe_Gray_4.webp?v=1769720797,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,39 1/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JR9633_Adidas_XLG_Runner_Deluxe_Gray_7.webp?v=1769720798,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JR9633_Adidas_XLG_Runner_Deluxe_Gray_8.jpg?v=1769720797,7,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,40 2/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JR9633_Adidas_XLG_Runner_Deluxe_Gray_9.webp?v=1769720797,8,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,41 1/3,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,42 2/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,43 1/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,44 2/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,45 1/3,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,46 2/3,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-xlg-runner-deluxe-gray,,,,,,,,,47 1/3,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,Jordan 4 Yellow Thunder,"<p>Le Air Jordan 4 Retro Thunder (2023) segnano il ritorno di una delle colorway più amate della storica silhouette firmata Tinker Hatfield. Dopo il successo delle release del 2006 e del 2012, questa nuova edizione Primavera/Estate 2023 mantiene intatto tutto il carattere deciso che ha reso iconico il modello, aggiornandolo con materiali premium e dettagli ricercati.<br>Le Thunder 2023 sono considerate un vero grail per i collezionisti, e fonte d’ispirazione per le varianti Lightning e Red Thunder, confermando ancora una volta la forza di questa colorway storica nella sneaker culture. </p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: leggermente stretta (selezionare mezza taglia in più)<br>SKU: DH6927-017<br>Data di uscita: Maggio 2023<br>Colorway: Black / Tour Yellow<br>Colore: Giallo / Nero</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Nike, sneakers uomo, Sneakers&shoes Donna, “sneakers donna”",true,Taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,366.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/DH6927-017_Jordan_4_Yellow_Thunder.webp?v=1769866512,1,"",false,,,basket,adulti,,,allaccio,nero; geometrica,pelle; mesh,piatto,casual,con-imbottitura; design-traspirante,regular,40,,moda; in-cima,unisex,rotondo,,kg,,,active
+jordan-4-yellow-thunder,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,315.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/DH6927-017_Jordan_4_Yellow_Thunder_1.webp?v=1769866512,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/DH6927-017_Jordan_4_Yellow_Thunder_2.webp?v=1769866513,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/DH6927-017_Jordan_4_Yellow_Thunder_3.webp?v=1769866512,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,334.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,334.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,334.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,334.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,334.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,355.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,45.5,,,,,,,,,0.0,shopify,deny,manual,355.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,355.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,355.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-yellow-thunder,,,,,,,,,47.5,,,,,,,,,0.0,shopify,deny,manual,355.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,Jordan 4 Frozen Moments,"<p>Le Air Jordan 4 Frozen Moments sono una delle colorway più eleganti e ricercate del 2023, nate per celebrare i momenti iconici della carriera di Michael Jordan. Questa edizione unisce raffinatezza e potenza visiva, reinterpretando la silhouette classica con tonalità neutre e dettagli metallici che conferiscono alla sneaker un carattere sofisticato e contemporaneo.<br>Le Jordan 4 Frozen Moments rappresentano la perfetta fusione tra heritage sportivo e design premium, ideali per chi desidera una sneaker versatile, chic e curata nei minimi dettagli, capace di esprimere stile ed esclusività in ogni occasione.</p>
+<p>100% Autentico<br>Condizioni: Nuovo con scatola<br>Vestibilità: Leggermente stretta (selezionare mezza taglia in più)<br>SKU: AQ9129-001<br>Data di uscita: Agosto 2023<br>Colorway: Light Iron Ore / Sail – Metallic Silver – Black<br>Colore: Grigio / Argento / Crema / Nero</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Athletic Shoes,Sneakers,"""sneakers"", Sneakers&shoes Donna, “sneakers donna”",true,Taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,440.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AQ9129-001_Jordan_4_Frozen_Moments.webp?v=1769893254,1,"",false,,,,,,,,,,,,,,,,,,,,kg,,,active
+jordan-4-frozen-moments,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,388.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AQ9129-001_Jordan_4_Frozen_Moments_1.webp?v=1769893254,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,440.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AQ9129-001_Jordan_4_Frozen_Moments_2.webp?v=1769893255,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,485.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AQ9129-001_Jordan_4_Frozen_Moments_3.webp?v=1769893254,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,583.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,615.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,636.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,592.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,550.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,570.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,410.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,366.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,378.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,313.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-frozen-moments,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,335.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,Jordan 4 Red Cement,"<p>Le Air Jordan 4 Red Cement reinterpretano una delle silhouette più iconiche della linea Jordan, fondendo heritage classico e un tocco moderno di colore. Ispirata alla celebre Air Jordan 4 White Cement, questa versione sostituisce gli accenti grigi con un brillante rosso Fire Red, creando una sneaker dal look audace ma perfettamente bilanciato.<br>Le Jordan 4 Red Cement rappresentano la perfetta fusione tra tradizione e innovazione cromatica, ideali per chi desidera una sneaker dal carattere deciso ma versatile, capace di unire l’eleganza del bianco alla potenza visiva del rosso.</p>
+<p>SKU: DH6927-161<br>Data di uscita: Settembre 2023<br>Colorway: White / Fire Red – Black – Neutral Grey<br>Colore: Bianco / Rosso / Nero / Grigio<br>Condizioni: Nuovo con scatola<br>Vestibilità: Leggermente stretta (selezionare mezza taglia in più)</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", sneakers uomo",true,Taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,215.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/DH6927-161_Jordan_4_Red_Cement.webp?v=1769893302,1,"",false,,,basket,adulti,,,allaccio,bianco,mesh; sintetico; gomma,piatto,casual,con-imbottitura; leggero; design-traspirante,stretta; regular,35-5; 36; 36-5; 37-5; 38; 38-5; 39; 40; 40-5; 42; 42-5; 43; 44; 44-5; 45; 46; 47; 47-5; 48-5,,moda; in-basso; in-cima; atletico,maschio,rotondo,,kg,,,active
+jordan-4-red-cement,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/DH6927-161_Jordan_4_Red_Cement_1.webp?v=1769893301,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/DH6927-161_Jordan_4_Red_Cement_2.webp?v=1769893301,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/DH6927-161_Jordan_4_Red_Cement_3.webp?v=1769893302,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,258.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,47.5,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-red-cement,,,,,,,,,48.5,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,Jordan 4 Orchid,"<p>Le Air Jordan 4 Retro Orchid (2024) celebrano il 35º anniversario di una delle silhouette più amate di sempre, reinterpretandola in una colorazione pensata per il pubblico femminile. Eleganti e sofisticate, queste Jordan uniscono stile, comfort e materiali premium, incarnando perfettamente l’essenza del brand e l’equilibrio tra heritage e modernità.<br>Perfette per chi ama un look femminile ma deciso, le Jordan 4 Orchid sono ideali sia per abbinamenti sportivi che per outfit più casual e raffinati. Con la loro colorway distintiva e la qualità costruttiva premium, queste sneaker si impongono come una delle release più attese dell’autunno 2024, un must-have per sneakerhead e collezioniste.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare (prodotta in taglie da donna)<br>SKU: AQ9129-501<br>Data di uscita: Ottobre 2024<br>Colorway: Orchid / Neutral Grey / Black / White<br>Colore: Rosa</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Sneakers&shoes Donna, “sneakers donna”",true,Taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AQ9129-501_Jordan_4_Orchid.webp?v=1769893572,1,"",false,,,universale,adulti,,,allaccio,rosa,pelle; mesh; pelle-scamosciata; gomma,piatto,casual,con-imbottitura; design-traspirante,regular,36; 35-5; 36-5; 37-5; 38; 38-5; 39; 40; 40-5; 41; 42; 42-5; 43; 44; 44-5,,moda; in-basso,femmina,rotondo,,kg,,,active
+jordan-4-orchid,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AQ9129-501_Jordan_4_Orchid_1.webp?v=1769893572,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AQ9129-501_Jordan_4_Orchid_2.webp?v=1769893573,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AQ9129-501_Jordan_4_Orchid_3.webp?v=1769893572,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,420.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AQ9129-501_Jordan_4_Orchid_4.webp?v=1769893572,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,420.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,420.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-orchid,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,Jordan 4 Brick By Brick Nigel Sylvester,"<p>Le Air Jordan 4 Retro OG SP Nigel Sylvester “Brick by Brick” segnano un nuovo capitolo nella collaborazione tra Jordan Brand e il campione di BMX Nigel Sylvester, fondendo il linguaggio dello streetwear con l’anima sportiva e creativa del rider newyorkese. Dopo il successo delle sue colorway RM del 2024, questa nuova edizione della leggendaria AJ4 racconta una storia di crescita personale e perseveranza, ispirata alle radici di Nigel nel mondo del BMX.<br>Oltre al design, la struttura robusta assicura durabilità e comfort, ideale per chi vive la città in movimento. Le Brick by Brick non sono solo una sneaker, ma un simbolo di determinazione, successo e passione costruiti passo dopo passo.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Leggermente stretta (selezionare mezza taglia in più)<br>SKU: HF4340-800<br>Data di uscita: Marzo 2025<br>Colorway: Firewood Orange / Sail / Cinnabar<br>Colore: Arancione</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", sneakers uomo",true,Taglia,35.5,,,,,,,,,0.0,shopify,deny,manual,506.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HF4340-800_Jordan_4_Brick_By_Brick_Nigel_Sylvester.webp?v=1769893783,1,"",false,,,universale,adulti,,,allaccio,arancione; rosso,mesh; sintetico; gomma,piatto,casual,con-imbottitura; design-traspirante; leggero,regular; larga; stretta,40; 35-5; 36; 36-5; 37-5; 38; 38-5; 39; 40-5; 41; 42; 42-5; 43; 44; 44-5; 45; 45-5; 46; 47,,atletico; in-basso; moda; in-cima,unisex; maschio,rotondo,,kg,,,active
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,506.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HF4340-800_Jordan_4_Brick_By_Brick_Nigel_Sylvester_1.webp?v=1769893783,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,409.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HF4340-800_Jordan_4_Brick_By_Brick_Nigel_Sylvester_2.webp?v=1769893783,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,465.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HF4340-800_Jordan_4_Brick_By_Brick_Nigel_Sylvester_3.webp?v=1769893783,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,452.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HF4340-800_Jordan_4_Brick_By_Brick_Nigel_Sylvester_4.webp?v=1769893783,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,560.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HF4340-800_Jordan_4_Brick_By_Brick_Nigel_Sylvester_5.webp?v=1769893783,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,495.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,506.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,430.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,441.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,441.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,455.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,475.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,485.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,538.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,550.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,45.5,,,,,,,,,0.0,shopify,deny,manual,582.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,625.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-brick-by-brick-nigel-sylvester,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,669.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,Jordan 4 Forget Me Not,"<p>Le Air Jordan 4 Retro Aluminum “Forget Me Not” (2025) celebrano la Festa della Mamma con una colorway unica ispirata al fiore Non ti scordar di me, simbolo di amore, memoria e legame eterno. Questo modello esclusivo fonde eleganza, significato simbolico e design contemporaneo, rappresentando un tributo raffinato e sentimentale a tutte le donne.<br>L’intersuola bicolore bianca e azzurra con unità Air visibile nel tallone assicura ammortizzazione e comfort quotidiano, mentre la suola in gomma tono su tono garantisce stabilità e durata. Completano la release un packaging esclusivo a tema floreale, perfetto come idea regalo. Le Air Jordan 4 “Forget Me Not” sono destinate a diventare una delle uscite più ambite del 2025, combinando stile, emozione e collezionabilità.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Leggermente stretta (selezionare mezza taglia in più)<br>SKU: HV0823-100<br>Data di uscita: Maggio 2025<br>Colorway: White / Aluminum / University Blue<br>Colore: Bianco / Azzurro</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Sneakers&shoes Donna, “sneakers donna”",true,Taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HV0823-100_Jordan4ForgetMeNot_7.webp?v=1769894054,1,"",false,,,basket; universale,adulti,,,allaccio,bianco; floreale,mesh; gomma; sintetico,piatto,casual,con-imbottitura; design-traspirante; resistente-allo-scivolamento,regular; stretta,36; 35-5; 36-5; 37-5; 38; 38-5; 39; 40; 40-5; 41; 42; 42-5; 43; 44; 44-5,,moda; in-basso,femmina,rotondo,,kg,,,active
+jordan-4-forget-me-not,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,259.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HV0823-100_Jordan4ForgetMeNot.webp?v=1769894053,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,259.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HV0823-100_Jordan4ForgetMeNot_1.webp?v=1769894053,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HV0823-100_Jordan4ForgetMeNot_2.webp?v=1769894054,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HV0823-100_Jordan4ForgetMeNot_3.webp?v=1769894054,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HV0823-100_Jordan4ForgetMeNot_4.webp?v=1769894054,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,312.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HV0823-100_Jordan4ForgetMeNot_5.webp?v=1769894053,7,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,389.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/HV0823-100_Jordan4ForgetMeNot_6.webp?v=1769894054,8,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,290.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-forget-me-not,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,Jordan 4 Black Cat,"<p>Air Jordan 4 Black Cat (2025): il ritorno della leggendaria silhouette total black di Jordan Brand, sinonimo di potenza, eleganza e stile senza tempo.</p>
+<p>Jordan Brand riporta in scena una delle Air Jordan 4 più iconiche di sempre: le “Black Cat”, un modello che incarna lo spirito felino e l’agilità di Michael Jordan, da cui prende il nome. Introdotte per la prima volta nel 2006, tornano nel 2025 in una versione fedele all’originale, con materiali migliorati e un look completamente total black.</p>
+<p>La tomaia è realizzata in morbida pelle scamosciata nera, arricchita da inserti in rete tono su tono e dettagli che esaltano le linee pulite della silhouette. La midsole nera e la suola coordinata completano l’estetica minimal e sofisticata, perfetta per chi ama uno stile deciso e versatile. Sul tallone, il logo Nike Air in rilievo omaggia le origini storiche della sneaker, rafforzando il legame con l’heritage Jordan.<br>Le Air Jordan 4 Black Cat (2025) rappresentano l’essenza del design Jordan: pulito, potente e intramontabile. Una sneaker che non ha bisogno di colori per imporsi, perché la sua forza risiede nella semplicità e nella perfezione delle proporzioni.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare<br>SKU: FV5029-010<br>Data di uscita: Novembre 2025<br>Colorway: Black / Black / Light Graphite<br>Colore: Nero<br></p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", sneakers uomo",true,Taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,389.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan4BlackCat.webp?v=1769894621,1,"",false,,,basket,adulti,,,allaccio,nero,pelle; mesh,piatto,casual,con-imbottitura; design-traspirante; leggero,regular,43; 35-5; 36; 36-5; 37-5; 38; 38-5; 39; 40; 40-5; 41; 42; 42-5; 44; 44-5; 45; 45-5; 46; 47,,atletico; in-basso; moda; in-cima,maschio,rotondo,,kg,,,active
+jordan-4-black-cat,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,290.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan4BlackCat1.webp?v=1769894621,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,335.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan4BlackCat2.jpg?v=1769894621,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,300.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan4BlackCat3.webp?v=1769894620,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan4BlackCat4.jpg?v=1769894621,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,248.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan4BlackCat5.jpg?v=1769894621,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,312.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan4BlackCat6.webp?v=1769894620,7,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,312.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,45.5,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-4-black-cat,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,Adidas Samba Preloved Red Leopard,"<p>Le adidas Samba OG Pre-Loved Red Leopard portano una ventata di energia selvaggia nel mondo delle sneaker, fondendo heritage sportivo e fashion contemporaneo. In questa versione, il classico modello Samba viene reinterpretato con un’audace estetica animalier, perfetta per chi vuole distinguersi con stile e personalità.<br>Versatili e di forte impatto visivo, le Samba OG Pre-Loved Red Leopard sono pensate per chi cerca una sneaker iconica dal twist fashion. Un modello che combina tradizione, design audace e versatilità, diventando il punto focale di qualsiasi outfit.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare (prodotta in taglie da donna)<br>SKU: JI2734<br>Data di uscita: Gennaio 2025<br>Colorway: Core Black / Preloved Red / Cream White<br>Colore: Leopardate / Bianco / Marrone / Rosso</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Sneakers&shoes Donna, “sneakers donna”",true,Taglie,35 1/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JI2734_Adidas_Samba_Preloved_Red_Leopard.webp?v=1769895582,1,"",false,,,universale,adulti,,,allaccio,animale,pelle; gomma,piatto,casual,con-imbottitura; leggero,regular,36,,moda; in-basso,femmina,rotondo,,kg,,,active
+adidas-samba-preloved-red-leopard,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JI2734_Adidas_Samba_Preloved_Red_Leopard_1.webp?v=1769895582,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,36 2/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JI2734_Adidas_Samba_Preloved_Red_Leopard_2.webp?v=1769895582,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,37 1/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JI2734_Adidas_Samba_Preloved_Red_Leopard_3.webp?v=1769895582,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/JI2734_Adidas_Samba_Preloved_Red_Leopard_4.webp?v=1769895582,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,38 2/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,39 1/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,40 2/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,41 1/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,42 2/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,43 1/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,44 2/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,45 1/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+adidas-samba-preloved-red-leopard,,,,,,,,,46 2/3,,,,,,,,,0.0,shopify,deny,manual,120.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,New Balance 9060 Mushroom Timberwolf Brown,"<p>Le New Balance 9060 Mushroom Timberwolf fondono heritage running e design futuristico, offrendo una sneaker dallo stile sofisticato e naturale. Questa versione unisce tonalità calde e neutre, perfette per la stagione autunnale, mantenendo il comfort e la qualità che definiscono la linea 9060.<br>Le 9060 Mushroom Timberwolf incarnano alla perfezione l’essenza New Balance: una combinazione equilibrata di funzionalità, comfort e stile, pensata per chi ama distinguersi con discrezione e autenticità.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare<br>SKU: U9060PB<br>Data di uscita: Settembre 2023<br>Colorway: Mushroom / Timberwolf / Cream<br>Colore: Marrone / Beige</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", sneakers uomo, Sneakers&shoes Donna, “sneakers donna”",true,Taglie,36,,,,,,,,,0.0,shopify,deny,manual,299.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060PB_New_Balance_9060_Mushroom_Timberwolf_Brown.webp?v=1769896825,1,"",false,,,corsa; universale,adulti,,,allaccio,marrone,mesh; sintetico; gomma; pelle-scamosciata,piatto,casual,con-imbottitura; design-traspirante,regular,41; 36; 37; 37-5; 38; 38-5; 39-5; 40; 40-5; 41-5; 42; 42-5; 43; 44; 44-5; 45; 46-5,,moda; in-basso,unisex,rotondo,,kg,,,active
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,37,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060PB_New_Balance_9060_Mushroom_Timberwolf_Brown_1.webp?v=1769896825,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,258.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060PB_New_Balance_9060_Mushroom_Timberwolf_Brown_2.webp?v=1769896825,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,290.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060PB_New_Balance_9060_Mushroom_Timberwolf_Brown_3.webp?v=1769896826,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,290.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,39.5,,,,,,,,,0.0,shopify,deny,manual,290.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,388.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,41.5,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,248.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,215.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,410.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-mushroom-timberwolf-brown,,,,,,,,,46.5,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,New Balance 9060 ASOS Exclusive Pink Overdye Rosa,"<p>La New Balance 9060 ASOS Exclusive Pink Overdye è una versione esclusiva del modello 9060, pensata per chi desidera un look audace, moderno e raffinato. Questa edizione limitata si distingue per la sua tonalità di rosa intenso, che avvolge l’intera silhouette, offrendo una rivisitazione vivace e contemporanea di una delle sneaker più amate di New Balance.<br>Le 9060 ASOS Exclusive Pink Overdye uniscono innovazione e design rétro, offrendo una sneaker che non passa inosservata e che rappresenta al meglio la fusione tra tecnologia e stile lifestyle.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare<br>SKU: U9060APP<br>Data di uscita: Luglio 2024<br>Colorway: Pink<br>Colore: Rosa</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Sneakers&shoes Donna, “sneakers donna”",true,Taglie,36,,,,,,,,,0.0,shopify,deny,manual,366.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060APP_New_Balance_9060_ASOS_Exclusive_Pink_Overdye_Rosa.webp?v=1769897525,1,"",false,,,universale,adulti,,,allaccio,rosa,mesh; sintetico,piatto,casual,con-imbottitura; design-traspirante,regular,37; 36; 37-5; 38; 38-5; 39-5; 40; 40-5; 41-5; 42; 42-5; 43; 44; 45; 46-5,,moda; in-basso,femmina,rotondo,,kg,,,active
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,37,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060APP_New_Balance_9060_ASOS_Exclusive_Pink_Overdye_Rosa_1.webp?v=1769897525,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060APP_New_Balance_9060_ASOS_Exclusive_Pink_Overdye_Rosa_2.webp?v=1769897525,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060APP_New_Balance_9060_ASOS_Exclusive_Pink_Overdye_Rosa_3.webp?v=1769897526,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,270.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,39.5,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,420.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,41.5,,,,,,,,,0.0,shopify,deny,manual,260.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,269.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,420.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,440.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,440.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,506.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-asos-exclusive-pink-overdye-rosa,,,,,,,,,46.5,,,,,,,,,0.0,shopify,deny,manual,530.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,New Balance 9060 Triple White,"<p>Le New Balance 9060 Triple White reinterpretano una delle silhouette più iconiche del brand in una versione pulita, minimal e senza tempo. Questa edizione monocromatica incarna alla perfezione l’equilibrio tra heritage sportivo e design contemporaneo, offrendo una sneaker versatile e raffinata, ideale per ogni occasione.<br>Le New Balance 9060 Triple White sono la scelta perfetta per chi ama stile, comfort e semplicità, unendo versatilità quotidiana e un’estetica premium che non passa mai di moda.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare<br>SKU: U9060NRJ<br>Data di uscita: Gennaio 2024<br>Colorway: Triple White / Silver Metallic<br>Colore: Bianco / Argento</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", sneakers uomo, Sneakers&shoes Donna, “sneakers donna”",true,Taglie,36,,,,,,,,,0.0,shopify,deny,manual,199.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/NewBalance9060TripleWhite.webp?v=1769897870,1,"",false,,,universale,adulti,,,allaccio,bianco,mesh; sintetico,piatto,casual,con-imbottitura; design-traspirante,regular,43; 36; 37; 37-5; 38; 38-5; 39-5; 40; 40-5; 41-5; 42; 42-5; 44; 44-5; 45; 45-5; 46-5; 47,,moda; in-basso,unisex,rotondo,,kg,,,active
+new-balance-9060-triple-white,,,,,,,,,37,,,,,,,,,0.0,shopify,deny,manual,199.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/NewBalance9060TripleWhite3.webp?v=1769897870,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,199.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/NewBalance9060TripleWhite8.webp?v=1769897870,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,199.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,199.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,39.5,,,,,,,,,0.0,shopify,deny,manual,199.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,41.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,45.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,46.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-triple-white,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,New Balance 9060 Pearl Grey Linen,"<p>Descrizione<br>Le New Balance 9060 Pearl Grey Linen rappresentano l’equilibrio perfetto tra heritage e innovazione, portando lo stile iconico del brand in una versione sofisticata e contemporanea. Questa edizione interpreta la silhouette 9060 con tonalità neutre ed eleganti, ideali per chi cerca una sneaker versatile, moderna e ricercata.<br>Perfette per chi ama uno stile minimal e funzionale, le 9060 Pearl Grey Linen incarnano l’essenza del design New Balance: qualità, comfort e modernità in un’unica sneaker senza tempo.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare<br>SKU: U9060EEL<br>Data di uscita: Aprile 2025<br>Colorway: Pearl Grey / Linen Beige<br>Colore: Grigio / Beige / Azzurro </p>",Shoes&clothing_reselling,Uncategorized,Sneakers,"""sneakers"", sneakers uomo, Sneakers&shoes Donna, “sneakers donna”",true,Taglie,36,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060EEL_New_Balance_9060_Pearl_Grey_Linen.webp?v=1769898233,1,"",false,,,,,,,,,,,,,,,,,,,,kg,,,active
+new-balance-9060-pearl-grey-linen,,,,,,,,,37,,,,,,,,,0.0,shopify,deny,manual,215.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060EEL_New_Balance_9060_Pearl_Grey_Linen_1.webp?v=1769898233,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,295.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060EEL_New_Balance_9060_Pearl_Grey_Linen_2.webp?v=1769898233,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060EEL_New_Balance_9060_Pearl_Grey_Linen_3.webp?v=1769898232,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,185.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,39.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,215.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,41.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,45.5,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-pearl-grey-linen,,,,,,,,,46.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,New Balance 9060 Slate Grey Raincloud,"<p>Le New Balance 9060 Slate Grey Raincloud uniscono stile contemporaneo e tradizione sportiva, offrendo una reinterpretazione moderna della serie 99X in chiave futuristica. Questa versione si distingue per le sue tonalità neutre e sofisticate, che conferiscono alla sneaker un look versatile e di grande impatto visivo.<br>Perfette per chi cerca una sneaker che unisca comfort, qualità e innovazione, le 9060 Slate Grey Raincloud rappresentano l’essenza del design New Balance: minimalismo tecnico e appeal contemporaneo per ogni occasione.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare<br>SKU: U9060EEE<br>Data di uscita: Giugno 2024<br>Colorway: Slate Grey / Raincloud<br>Colore: Grigio</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", sneakers uomo, Sneakers&shoes Donna, “sneakers donna”",true,Taglia,36,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060EEE_New_Balance_9060_Slate_Grey_Raincloud.webp?v=1769898539,1,"",false,,,universale,adulti,,,allaccio,grigi,mesh; sintetico; gomma,piatto,casual,con-imbottitura; design-traspirante; resistente-allo-scivolamento,regular,43; 36; 37; 37-5; 38; 38-5; 39; 39-5; 40; 40-5; 41-5; 42; 42-5; 44; 44-5; 45; 46-5,,atletico; in-basso; moda,unisex,rotondo,,kg,,,active
+new-balance-9060-slate-grey-raincloud,,,,,,,,,37,,,,,,,,,0.0,shopify,deny,manual,195.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060EEE_New_Balance_9060_Slate_Grey_Raincloud_1.webp?v=1769898538,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,195.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060EEE_New_Balance_9060_Slate_Grey_Raincloud_2.webp?v=1769898539,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,215.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060EEE_New_Balance_9060_Slate_Grey_Raincloud_3.webp?v=1769898539,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,236.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,185.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,39.5,,,,,,,,,0.0,shopify,deny,manual,195.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,195.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,215.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,41.5,,,,,,,,,0.0,shopify,deny,manual,20.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,355.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,270.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,247.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,280.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,398.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,615.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-slate-grey-raincloud,,,,,,,,,46.5,,,,,,,,,0.0,shopify,deny,manual,636.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-rose-pink,New Balance 9060 Rose Pink,"<p>Le New Balance 9060 Rose Pink combinano heritage running e design contemporaneo, fondendo eleganza e comfort in una silhouette moderna e raffinata. Questa versione, caratterizzata da una tonalità rosa delicata e femminile, reinterpreta il DNA classico del brand con uno stile perfetto per ogni occasione, dal casual quotidiano agli outfit streetwear più ricercati.<br>Le 9060 Rose Pink incarnano alla perfezione la filosofia New Balance, offrendo una sneaker che unisce stile, innovazione e qualità artigianale. Un modello elegante e versatile, perfetto per chi ama distinguersi con semplicità e raffinatezza.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare<br>SKU: U9060FRL<br>Data di uscita: Marzo 2024<br>Colorway:Rose Pink / White / Cream<br>Colore: Magenta / Rosa / Bianco</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Sneakers&shoes Donna, “sneakers donna”",true,Taglie,36,,,,,,,,,0.0,shopify,deny,manual,215.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060FRL_New_Balance_9060_Rose_Pink.webp?v=1769898803,1,"",false,,,corsa; universale,adulti,,,allaccio,rosa,mesh; pelle-scamosciata; gomma; sintetico,piatto,casual,con-imbottitura; design-traspirante,regular,36; 37; 37-5; 38; 38-5; 39; 39-5; 40; 40-5; 41-5; 42,,moda; in-basso,femmina,rotondo,,kg,,,active
+new-balance-9060-rose-pink,,,,,,,,,37,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/U9060FRL_New_Balance_9060_Rose_Pink_1.webp?v=1769898803,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-rose-pink,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-rose-pink,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,195.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-rose-pink,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,195.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-rose-pink,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,205.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-rose-pink,,,,,,,,,39.5,,,,,,,,,0.0,shopify,deny,manual,185.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-rose-pink,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,195.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-rose-pink,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,592.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-rose-pink,,,,,,,,,41.5,,,,,,,,,0.0,shopify,deny,manual,485.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+new-balance-9060-rose-pink,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,646.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,Jordan 1 High Dark Mocha,"<p>Le Air Jordan 1 High OG Dark Mocha reinterpretano uno degli schemi cromatici più iconici della linea Jordan, fondendo heritage, lusso e stile contemporaneo. Rilasciate nel 2020, queste sneakers sono diventate immediatamente un must-have grazie alla loro estetica raffinata, che richiama due modelli leggendari: le Air Jordan 1 High Travis Scott e le Air Jordan 1 Black Toe.<br>Le AJ1 High Dark Mocha incarnano la perfetta combinazione di storia e modernità, offrendo una sneaker versatile, elegante e intramontabile, ideale per appassionati e collezionisti.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare<br>SKU: 555088-105<br>Data di uscita: Ottobre 2020<br>Colorway: Sail / Dark Mocha / Black / Black<br>Colore: Bianco / Marrone / Nero</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", Nike, sneakers uomo, Sneakers&shoes Donna, “sneakers donna”",true,Taglie,35.5,,,,,,,,,0.0,shopify,deny,manual,310.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighDarkMocha.webp?v=1769965663,1,"",false,,,basket; universale,adulti,,,allaccio,animale; bianco,pelle; mesh,piatto,casual,con-imbottitura; leggero,regular,43,,moda; in-cima,unisex,rotondo,,kg,,,active
+jordan-1-high-dark-mocha,,,,,,,,,36,,,,,,,,,0.0,shopify,deny,manual,290.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighDarkMocha1.webp?v=1769965663,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,36.5,,,,,,,,,0.0,shopify,deny,manual,345.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighDarkMocha2.webp?v=1769965663,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,333.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighDarkMocha3.webp?v=1769965663,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,389.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighDarkMocha4.webp?v=1769965664,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,430.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/Jordan1HighDarkMocha6.webp?v=1769965663,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,388.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,323.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,388.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,399.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,399.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,485.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,465.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,399.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,465.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,420.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,45.5,,,,,,,,,0.0,shopify,deny,manual,410.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,539.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+jordan-1-high-dark-mocha,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,658.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,Asics Gel-NYC Oyster Grey,"<p>Le Asics Gel-NYC Oyster Grey fondono heritage running e innovazione moderna, incarnando la filosofia del marchio giapponese che combina prestazioni tecniche e stile urbano. Ispirata ai modelli da corsa degli anni 2000, questa versione si distingue per la sua palette neutra e raffinata, perfetta per chi cerca una sneaker versatile e contemporanea.<br>Le Gel-NYC Oyster Grey sono l’unione perfetta tra comfort e stile minimalista, ideali per l’uso quotidiano e per chi desidera una sneaker che combini design contemporaneo, qualità e funzionalità in un’unica soluzione.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare<br>SKU: 1201A789-103<br>Data di uscita: Aprile 2023<br>Colorway: Oyster Grey / Pure Silver<br>Colore: Grigio / Argento</p>",Shoes&clothing_reselling,Uncategorized,Sneakers,"""sneakers"", sneakers uomo, Sneakers&shoes Donna, “sneakers donna”",true,Taglia,36,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCOysterGrey.webp?v=1769967975,1,"",false,,,,,,,,,,,,,,,,,,,,kg,,,active
+asics-gel-nyc-oyster-grey,,,,,,,,,37,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCOysterGrey2.webp?v=1769967976,2,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,37.5,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCOysterGrey3.webp?v=1769967976,3,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,38,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCOysterGrey5.webp?v=1769967976,4,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCOysterGrey6.webp?v=1769967976,5,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,39.5,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCOysterGrey7.webp?v=1769967975,6,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/AsicsGel-NYCOysterGrey76.webp?v=1769967975,7,"",,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,41.5,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,43.5,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,46.5,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+asics-gel-nyc-oyster-grey,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,170.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,Puma LaMelo Ball LaFrancé Amour San Valentino Rosa,"<p>Le Puma LaMelo Ball LaFrancé Amour San Valentino celebrano l’amore con un design audace e sofisticato, pensato per unire spirito streetwear e lusso contemporaneo. Questa edizione speciale fa parte della linea LaFrancé, firmata dal campione NBA LaMelo Ball, e si distingue per il suo stile esagerato e l’attenzione ai dettagli che rendono la sneaker un vero simbolo di creatività e personalità.<br>Le LaFrancé Amour San Valentino sono una dichiarazione di stile e passione, perfette per chi ama distinguersi con un tocco di romanticismo e audacia in puro stile LaMelo Ball.</p>
+<p>100% Autentico<br>Condizioni: Nuovo<br>Vestibilità: Regolare<br>SKU: 310869-01<br>Data di uscita: Febbraio 2025<br>Colorway: Red / Pink / Gold<br>Colore: Rosso / Rosa / Oro</p>",Shoes&clothing_reselling,Apparel & Accessories > Shoes > Sneakers,Sneakers,"""sneakers"", “sneakers donna”",true,Taglie,38,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",https://cdn.shopify.com/s/files/1/0970/8027/9414/files/PumaLaMeloBallLaFranceAmourSanValentinoRosa.webp?v=1769968368,1,"",false,,,basket,bambini,,,allaccio,rosa,mesh; gomma; sintetico,piatto,casual,con-imbottitura; leggero,regular,36,,in-basso,femmina,rotondo,,kg,,,active
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,38.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,39,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,40,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,40.5,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,41,,,,,,,,,0.0,shopify,deny,manual,0.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,42,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,42.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,43,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,44,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,44.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,45,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,46,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,46.5,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,
+puma-lamelo-ball-lafrance-amour-san-valentino-rosa,,,,,,,,,47,,,,,,,,,0.0,shopify,deny,manual,225.00,,true,true,,,,,"",,,,,,,,,,,,,,,,,,,,,,,,kg,,,

@@ -1,0 +1,40 @@
+{
+  "$comment": "Simulated KicksDB webhook payload for price_change event",
+  "event": "price_change",
+  "product": {
+    "id": "50b8dfb8-327b-4703-8a9b-e6a344aef7b8",
+    "sku": "DD1873-102",
+    "title": "Nike Dunk Low Next Nature White Black Panda (Women's)"
+  },
+  "variants": [
+    {
+      "id": "a1b2c3d4-0005",
+      "size": "W 7",
+      "size_eu": "38",
+      "lowest_ask": 88,
+      "highest_bid": 76,
+      "last_sale": 84,
+      "currency": "USD"
+    },
+    {
+      "id": "a1b2c3d4-0007",
+      "size": "W 8",
+      "size_eu": "39",
+      "lowest_ask": 92,
+      "highest_bid": 80,
+      "last_sale": 88,
+      "currency": "USD"
+    },
+    {
+      "id": "a1b2c3d4-0008",
+      "size": "W 8.5",
+      "size_eu": "40",
+      "lowest_ask": 99,
+      "highest_bid": 86,
+      "last_sale": 95,
+      "currency": "USD"
+    }
+  ],
+  "marketplace": "stockx",
+  "timestamp": "2026-02-07T10:30:00Z"
+}

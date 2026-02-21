@@ -1,0 +1,78 @@
+[
+  {
+    "id": 1001,
+    "sku": "TEST-AF1-001",
+    "name": "Nike Air Force 1 '07 Low White",
+    "brand_name": "Nike",
+    "image_full_url": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800",
+    "size_mapper_name": "Nike Mens",
+    "sizes": [
+      {"size_us": "6",   "size_eu": "38",   "offer_price": 75.0, "presented_price": 119, "available_quantity": 2, "barcode": "0196152912501"},
+      {"size_us": "6.5", "size_eu": "38.5", "offer_price": 75.0, "presented_price": 119, "available_quantity": 4, "barcode": "0196152912518"},
+      {"size_us": "7",   "size_eu": "39",   "offer_price": 75.0, "presented_price": 119, "available_quantity": 3, "barcode": "0196152912525"},
+      {"size_us": "7.5", "size_eu": "40",   "offer_price": 75.0, "presented_price": 119, "available_quantity": 5, "barcode": "0196152912532"},
+      {"size_us": "8.5", "size_eu": "41",   "offer_price": 80.0, "presented_price": 125, "available_quantity": 1, "barcode": "0196152912549"},
+      {"size_us": "9",   "size_eu": "42",   "offer_price": 80.0, "presented_price": 125, "available_quantity": 6, "barcode": "0196152912556"}
+    ]
+  },
+  {
+    "id": 1002,
+    "sku": "TEST-DUNK-002",
+    "name": "Nike Dunk Low Retro Panda Black White",
+    "brand_name": "Nike",
+    "image_full_url": "https://images.unsplash.com/photo-1600269452121-4f2416e55c28?w=800",
+    "size_mapper_name": "Nike Mens",
+    "sizes": [
+      {"size_us": "4",   "size_eu": "36",   "offer_price": 90.0, "presented_price": 139, "available_quantity": 1, "barcode": null},
+      {"size_us": "5",   "size_eu": "37.5", "offer_price": 90.0, "presented_price": 139, "available_quantity": 3, "barcode": null},
+      {"size_us": "5.5", "size_eu": "38",   "offer_price": 90.0, "presented_price": 139, "available_quantity": 2, "barcode": null},
+      {"size_us": "6",   "size_eu": "38.5", "offer_price": 95.0, "presented_price": 145, "available_quantity": 4, "barcode": null},
+      {"size_us": "6.5", "size_eu": "39",   "offer_price": 95.0, "presented_price": 145, "available_quantity": 0, "barcode": null},
+      {"size_us": "7",   "size_eu": "40",   "offer_price": 95.0, "presented_price": 145, "available_quantity": 5, "barcode": null}
+    ]
+  },
+  {
+    "id": 1003,
+    "sku": "TEST-SAMBA-003",
+    "name": "Adidas Samba OG Cloud White Core Black",
+    "brand_name": "Adidas",
+    "image_full_url": "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=800",
+    "size_mapper_name": "Adidas Mens",
+    "sizes": [
+      {"size_us": "7",   "size_eu": "40",   "offer_price": 70.0, "presented_price": 109, "available_quantity": 6, "barcode": "4065426763201"},
+      {"size_us": "7.5", "size_eu": "41",   "offer_price": 70.0, "presented_price": 109, "available_quantity": 4, "barcode": "4065426763218"},
+      {"size_us": "8.5", "size_eu": "42",   "offer_price": 70.0, "presented_price": 109, "available_quantity": 2, "barcode": "4065426763225"},
+      {"size_us": "8.5", "size_eu": "42.5", "offer_price": 70.0, "presented_price": 109, "available_quantity": 3, "barcode": "4065426763232"},
+      {"size_us": "9",   "size_eu": "43",   "offer_price": 75.0, "presented_price": 115, "available_quantity": 1, "barcode": "4065426763249"},
+      {"size_us": "10",  "size_eu": "44",   "offer_price": 75.0, "presented_price": 115, "available_quantity": 7, "barcode": "4065426763256"}
+    ]
+  },
+  {
+    "id": 1004,
+    "sku": "TEST-NB550-004",
+    "name": "New Balance 550 White Green",
+    "brand_name": "New Balance",
+    "image_full_url": "https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=800",
+    "size_mapper_name": "New Balance Mens",
+    "sizes": [
+      {"size_us": "7",  "size_eu": "40", "offer_price": 82.0, "presented_price": 129, "available_quantity": 3, "barcode": null},
+      {"size_us": "8",  "size_eu": "41", "offer_price": 82.0, "presented_price": 129, "available_quantity": 2, "barcode": null},
+      {"size_us": "9",  "size_eu": "42", "offer_price": 82.0, "presented_price": 129, "available_quantity": 5, "barcode": null},
+      {"size_us": "9.5","size_eu": "43", "offer_price": 86.0, "presented_price": 135, "available_quantity": 1, "barcode": null}
+    ]
+  },
+  {
+    "id": 1005,
+    "sku": "TEST-HOODIE-005",
+    "name": "Nike Sportswear Tech Fleece Windrunner Hoodie Black",
+    "brand_name": "Nike",
+    "image_full_url": "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800",
+    "size_mapper_name": "Nike Apparel",
+    "sizes": [
+      {"size_us": "S",  "size_eu": "S",  "offer_price": 60.0, "presented_price": 94, "available_quantity": 3, "barcode": null},
+      {"size_us": "M",  "size_eu": "M",  "offer_price": 60.0, "presented_price": 94, "available_quantity": 5, "barcode": null},
+      {"size_us": "L",  "size_eu": "L",  "offer_price": 60.0, "presented_price": 94, "available_quantity": 4, "barcode": null},
+      {"size_us": "XL", "size_eu": "XL", "offer_price": 60.0, "presented_price": 94, "available_quantity": 2, "barcode": null}
+    ]
+  }
+]

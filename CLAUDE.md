@@ -1,243 +1,236 @@
-# WOO-IMPORTER UPGRADE PROJECT
+# WOO-IMPORTER
 
-## 📋 Project Overview
+## Project Overview
 
-This project upgrades the Golden Sneakers to WooCommerce importer with:
-- Multi-language support (Italian default)
-- Environment variable configuration (.env)
-- SEO-optimized image metadata
-- Proper WooCommerce attribute handling
-- Clean, professional code structure
+WooCommerce product importer for ResellPiacenza. Supports four import pipelines:
 
-## 🎯 Goals
+1. **Golden Sneakers (GS)** - Automated supplier sync (cron every 30 min)
+2. **KicksDB** - Popular sneakers auto-discovery (cron every 6 hours)
+3. **Shopify CSV Import** - One-time migration from Shopify exports
+4. **Manual Bulk Upload** - CSV/JSON file import for ad-hoc products
 
-1. **Environment Configuration**: Move sensitive data to `.env` file
-2. **Multi-language Support**: Italian as default, fully configurable
-3. **SEO-Optimized Images**: Italian metadata, proper alt texts
-4. **Proper Attribute Handling**: Use WooCommerce attribute slugs correctly
-5. **Generic Product Descriptions**: Elegant placeholder until LLM integration
+All pipelines produce WooCommerce variable products with Italian SEO metadata, size variations (Taglia), brand attributes (Marca), and gallery images.
 
-## 📁 File Structure
+## Architecture
+
+```
+Data Sources           Adapters / Parsers         Core Pipeline              WooCommerce
+─────────────         ──────────────────         ──────────────             ───────────
+GS API            →   GsFeedAdapter          →   WcProductBuilder      →   WooCommerceImporter
+KicksDB API       →   KicksDbFeedAdapter     →   WcProductBuilder      →   WooCommerceImporter
+Shopify CSV       →   ShopifyCsvParser       →   BulkUploader          →   WooCommerceImporter
+CSV/JSON files    →   (BulkUploader inline)  →   BulkUploader          →   WooCommerceImporter
+```
+
+### Key classes
+
+| Class | File | Purpose |
+|-------|------|---------|
+| `Config` | `src/Support/Config.php` | Loads `.env`, provides config array |
+| `TaxonomyManager` | `src/Import/TaxonomyManager.php` | Creates/resolves WC categories, attributes, brands |
+| `MediaUploader` | `src/Import/MediaUploader.php` | Uploads images to WordPress media library |
+| `WcProductBuilder` | `src/Import/WcProductBuilder.php` | Transforms normalized feed → WC product payload |
+| `WooCommerceImporter` | `src/Import/WooCommerceImporter.php` | Batch creates/updates products + variations via WC REST API |
+| `BulkUploader` | `src/Import/BulkUploader.php` | Self-contained pipeline for CSV/JSON/Shopify imports |
+| `ShopifyCsvParser` | `src/Import/ShopifyCsvParser.php` | Parses Shopify product export CSVs |
+| `GsFeedAdapter` | `src/Import/GsFeedAdapter.php` | Normalizes Golden Sneakers API response |
+| `KicksDbFeedAdapter` | `src/Import/KicksDbFeedAdapter.php` | Normalizes KicksDB API response |
+
+## File Structure
 
 ```
 woo-importer/
-├── .env.example          # Template for environment variables
-├── .env                  # Actual config (gitignored)
-├── .gitignore            # Updated to include .env
-├── config.php            # Loads from .env, contains defaults
-├── import.php            # Main product importer (updated)
-├── import-images.php     # Image importer (updated)
-├── composer.json         # Dependencies (add vlucas/phpdotenv)
-├── image-map.json        # Generated: SKU → Media ID mapping
-└── logs/                 # Log files directory
+├── bin/                          # CLI scripts
+│   ├── bulk-upload               # Manual CSV/JSON import
+│   ├── gs-transform              # GS feed → WC format
+│   ├── import-dir                # Shopify CSV directory import
+│   ├── import-kicksdb            # KicksDB standalone import
+│   ├── import-wc                 # Generic WC JSON import
+│   ├── kicksdb-discover          # KicksDB product discovery
+│   ├── kicksdb-transform         # KicksDB feed → WC format
+│   ├── nuke-products             # Delete all WC products (dangerous)
+│   ├── prepare-media             # Upload/validate images
+│   ├── prepare-taxonomies        # Create categories/attributes/brands
+│   ├── pricing-reconcile         # Update stale prices from KicksDB
+│   └── sync-wc                   # Delta sync → WC import
+├── src/
+│   ├── Import/                   # Import pipeline classes
+│   └── Support/                  # Config, Logger, helpers
+├── gs-sync.sh                    # GS cron pipeline wrapper
+├── kicksdb-sync.sh               # KicksDB cron pipeline wrapper
+├── import/                       # Shopify CSV export files (input)
+├── data/                         # Generated intermediate feeds (gitignored)
+├── logs/                         # Log files (gitignored)
+├── docs/                         # Documentation and model references
+├── .env                          # Credentials (gitignored)
+├── .env.example                  # Env template
+├── crontab.txt                   # Cron schedule reference
+├── image-map.json                # SKU → media ID mapping (gitignored)
+└── composer.json                 # PHP dependencies
 ```
 
-## 🔧 Technical Requirements
+## Import Pipelines
 
-### Dependencies
-- PHP >= 7.4
-- automattic/woocommerce ^3.0
-- monolog/monolog ^2.0
-- vlucas/phpdotenv ^5.0 (NEW)
+### 1. Golden Sneakers (GS) - Automated Sync
 
-### JSON Feed Structure (Reference)
-```json
-{
-    "id": 8,
-    "sku": "DD1873-102",
-    "name": "Nike Dunk Low Next Nature White Black Panda (Women's)",
-    "brand_name": "Nike",
-    "image_full_url": "https://www.goldensneakers.net/images/DD1873-102/main/",
-    "size_mapper_name": "Nike WMNS",
-    "sizes": [
-        {
-            "size_us": "5",
-            "size_eu": "35.5",
-            "offer_price": 55.0,
-            "presented_price": 84,
-            "available_quantity": 0,
-            "barcode": null
-        }
-    ]
-}
+**Entry point:** `./gs-sync.sh` or individual `bin/` scripts
+
+**Pipeline:** `prepare-taxonomies → prepare-media → gs-transform → sync-wc`
+
+```bash
+# Full automated sync (what cron runs)
+./gs-sync.sh
+
+# Preview mode
+./gs-sync.sh --dry-run --verbose
+
+# Skip image uploads
+./gs-sync.sh --skip-media
+
+# Force full import (ignore delta diff)
+./gs-sync.sh --force-full
 ```
 
-## 🌍 Localization Strategy
+**Data flow:**
+- GS API → `data/feed.json` → `GsFeedAdapter` → `WcProductBuilder` → `data/feed-wc-latest.json`
+- Delta: compares `feed-wc-latest.json` vs `feed-wc.json` → `diff-wc.json` → imports only changes
 
-### Default Language: Italian (it_IT)
+### 2. KicksDB - Auto-Discovery Sync
 
-All user-facing text should be in Italian by default:
-- Category names
-- Attribute names
-- Image SEO metadata
-- Product descriptions
-- Error messages (logs can stay English)
+**Entry point:** `./kicksdb-sync.sh` or individual `bin/` scripts
 
-### Configurable Strings
-```php
-'locale' => [
-    'language' => 'it_IT',
-    'category_name' => 'Sneakers',
-    'size_attribute_name' => 'Taglia',
-    'size_attribute_slug' => 'taglia',
-    'brand_attribute_name' => 'Marca', 
-    'brand_attribute_slug' => 'marca',
-    'image_alt_template' => '{product_name} - {sku} - Acquista su {store_name}',
-    'image_caption_template' => '{brand_name} {product_name}',
-    'image_description_template' => 'Acquista {product_name} ({sku}) su {store_name}. Sneakers originali {brand_name}. Spedizione rapida in tutta Italia.',
-    'default_short_description' => 'Sneakers originali {brand_name}. Prodotto autentico al 100%. Spedizione veloce in Italia.',
-    'default_long_description' => '<p>Scopri le <strong>{product_name}</strong>, sneakers originali {brand_name} disponibili su {store_name}.</p><p>✓ Prodotto 100% autentico<br>✓ Spedizione rapida in tutta Italia<br>✓ Reso facile entro 14 giorni</p>',
-],
-'store' => [
-    'name' => 'ResellPiacenza',
-    'url' => 'resellpiacenza.it',
-],
+**Pipeline:** `kicksdb-discover → prepare-taxonomies → prepare-media → kicksdb-transform → sync-wc`
+
+```bash
+# Full sync
+./kicksdb-sync.sh
+
+# Preview mode
+./kicksdb-sync.sh --dry-run --verbose
+
+# Skip discovery (use cached assortment)
+./kicksdb-sync.sh --skip-discover
+
+# Limit assortment size
+./kicksdb-sync.sh --limit=100
 ```
 
-## 🏷️ WooCommerce Attribute Strategy
+**Data flow:**
+- KicksDB API → `data/feed-kicksdb.json` → `KicksDbFeedAdapter` → `WcProductBuilder` → `data/feed-kicksdb-wc-latest.json`
+- SKU registry (`data/sku-registry.json`) prevents duplicating products already covered by GS
 
-### Best Practice for Attributes
-WooCommerce REST API handles attributes best when:
-1. Using **global attributes** (created in WooCommerce > Attributes)
-2. Referencing by **slug** (e.g., `pa_taglia`, `pa_marca`)
+### 3. Shopify CSV Import (One-Time Migration)
 
-### Implementation Approach
-```php
-// For product creation, use this format:
-'attributes' => [
-    [
-        'name' => 'pa_marca',           // Use slug with pa_ prefix
-        'position' => 0,
-        'visible' => true,
-        'variation' => false,
-        'options' => ['Nike']
-    ],
-    [
-        'name' => 'pa_taglia',          // Use slug with pa_ prefix
-        'position' => 1,
-        'visible' => true,
-        'variation' => true,
-        'options' => ['35.5', '36', '36.5', ...]
-    ]
-]
+**Entry point:** `bin/import-dir`
+
+**Pipeline:** `ShopifyCsvParser → BulkUploader` (self-contained)
+
+```bash
+# Preview
+bin/import-dir --dir=import/ --dry-run --verbose
+
+# Import first 5 products
+bin/import-dir --dir=import/ --limit=5
+
+# Full import (skips products already in WooCommerce)
+bin/import-dir --dir=import/
+
+# Skip image upload (use URLs directly)
+bin/import-dir --dir=import/ --skip-media
 ```
 
-### Attribute Slugs Convention
-| Display Name (IT) | Slug | WooCommerce Taxonomy |
-|-------------------|------|---------------------|
-| Taglia | taglia | pa_taglia |
-| Marca | marca | pa_marca |
+**Features:**
+- Parses Shopify product export CSV format (multi-row per product, Handle grouping)
+- Extracts brands from Tags (with sub-brand detection: Jordan vs Nike)
+- Extracts SKUs from HTML body descriptions
+- Gallery image support (multiple images per product)
+- Auto-detects category from size format (numeric → Sneakers, letter → Abbigliamento)
+- `--skip-existing` is enabled by default (skips products already in WooCommerce by SKU)
 
-## 📝 Product Description Strategy
+### 4. Manual Bulk Upload
 
-Until LLM integration, use elegant generic descriptions:
+**Entry point:** `bin/bulk-upload`
 
-### Short Description (Italian)
+**Pipeline:** `BulkUploader` (self-contained)
+
+```bash
+# From CSV
+bin/bulk-upload --file=data/products.csv --dry-run
+
+# From JSON
+bin/bulk-upload --file=data/products.json --verbose
+
+# With options
+bin/bulk-upload --file=data/products.csv --skip-media --limit=10
 ```
-Sneakers originali {brand_name}. Prodotto autentico al 100%. Spedizione veloce in Italia.
-```
 
-### Long Description (Italian)
-```html
-<p>Scopri le <strong>{product_name}</strong>, sneakers originali {brand_name} disponibili su {store_name}.</p>
+**Expected CSV format:** `sku, name, brand, category, image_url, size, price, stock`
 
-<p>
-✓ Prodotto 100% autentico<br>
-✓ Spedizione rapida in tutta Italia<br>
-✓ Reso facile entro 14 giorni
-</p>
-```
+## WooCommerce Product Model
 
-## 🖼️ Image SEO Requirements
+See `docs/CURRENT_MODEL.json` for full field reference.
 
-### Filename
-Format: `{sku}.{extension}` (sanitized)
-Example: `DD1873-102.jpg`
+**Parent product:** variable type, `manage_stock: false`, `stock_status: 'instock'`
 
-### Title
-`{product_name}`
-Example: `Nike Dunk Low Next Nature White Black Panda (Women's)`
+**Variation:** `{parent_sku}-{size_eu}`, `manage_stock: true`, individual stock quantities
 
-### Alt Text (Critical for SEO)
-Template: `{product_name} - {sku} - Acquista su {store_name}`
-Example: `Nike Dunk Low Next Nature White Black Panda (Women's) - DD1873-102 - Acquista su ResellPiacenza`
+**Attributes:**
+- `Marca` (brand) - visible, non-variation, global attribute (`pa_marca`)
+- `Taglia` (size) - visible, variation, global attribute (`pa_taglia`)
 
-### Caption
-Template: `{brand_name} {product_name}`
-Example: `Nike Nike Dunk Low Next Nature White Black Panda (Women's)`
+## Localization (Italian)
 
-### Description
-Template: `Acquista {product_name} ({sku}) su {store_name}. Sneakers originali {brand_name}. Spedizione rapida in tutta Italia.`
+All user-facing content is in Italian:
+- Category names: Sneakers, Abbigliamento
+- Attribute names: Taglia, Marca
+- Image SEO: alt text, captions, descriptions
+- Product descriptions: short + long with Italian templates
 
-## ⚙️ Environment Variables (.env)
+### Image SEO Templates
+
+| Field | Template |
+|-------|----------|
+| Alt text | `{product_name} - {sku} - Acquista su {store_name}` |
+| Caption | `{brand_name} {product_name}` |
+| Description | `Acquista {product_name} ({sku}) su {store_name}. Sneakers originali {brand_name}...` |
+
+## Environment Variables
+
+See `.env.example` for full list. Key variables:
 
 ```env
-# API Configuration
-GS_API_URL=https://www.goldensneakers.net/api/assortment/
-GS_BEARER_TOKEN=your_jwt_token_here
-GS_MARKUP_PERCENTAGE=25
-GS_VAT_PERCENTAGE=22
-GS_ROUNDING_TYPE=whole
-
-# WooCommerce Configuration
+# WooCommerce API
 WC_URL=https://your-store.com
 WC_CONSUMER_KEY=ck_xxxxx
 WC_CONSUMER_SECRET=cs_xxxxx
-WC_API_VERSION=wc/v3
 
-# WordPress Configuration (for media uploads)
+# WordPress (media uploads)
 WP_USERNAME=admin
 WP_APP_PASSWORD=xxxx_xxxx_xxxx_xxxx
 
-# Store Configuration
+# Golden Sneakers API
+GS_API_URL=https://www.goldensneakers.net/api/assortment/
+GS_BEARER_TOKEN=your_jwt_token
+
+# Pricing
+GS_MARKUP_PERCENTAGE=25
+GS_VAT_PERCENTAGE=22
+
+# Store
 STORE_NAME=ResellPiacenza
-STORE_LOCALE=it_IT
-
-# Import Configuration
-IMPORT_CATEGORY=Sneakers
-IMPORT_SIZE_ATTRIBUTE_NAME=Taglia
-IMPORT_SIZE_ATTRIBUTE_SLUG=taglia
-IMPORT_BRAND_ATTRIBUTE_NAME=Marca
-IMPORT_BRAND_ATTRIBUTE_SLUG=marca
-IMPORT_BATCH_SIZE=100
-IMPORT_CREATE_OUT_OF_STOCK=true
-
-# Logging
-LOG_ENABLED=true
-LOG_LEVEL=info
-LOG_CONSOLE_LEVEL=info
 ```
 
-## 🚀 Implementation Checklist
+## Code Style
 
-- [ ] Add vlucas/phpdotenv to composer.json
-- [ ] Create .env.example with all variables
-- [ ] Update .gitignore to exclude .env
-- [ ] Refactor config.php to load from .env with defaults
-- [ ] Update import.php:
-  - [ ] Use attribute slugs (pa_taglia, pa_marca)
-  - [ ] Add short_description and description
-  - [ ] Use localized strings
-- [ ] Update import-images.php:
-  - [ ] Italian SEO metadata
-  - [ ] Template-based strings
-- [ ] Test with dry-run mode
-- [ ] Document changes in README
+- PSR-12 coding standard
+- PHPDoc comments on all public methods
+- Meaningful variable names
+- Logs in English, user-facing content in Italian
+- PHP >= 7.4, dependencies via Composer
 
-## 📋 Code Style Guidelines
+## Known Gotchas
 
-- Use PSR-12 coding standard
-- Add PHPDoc comments for all methods
-- Use meaningful variable names
-- Keep methods focused and small
-- Handle errors gracefully with logging
-- Use constants for magic strings
-
-## 🧪 Testing
-
-Before deploying:
-1. Run `php import.php --dry-run --limit=5`
-2. Verify attribute slugs are correct
-3. Check image metadata in WordPress Media Library
-4. Validate product descriptions appear correctly
-5. Test with Google Rich Results Test after import
+- **Variation visibility:** Parent products MUST have `manage_stock => false` and `stock_status => 'instock'`, otherwise WooCommerce hides the size dropdown on the frontend.
+- **Attribute slugs:** WC accepts both `taglia` and `pa_taglia`. Resolution uses flexible matching (with/without `pa_` prefix, name fallback).
+- **Dry-run + images:** Never persist fake media IDs during `--dry-run`. Gallery upload returns `[]` in dry-run mode.
+- **image-map.json:** Delete this file to force re-upload of all images. Stale entries (fake IDs from dry-runs) are auto-filtered.

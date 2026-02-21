@@ -1,0 +1,127 @@
+#!/usr/bin/env php
+<?php
+/**
+ * CLI wrapper for Golden Sneakers Feed Transformer
+ *
+ * Fetches the Golden Sneakers API feed, normalizes via GoldenSneakersAdapter,
+ * and builds WooCommerce REST API payloads via WcProductBuilder.
+ *
+ * Outputs: data/feed-wc-latest.json
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Import\GoldenSneakersAdapter;
+use ResellPiacenza\Import\WcProductBuilder;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Feed Transformer
+Transforms Golden Sneakers API feed to WooCommerce REST format.
+
+Usage:
+  bin/gs-transform [options]
+
+Options:
+  --limit=N         Transform first N products only
+  --verbose, -v     Detailed output
+  --help, -h        Show help
+
+Requires:
+  data/taxonomy-map.json   (from prepare-taxonomies)
+  image-map.json           (from prepare-media)
+
+Output:
+  data/feed-wc-latest.json - WooCommerce REST API formatted products
+
+HELP;
+    exit(0);
+}
+
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$limit = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--limit=') === 0) {
+        $limit = (int) str_replace('--limit=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('Transform', [
+    'file' => Config::projectRoot() . '/logs/transform-feed.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('================================');
+$logger->info('  Feed Transformer');
+$logger->info('  GS feed → WC REST format');
+$logger->info('================================');
+$logger->info('');
+
+// ============================================================================
+// Fetch + Build
+// ============================================================================
+
+try {
+    $adapter = new GoldenSneakersAdapter($config, $logger, $limit);
+    $builder = new WcProductBuilder($config, $logger);
+
+    $wc_products = $builder->buildAll($adapter->fetchProducts());
+
+    // Write output
+    $data_dir = Config::dataDir();
+
+    $output_file = $data_dir . '/feed-wc-latest.json';
+    file_put_contents(
+        $output_file,
+        json_encode($wc_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    );
+
+    // Cache GS SKUs for KicksDB deduplication (lightweight alternative to parsing full feed)
+    $gs_skus = array_values(array_filter(array_map(fn($p) => $p['sku'] ?? null, $wc_products)));
+    file_put_contents($data_dir . '/gs-sku-cache.json', json_encode($gs_skus, JSON_PRETTY_PRINT));
+    $logger->info("Cached " . count($gs_skus) . " GS SKUs to data/gs-sku-cache.json");
+
+    // Summary
+    $duration = round(microtime(true) - $start_time, 1);
+    $adapter_stats = $adapter->getStats();
+    $builder_stats = $builder->getStats();
+
+    $logger->info('');
+    $logger->info('================================');
+    $logger->info('  TRANSFORM SUMMARY');
+    $logger->info('================================');
+    $logger->info("  Total:         {$adapter_stats['total']}");
+    $logger->info("  Transformed:   {$builder_stats['transformed']}");
+    $logger->info("  Sneakers:      {$adapter_stats['sneakers']}");
+    $logger->info("  Clothing:      {$adapter_stats['clothing']}");
+    $logger->info("  With image:    {$builder_stats['with_image']}");
+    $logger->info("  Without image: {$builder_stats['without_image']}");
+    $logger->info("  Warnings:      {$builder_stats['warnings']}");
+    $logger->info("  Duration:      {$duration}s");
+    $logger->info("  Output:        {$output_file}");
+    $logger->info('================================');
+
+    exit(0);
+
+} catch (\Exception $e) {
+    $logger->error('Error: ' . $e->getMessage());
+    exit(1);
+}

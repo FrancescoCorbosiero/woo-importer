@@ -1,0 +1,82 @@
+#!/usr/bin/env php
+<?php
+/**
+ * CLI wrapper for Bulk Upload Utility
+ *
+ * Self-contained tool for importing your own products from JSON or CSV files.
+ * Handles the full pipeline: taxonomy creation, image upload, WC import.
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Import\BulkUploader;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Bulk Upload Utility
+Import your own products from JSON or CSV files into WooCommerce.
+
+Usage:
+  bin/bulk-upload --file=FILE [options]
+
+Options:
+  --file=FILE           Input file (JSON or CSV) - required
+  --dry-run             Preview without importing
+  --skip-media          Don't upload images (use URLs directly)
+  --verbose, -v         Detailed output
+  --help, -h            Show help
+
+JSON format:
+  [
+    {
+      "sku": "MY-001",
+      "name": "Product Name",
+      "brand": "Nike",
+      "category": "sneakers",
+      "image_url": "https://example.com/image.jpg",
+      "sizes": [
+        {"size": "40", "price": 120.00, "stock": 3},
+        {"size": "41", "price": 120.00, "stock": 5}
+      ]
+    }
+  ]
+
+CSV format (rows with same SKU = one product, multiple sizes):
+  sku,name,brand,category,image_url,size,price,stock
+  MY-001,Product Name,Nike,sneakers,https://...,40,120.00,3
+  MY-001,Product Name,Nike,sneakers,https://...,41,120.00,5
+
+See docs/bulk-upload-example.json and docs/bulk-upload-example.csv
+
+HELP;
+    exit(0);
+}
+
+$options = [
+    'dry_run' => in_array('--dry-run', $argv),
+    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
+    'skip_media' => in_array('--skip-media', $argv),
+    'file' => null,
+];
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--file=') === 0) {
+        $options['file'] = str_replace('--file=', '', $arg);
+    }
+}
+
+if (!$options['file']) {
+    echo "Error: --file=FILE is required. Use --help for usage.\n";
+    exit(1);
+}
+
+$config = Config::load();
+$uploader = new BulkUploader($config, $options);
+exit($uploader->run() ? 0 : 1);

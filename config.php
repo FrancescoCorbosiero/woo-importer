@@ -1,10 +1,15 @@
 <?php
 /**
  * Golden Sneakers Import Configuration
- * 
+ *
  * Loads settings from .env file with Italian defaults.
- * Copy .env.example to .env and customize your settings.
- * 
+ *
+ * Supports multi-customer mode from a single install:
+ *   bin/kicksdb-discover --env=customers/clientA.env
+ *   ENV_FILE=customers/clientA.env ./kicksdb-sync.sh
+ *
+ * Falls back to .env in the project root if no override is given.
+ *
  * @package ResellPiacenza\WooImport
  */
 
@@ -12,8 +17,33 @@ require __DIR__ . '/vendor/autoload.php';
 
 use Dotenv\Dotenv;
 
-// Load .env file if it exists
-if (file_exists(__DIR__ . '/.env')) {
+// Resolve which .env file to load:
+//   1. --env=path CLI argument (highest priority)
+//   2. ENV_FILE environment variable
+//   3. .env in project root (default)
+$env_file = null;
+foreach ($argv ?? [] as $arg) {
+    if (strpos($arg, '--env=') === 0) {
+        $env_file = str_replace('--env=', '', $arg);
+        break;
+    }
+}
+if ($env_file === null) {
+    $env_file = $_ENV['ENV_FILE'] ?? getenv('ENV_FILE') ?: null;
+}
+
+if ($env_file !== null) {
+    // Resolve relative paths from project root
+    if (!preg_match('#^/#', $env_file)) {
+        $env_file = __DIR__ . '/' . $env_file;
+    }
+    if (!file_exists($env_file)) {
+        fwrite(STDERR, "Error: env file not found: {$env_file}\n");
+        exit(1);
+    }
+    $dotenv = Dotenv::createImmutable(dirname($env_file), basename($env_file));
+    $dotenv->load();
+} elseif (file_exists(__DIR__ . '/.env')) {
     $dotenv = Dotenv::createImmutable(__DIR__);
     $dotenv->load();
 }
@@ -98,6 +128,10 @@ return [
         // Behavior
         'batch_size' => (int) env('IMPORT_BATCH_SIZE', 100),
         'create_out_of_stock' => env('IMPORT_CREATE_OUT_OF_STOCK', true),
+
+        // Parallel variation processing: how many products' variations to process concurrently
+        // Higher = faster but more WC API load. Recommended: 3-8
+        'variation_concurrency' => (int) env('IMPORT_VARIATION_CONCURRENCY', 5),
     ],
 
     // ===========================================
@@ -181,6 +215,76 @@ return [
         'enabled' => env('BRANDS_ENABLED', true),
         // Set to true to also create brand as product attribute (for filtering widgets)
         'create_attribute' => env('BRANDS_CREATE_ATTRIBUTE', false),
+    ],
+
+    // ===========================================
+    // KicksDB Pricing Configuration
+    // ===========================================
+    'pricing' => [
+        // KicksDB API
+        'kicksdb_api_key' => env('KICKSDB_API_KEY', ''),
+        'kicksdb_base_url' => env('KICKSDB_BASE_URL', 'https://api.kicks.dev/v3'),
+        'kicksdb_market' => env('KICKSDB_MARKET', 'IT'),
+
+        // KicksDB Discovery (auto-assortment)
+        'kicksdb_assortment_size' => (int) env('KICKSDB_ASSORTMENT_SIZE', 800),
+        'kicksdb_discovery_query' => env('KICKSDB_DISCOVERY_QUERY', 'sneakers'),
+        'kicksdb_discovery_page_size' => (int) env('KICKSDB_DISCOVERY_PAGE_SIZE', 50),
+
+        // KicksDB Brand Catalog: JSON file with hierarchical brand/subcategory structure
+        // When set, discovery fetches per subcategory label instead of generic search
+        'kicksdb_brand_catalog_file' => env('KICKSDB_BRAND_CATALOG_FILE', ''),
+        'kicksdb_products_per_label' => (int) env('KICKSDB_PRODUCTS_PER_LABEL', 50),
+
+        // Accepted product types from KicksDB API (comma-separated, case-insensitive)
+        // KicksDB returns product_type like "sneakers", "Shoes", etc.
+        'kicksdb_product_types' => array_filter(array_map('trim', explode(',', env('KICKSDB_PRODUCT_TYPES', 'sneakers')))),
+
+        // KicksDB Webhook
+        'kicksdb_webhook_id' => env('KICKSDB_WEBHOOK_ID', null),
+        'webhook_callback_url' => env('KICKSDB_WEBHOOK_CALLBACK_URL', ''),
+        'webhook_secret' => env('KICKSDB_WEBHOOK_SECRET', ''),
+
+        // WooCommerce product webhook secret (for auto-registration)
+        'wc_webhook_secret' => env('WC_PRODUCT_WEBHOOK_SECRET', ''),
+
+        // Margin configuration
+        'margin' => [
+            // Flat margin (default when no tier matches)
+            'flat_margin' => (float) env('PRICING_FLAT_MARGIN', 25),
+
+            // Tiered margins: higher margin on lower-priced items
+            // Format: ['min' => X, 'max' => Y, 'margin' => Z]
+            'tiers' => json_decode(env('PRICING_TIERS', '[]'), true) ?: [
+                ['min' => 0, 'max' => 100, 'margin' => 35],
+                ['min' => 100, 'max' => 200, 'margin' => 28],
+                ['min' => 200, 'max' => 500, 'margin' => 22],
+                ['min' => 500, 'max' => null, 'margin' => 18],
+            ],
+
+            // Absolute minimum selling price (0 = disabled)
+            'floor_price' => (float) env('PRICING_FLOOR_PRICE', 59),
+
+            // Rounding: 'whole' (ceil), 'half' (0.50 steps), 'none'
+            'rounding' => env('PRICING_ROUNDING', 'whole'),
+
+            // Stock tiers: dynamic stock based on market price (KicksDB only)
+            // Lower price → higher stock, higher price → lower stock
+            'stock_tiers' => json_decode(env('PRICING_STOCK_TIERS', '[]'), true) ?: [
+                ['min' => 0, 'max' => 100, 'stock' => 80],
+                ['min' => 100, 'max' => 200, 'stock' => 50],
+                ['min' => 200, 'max' => 500, 'stock' => 25],
+                ['min' => 500, 'max' => null, 'stock' => 12],
+            ],
+        ],
+
+        // Price alert threshold (% change to trigger email). 0 = disabled
+        'alert_threshold' => (float) env('PRICING_ALERT_THRESHOLD', 30),
+        'alert_email' => env('PRICING_ALERT_EMAIL', ''),
+        'store_name' => env('STORE_NAME', 'ResellPiacenza'),
+
+        // Batch size for WC API variation updates
+        'batch_size' => (int) env('PRICING_BATCH_SIZE', 100),
     ],
 
     // ===========================================

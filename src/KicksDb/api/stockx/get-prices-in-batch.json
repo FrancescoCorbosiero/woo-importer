@@ -1,0 +1,638 @@
+{
+    "title": "Get Prices in Batch",
+    "curl": "curl https://api.kicks.dev/v3/stockx/prices \\\n  --request POST \\\n  --header 'Content-Type: application/json' \\\n  --header 'Authorization:  KICKS-SECRET' \\\n  --data '{\n  \"market\": \"IT\",\n  \"product_ids\": [\n    \"4a4f645a-5b17-498e-9bbc-187a146f6be7\"\n  ],\n  \"skus\": [\n    \"1183C468-700\",\n    \"BQ6817-010\"\n  ]\n}'",
+    "response": {
+        "$schema": "https://api.kicks.dev/schemas/RespListGetPricesOutputBody.json",
+        "data": [
+            {
+                "product_id": "d073dbea-bc16-47b9-8006-851e6bd9faa7",
+                "sku": "1183C468-700",
+                "variants": [
+                    {
+                        "id": "ce7a35d0-ea9b-443f-917e-e1d54ebe7e47",
+                        "size": "12",
+                        "size_type": "us m",
+                        "price": 460,
+                        "asks": 1,
+                        "beat_us_price": 294,
+                        "sell_faster": 405,
+                        "earn_more": 446,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "3ffd8609-b241-4dbe-918a-339235bd8ad0",
+                        "size": "5",
+                        "size_type": "us m",
+                        "price": 162,
+                        "asks": 11,
+                        "beat_us_price": 106,
+                        "sell_faster": 156,
+                        "earn_more": 172,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "3ffd8609-b241-4dbe-918a-339235bd8ad0",
+                        "size": "5",
+                        "size_type": "us m",
+                        "price": 294,
+                        "asks": 1,
+                        "beat_us_price": 106,
+                        "sell_faster": 156,
+                        "earn_more": 172,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "47d10063-82ff-4b4c-94d7-3d4041e289f6",
+                        "size": "8",
+                        "size_type": "us m",
+                        "price": 162,
+                        "asks": 8,
+                        "beat_us_price": 107,
+                        "sell_faster": 157,
+                        "earn_more": 173,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "23abbc33-eced-411c-9810-f9bf2b23196c",
+                        "size": "10",
+                        "size_type": "us m",
+                        "price": 268,
+                        "asks": 1,
+                        "beat_us_price": 107,
+                        "sell_faster": 156,
+                        "earn_more": 172,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "7de2a684-ea33-4244-880c-363e9b35b0ad",
+                        "size": "11.5",
+                        "size_type": "us m",
+                        "price": 165,
+                        "asks": 6,
+                        "beat_us_price": 110,
+                        "sell_faster": 161,
+                        "earn_more": 177,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "23abbc33-eced-411c-9810-f9bf2b23196c",
+                        "size": "10",
+                        "size_type": "us m",
+                        "price": 165,
+                        "asks": 9,
+                        "beat_us_price": 107,
+                        "sell_faster": 156,
+                        "earn_more": 172,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "1af8ed2c-fe76-4d0c-9825-362defd11ce6",
+                        "size": "6",
+                        "size_type": "us m",
+                        "price": 162,
+                        "asks": 9,
+                        "beat_us_price": 107,
+                        "sell_faster": 72,
+                        "earn_more": 131,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "37616201-16c2-4d25-b8fa-d19d6fc81ac5",
+                        "size": "7.5",
+                        "size_type": "us m",
+                        "price": 162,
+                        "asks": 8,
+                        "beat_us_price": 107,
+                        "sell_faster": 157,
+                        "earn_more": 173,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "1646f826-7f61-48e1-b951-7fa5708755c1",
+                        "size": "6.5",
+                        "size_type": "us m",
+                        "price": 162,
+                        "asks": 9,
+                        "beat_us_price": 107,
+                        "sell_faster": 157,
+                        "earn_more": 179,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "c627589c-cfba-4bc8-b9ea-dadf83dcfb54",
+                        "size": "4.5",
+                        "size_type": "us m",
+                        "price": 162,
+                        "asks": 11,
+                        "beat_us_price": 107,
+                        "sell_faster": 74,
+                        "earn_more": 148,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "fd0d8d6d-9dc9-4bd8-bb82-64d10edc5fc0",
+                        "size": "4",
+                        "size_type": "us m",
+                        "price": 162,
+                        "asks": 9,
+                        "beat_us_price": 106,
+                        "sell_faster": 156,
+                        "earn_more": 172,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "fd0d8d6d-9dc9-4bd8-bb82-64d10edc5fc0",
+                        "size": "4",
+                        "size_type": "us m",
+                        "price": 267,
+                        "asks": 1,
+                        "beat_us_price": 106,
+                        "sell_faster": 156,
+                        "earn_more": 172,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "eed05d5b-215b-40aa-8c88-23e69ae35e39",
+                        "size": "9",
+                        "size_type": "us m",
+                        "price": 162,
+                        "asks": 8,
+                        "beat_us_price": 104,
+                        "sell_faster": 152,
+                        "earn_more": 167,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "eb425a9f-225e-4a7a-bd5c-31c527ab414a",
+                        "size": "9.5",
+                        "size_type": "us m",
+                        "price": 165,
+                        "asks": 10,
+                        "beat_us_price": 107,
+                        "sell_faster": 156,
+                        "earn_more": 172,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "544073bb-36a5-438c-bd94-fced87ce63d7",
+                        "size": "11",
+                        "size_type": "us m",
+                        "price": 165,
+                        "asks": 2,
+                        "beat_us_price": 110,
+                        "sell_faster": 161,
+                        "earn_more": 177,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "eed05d5b-215b-40aa-8c88-23e69ae35e39",
+                        "size": "9",
+                        "size_type": "us m",
+                        "price": 262,
+                        "asks": 1,
+                        "beat_us_price": 104,
+                        "sell_faster": 152,
+                        "earn_more": 167,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "eb425a9f-225e-4a7a-bd5c-31c527ab414a",
+                        "size": "9.5",
+                        "size_type": "us m",
+                        "price": 166,
+                        "asks": 1,
+                        "beat_us_price": 107,
+                        "sell_faster": 156,
+                        "earn_more": 172,
+                        "type": "express_expedited"
+                    },
+                    {
+                        "id": "d1a49b7d-8215-4a99-8d32-b00a59b9855c",
+                        "size": "8.5",
+                        "size_type": "us m",
+                        "price": 162,
+                        "asks": 7,
+                        "beat_us_price": 108,
+                        "sell_faster": 158,
+                        "earn_more": 174,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "eb425a9f-225e-4a7a-bd5c-31c527ab414a",
+                        "size": "9.5",
+                        "size_type": "us m",
+                        "price": 166,
+                        "asks": 2,
+                        "beat_us_price": 107,
+                        "sell_faster": 156,
+                        "earn_more": 172,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "59c3efe3-996e-4ccf-8e06-0e3a9a114df8",
+                        "size": "10.5",
+                        "size_type": "us m",
+                        "price": 261,
+                        "asks": 1,
+                        "beat_us_price": 159,
+                        "sell_faster": 226,
+                        "earn_more": 249,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "9625e75b-3f53-4736-be84-7e97e7182db6",
+                        "size": "5.5",
+                        "size_type": "us m",
+                        "price": 162,
+                        "asks": 8,
+                        "beat_us_price": 107,
+                        "sell_faster": 66,
+                        "earn_more": 130,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "6aadfba9-4585-48ca-bf68-89d5d6b8545d",
+                        "size": "7",
+                        "size_type": "us m",
+                        "price": 261,
+                        "asks": 1,
+                        "beat_us_price": 159,
+                        "sell_faster": 226,
+                        "earn_more": 249,
+                        "type": "standard"
+                    }
+                ]
+            },
+            {
+                "product_id": "2f15e74e-7d99-44a3-8ecb-04fe09bc4116",
+                "sku": "BQ6817-010",
+                "variants": [
+                    {
+                        "id": "af3efc35-4d08-4e70-9051-f0ac34424733",
+                        "size": "10",
+                        "size_type": "us m",
+                        "price": 213,
+                        "asks": 18,
+                        "beat_us_price": 111,
+                        "sell_faster": 162,
+                        "earn_more": 168,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "4ed4405d-79ec-4a61-9092-30187c96dcc6",
+                        "size": "8",
+                        "size_type": "us m",
+                        "price": 189,
+                        "asks": 11,
+                        "beat_us_price": 108,
+                        "sell_faster": 158,
+                        "earn_more": 275,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "cbb6dc22-5aae-450f-8053-611197dc88a3",
+                        "size": "6",
+                        "size_type": "us m",
+                        "price": 238,
+                        "asks": 4,
+                        "beat_us_price": 144,
+                        "sell_faster": 69,
+                        "earn_more": 139,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "aacfba5e-1bfe-4f4e-a16f-27ea81d1e0e3",
+                        "size": "12",
+                        "size_type": "us m",
+                        "price": 330,
+                        "asks": 1,
+                        "beat_us_price": 110,
+                        "sell_faster": 91,
+                        "earn_more": 146,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "376f06bc-33a1-494e-a337-124ad80b3ddc",
+                        "size": "4",
+                        "size_type": "us m",
+                        "price": 271,
+                        "asks": 1,
+                        "beat_us_price": 91,
+                        "sell_faster": 88,
+                        "earn_more": 96,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "6e837d3f-e4ea-4b0d-824b-3d39230278b4",
+                        "size": "9.5",
+                        "size_type": "us m",
+                        "price": 257,
+                        "asks": 20,
+                        "beat_us_price": 135,
+                        "sell_faster": 117,
+                        "earn_more": 150,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "f96a9ae2-2ca7-46cb-828a-bcc7e6487d8f",
+                        "size": "14",
+                        "size_type": "us m",
+                        "price": 263,
+                        "asks": 7,
+                        "beat_us_price": 138,
+                        "sell_faster": 83,
+                        "earn_more": 119,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "3e0638de-a117-4c08-9299-f2fcf06050fc",
+                        "size": "5.5",
+                        "size_type": "us m",
+                        "price": 211,
+                        "asks": 4,
+                        "beat_us_price": 199,
+                        "sell_faster": 40,
+                        "earn_more": 81,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "aacfba5e-1bfe-4f4e-a16f-27ea81d1e0e3",
+                        "size": "12",
+                        "size_type": "us m",
+                        "price": 246,
+                        "asks": 25,
+                        "beat_us_price": 110,
+                        "sell_faster": 91,
+                        "earn_more": 146,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "af3efc35-4d08-4e70-9051-f0ac34424733",
+                        "size": "10",
+                        "size_type": "us m",
+                        "price": 213,
+                        "asks": 1,
+                        "beat_us_price": 111,
+                        "sell_faster": 162,
+                        "earn_more": 168,
+                        "type": "express_expedited"
+                    },
+                    {
+                        "id": "4ed4405d-79ec-4a61-9092-30187c96dcc6",
+                        "size": "8",
+                        "size_type": "us m",
+                        "price": 189,
+                        "asks": 1,
+                        "beat_us_price": 108,
+                        "sell_faster": 158,
+                        "earn_more": 275,
+                        "type": "express_expedited"
+                    },
+                    {
+                        "id": "f96a9ae2-2ca7-46cb-828a-bcc7e6487d8f",
+                        "size": "14",
+                        "size_type": "us m",
+                        "price": 365,
+                        "asks": 1,
+                        "beat_us_price": 138,
+                        "sell_faster": 83,
+                        "earn_more": 119,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "af3efc35-4d08-4e70-9051-f0ac34424733",
+                        "size": "10",
+                        "size_type": "us m",
+                        "price": 213,
+                        "asks": 3,
+                        "beat_us_price": 111,
+                        "sell_faster": 162,
+                        "earn_more": 168,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "4ed4405d-79ec-4a61-9092-30187c96dcc6",
+                        "size": "8",
+                        "size_type": "us m",
+                        "price": 189,
+                        "asks": 3,
+                        "beat_us_price": 108,
+                        "sell_faster": 158,
+                        "earn_more": 275,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "376f06bc-33a1-494e-a337-124ad80b3ddc",
+                        "size": "4",
+                        "size_type": "us m",
+                        "price": 157,
+                        "asks": 2,
+                        "beat_us_price": 91,
+                        "sell_faster": 88,
+                        "earn_more": 96,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "8bd012c3-1c8d-411b-b295-d18f901a1325",
+                        "size": "9",
+                        "size_type": "us m",
+                        "price": 273,
+                        "asks": 12,
+                        "beat_us_price": 114,
+                        "sell_faster": 142,
+                        "earn_more": 142,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "2afd6d3f-3afe-4e06-b2ae-23188b1b584a",
+                        "size": "7.5",
+                        "size_type": "us m",
+                        "price": 220,
+                        "asks": 4,
+                        "beat_us_price": 146,
+                        "sell_faster": 161,
+                        "earn_more": 161,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "dea4eb6a-2fb1-42e8-b308-059015c69ee1",
+                        "size": "4.5",
+                        "size_type": "us m",
+                        "price": 257,
+                        "asks": 5,
+                        "beat_us_price": 101,
+                        "sell_faster": 100,
+                        "earn_more": 120,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "dea4eb6a-2fb1-42e8-b308-059015c69ee1",
+                        "size": "4.5",
+                        "size_type": "us m",
+                        "price": 259,
+                        "asks": 1,
+                        "beat_us_price": 101,
+                        "sell_faster": 100,
+                        "earn_more": 120,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "9abcf13b-311e-49df-9468-dc7e61bcb17d",
+                        "size": "13",
+                        "size_type": "us m",
+                        "price": 242,
+                        "asks": 9,
+                        "beat_us_price": 217,
+                        "sell_faster": 100,
+                        "earn_more": 153,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "9b771f1d-1a45-4dc7-86e4-a1cb6ff7140c",
+                        "size": "7",
+                        "size_type": "us m",
+                        "price": 186,
+                        "asks": 9,
+                        "beat_us_price": 106,
+                        "sell_faster": 155,
+                        "earn_more": 188,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "9b771f1d-1a45-4dc7-86e4-a1cb6ff7140c",
+                        "size": "7",
+                        "size_type": "us m",
+                        "price": 418,
+                        "asks": 1,
+                        "beat_us_price": 106,
+                        "sell_faster": 155,
+                        "earn_more": 188,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "02b62bd1-5df4-4a9d-b982-5770d5d3d2e1",
+                        "size": "11",
+                        "size_type": "us m",
+                        "price": 252,
+                        "asks": 18,
+                        "beat_us_price": 109,
+                        "sell_faster": 159,
+                        "earn_more": 177,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "02b62bd1-5df4-4a9d-b982-5770d5d3d2e1",
+                        "size": "11",
+                        "size_type": "us m",
+                        "price": 396,
+                        "asks": 1,
+                        "beat_us_price": 109,
+                        "sell_faster": 159,
+                        "earn_more": 177,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "bfb01820-bf57-4e4e-aaa2-4dc973019b7d",
+                        "size": "11.5",
+                        "size_type": "us m",
+                        "price": 278,
+                        "asks": 1,
+                        "beat_us_price": 108,
+                        "sell_faster": 89,
+                        "earn_more": 132,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "22167d31-9e71-4bda-99d6-99a4754ed75c",
+                        "size": "5",
+                        "size_type": "us m",
+                        "price": 158,
+                        "asks": 3,
+                        "beat_us_price": 122,
+                        "sell_faster": 51,
+                        "earn_more": 102,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "11f676fb-2c9f-4b1b-8a5e-43405caa0915",
+                        "size": "10.5",
+                        "size_type": "us m",
+                        "price": 278,
+                        "asks": 15,
+                        "beat_us_price": 114,
+                        "sell_faster": 97,
+                        "earn_more": 145,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "bfb01820-bf57-4e4e-aaa2-4dc973019b7d",
+                        "size": "11.5",
+                        "size_type": "us m",
+                        "price": 271,
+                        "asks": 9,
+                        "beat_us_price": 108,
+                        "sell_faster": 89,
+                        "earn_more": 132,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "02f49761-d98f-4956-9dce-157cab6fa758",
+                        "size": "15",
+                        "size_type": "us m",
+                        "price": 411,
+                        "asks": 1,
+                        "beat_us_price": 178,
+                        "sell_faster": 135,
+                        "earn_more": 175,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "02f49761-d98f-4956-9dce-157cab6fa758",
+                        "size": "15",
+                        "size_type": "us m",
+                        "price": 276,
+                        "asks": 6,
+                        "beat_us_price": 178,
+                        "sell_faster": 135,
+                        "earn_more": 175,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "f37977bc-30a9-4f48-af2d-324291b650b5",
+                        "size": "6.5",
+                        "size_type": "us m",
+                        "price": 253,
+                        "asks": 1,
+                        "beat_us_price": 154,
+                        "sell_faster": 97,
+                        "earn_more": 194,
+                        "type": "standard"
+                    },
+                    {
+                        "id": "bf204392-fa26-4a09-9f4c-1e6acb24b957",
+                        "size": "8.5",
+                        "size_type": "us m",
+                        "price": 322,
+                        "asks": 2,
+                        "beat_us_price": 133,
+                        "sell_faster": 93,
+                        "earn_more": 153,
+                        "type": "express_standard"
+                    },
+                    {
+                        "id": "bf204392-fa26-4a09-9f4c-1e6acb24b957",
+                        "size": "8.5",
+                        "size_type": "us m",
+                        "price": 292,
+                        "asks": 8,
+                        "beat_us_price": 133,
+                        "sell_faster": 93,
+                        "earn_more": 153,
+                        "type": "standard"
+                    }
+                ]
+            }
+        ],
+        "meta": null
+    }
+}
