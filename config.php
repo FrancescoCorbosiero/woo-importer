@@ -154,6 +154,34 @@ return [
             'order_by' => 'name',
             'has_archives' => true,
         ],
+        'colorway' => [
+            'name' => env('ATTRIBUTE_COLORWAY_NAME', 'Colorway'),
+            'slug' => env('ATTRIBUTE_COLORWAY_SLUG', 'colorway'),
+            'type' => 'select',
+            'order_by' => 'name',
+            'has_archives' => true,
+        ],
+        'gender' => [
+            'name' => env('ATTRIBUTE_GENDER_NAME', 'Genere'),
+            'slug' => env('ATTRIBUTE_GENDER_SLUG', 'genere'),
+            'type' => 'select',
+            'order_by' => 'name',
+            'has_archives' => true,
+        ],
+        'model' => [
+            'name' => env('ATTRIBUTE_MODEL_NAME', 'Modello'),
+            'slug' => env('ATTRIBUTE_MODEL_SLUG', 'modello'),
+            'type' => 'select',
+            'order_by' => 'name',
+            'has_archives' => true,
+        ],
+        'release_date' => [
+            'name' => env('ATTRIBUTE_RELEASE_DATE_NAME', 'Data di Rilascio'),
+            'slug' => env('ATTRIBUTE_RELEASE_DATE_SLUG', 'data-di-rilascio'),
+            'type' => 'select',
+            'order_by' => 'menu_order',
+            'has_archives' => true,
+        ],
     ],
 
     // ===========================================

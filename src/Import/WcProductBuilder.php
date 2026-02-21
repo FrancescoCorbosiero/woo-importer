@@ -111,6 +111,14 @@ class WcProductBuilder
         $size_attr_id = $this->getAttributeId($size_slug);
         $brand_slug = $this->config['attributes']['brand']['slug'] ?? 'marca';
         $brand_attr_id = $this->getAttributeId($brand_slug);
+        $colorway_slug = $this->config['attributes']['colorway']['slug'] ?? 'colorway';
+        $colorway_attr_id = $this->getAttributeId($colorway_slug);
+        $gender_slug = $this->config['attributes']['gender']['slug'] ?? 'genere';
+        $gender_attr_id = $this->getAttributeId($gender_slug);
+        $model_slug = $this->config['attributes']['model']['slug'] ?? 'modello';
+        $model_attr_id = $this->getAttributeId($model_slug);
+        $release_date_slug = $this->config['attributes']['release_date']['slug'] ?? 'data-di-rilascio';
+        $release_date_attr_id = $this->getAttributeId($release_date_slug);
 
         // Extract and sort unique sizes
         $size_options = array_map(fn($v) => $v['size_eu'], $variations);
@@ -182,17 +190,71 @@ class WcProductBuilder
             $wc_product['attributes'][] = $size_attr;
         }
 
-        // Release date attribute (visible, non-variation, for sorting/display)
+        // Colorway attribute (pa_colorway)
+        if (!empty($colorway)) {
+            $colorway_attr = [
+                'position' => count($wc_product['attributes']),
+                'visible' => true,
+                'variation' => false,
+                'options' => [$colorway],
+            ];
+            if ($colorway_attr_id) {
+                $colorway_attr['id'] = $colorway_attr_id;
+            } else {
+                $colorway_attr['name'] = 'pa_' . $colorway_slug;
+            }
+            $wc_product['attributes'][] = $colorway_attr;
+        }
+
+        // Gender attribute (pa_genere)
+        if (!empty($gender)) {
+            $translated_gender = $this->translateGender($gender);
+            $gender_attr = [
+                'position' => count($wc_product['attributes']),
+                'visible' => true,
+                'variation' => false,
+                'options' => [$translated_gender],
+            ];
+            if ($gender_attr_id) {
+                $gender_attr['id'] = $gender_attr_id;
+            } else {
+                $gender_attr['name'] = 'pa_' . $gender_slug;
+            }
+            $wc_product['attributes'][] = $gender_attr;
+        }
+
+        // Model attribute (pa_modello)
+        if (!empty($model)) {
+            $model_attr = [
+                'position' => count($wc_product['attributes']),
+                'visible' => true,
+                'variation' => false,
+                'options' => [$model],
+            ];
+            if ($model_attr_id) {
+                $model_attr['id'] = $model_attr_id;
+            } else {
+                $model_attr['name'] = 'pa_' . $model_slug;
+            }
+            $wc_product['attributes'][] = $model_attr;
+        }
+
+        // Release date attribute (pa_data-di-rilascio)
         if (!empty($release_date)) {
             $formatted_date = $this->formatDate($release_date);
-            if ($formatted_date !== $release_date || !empty($formatted_date)) {
-                $wc_product['attributes'][] = [
-                    'name' => 'Data di Rilascio',
+            if (!empty($formatted_date)) {
+                $release_attr = [
                     'position' => count($wc_product['attributes']),
                     'visible' => true,
                     'variation' => false,
                     'options' => [$formatted_date],
                 ];
+                if ($release_date_attr_id) {
+                    $release_attr['id'] = $release_date_attr_id;
+                } else {
+                    $release_attr['name'] = 'pa_' . $release_date_slug;
+                }
+                $wc_product['attributes'][] = $release_attr;
             }
         }
 
