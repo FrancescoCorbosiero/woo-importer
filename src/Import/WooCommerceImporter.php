@@ -139,7 +139,7 @@ class WooCommerceImporter
      */
     private function loadImageMap(): void
     {
-        $map_file = Config::projectRoot() . '/image-map.json';
+        $map_file = Config::imageMapFile();
         if (file_exists($map_file)) {
             $this->image_map = json_decode(file_get_contents($map_file), true) ?: [];
         }
@@ -154,7 +154,7 @@ class WooCommerceImporter
             return;
         }
 
-        $map_file = Config::projectRoot() . '/image-map.json';
+        $map_file = Config::imageMapFile();
         file_put_contents(
             $map_file,
             json_encode($this->image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)

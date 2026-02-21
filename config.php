@@ -1,10 +1,15 @@
 <?php
 /**
  * Golden Sneakers Import Configuration
- * 
+ *
  * Loads settings from .env file with Italian defaults.
- * Copy .env.example to .env and customize your settings.
- * 
+ *
+ * Supports multi-customer mode from a single install:
+ *   bin/kicksdb-discover --env=customers/clientA.env
+ *   ENV_FILE=customers/clientA.env ./kicksdb-sync.sh
+ *
+ * Falls back to .env in the project root if no override is given.
+ *
  * @package ResellPiacenza\WooImport
  */
 
@@ -12,8 +17,33 @@ require __DIR__ . '/vendor/autoload.php';
 
 use Dotenv\Dotenv;
 
-// Load .env file if it exists
-if (file_exists(__DIR__ . '/.env')) {
+// Resolve which .env file to load:
+//   1. --env=path CLI argument (highest priority)
+//   2. ENV_FILE environment variable
+//   3. .env in project root (default)
+$env_file = null;
+foreach ($argv ?? [] as $arg) {
+    if (strpos($arg, '--env=') === 0) {
+        $env_file = str_replace('--env=', '', $arg);
+        break;
+    }
+}
+if ($env_file === null) {
+    $env_file = $_ENV['ENV_FILE'] ?? getenv('ENV_FILE') ?: null;
+}
+
+if ($env_file !== null) {
+    // Resolve relative paths from project root
+    if (!preg_match('#^/#', $env_file)) {
+        $env_file = __DIR__ . '/' . $env_file;
+    }
+    if (!file_exists($env_file)) {
+        fwrite(STDERR, "Error: env file not found: {$env_file}\n");
+        exit(1);
+    }
+    $dotenv = Dotenv::createImmutable(dirname($env_file), basename($env_file));
+    $dotenv->load();
+} elseif (file_exists(__DIR__ . '/.env')) {
     $dotenv = Dotenv::createImmutable(__DIR__);
     $dotenv->load();
 }

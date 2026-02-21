@@ -3,6 +3,7 @@
 namespace ResellPiacenza\Pricing;
 
 use ResellPiacenza\KicksDb\Client as KicksDbClient;
+use ResellPiacenza\Support\Config;
 
 /**
  * SKU Registry Manager
@@ -30,7 +31,7 @@ class SkuRegistry
 
         $this->webhook_id = $config['webhook_id'] ?? null;
         $this->callback_url = $config['callback_url'] ?? '';
-        $this->registry_file = $config['registry_file'] ?? dirname(__DIR__, 2) . '/data/sku-registry.json';
+        $this->registry_file = $config['registry_file'] ?? Config::dataDir() . '/sku-registry.json';
     }
 
     public function fetchWcSkus(): array

@@ -88,7 +88,7 @@ $logger->info('');
 // Load Assortment
 // ============================================================================
 
-$assortment_file = Config::projectRoot() . '/data/kicksdb-assortment.json';
+$assortment_file = Config::dataDir() . '/kicksdb-assortment.json';
 
 if (!file_exists($assortment_file)) {
     $logger->error("Assortment file not found: {$assortment_file}");
@@ -176,7 +176,7 @@ try {
     // (brand category + subcategory from the catalog hierarchy)
     $catalog = $assortment['catalog'] ?? null;
     if ($catalog) {
-        $taxonomy_map_file = Config::projectRoot() . '/data/taxonomy-map.json';
+        $taxonomy_map_file = Config::dataDir() . '/taxonomy-map.json';
         $taxonomy_map = file_exists($taxonomy_map_file)
             ? (json_decode(file_get_contents($taxonomy_map_file), true) ?: [])
             : [];
@@ -231,12 +231,7 @@ try {
     }
 
     // Write output
-    $data_dir = Config::projectRoot() . '/data';
-    if (!is_dir($data_dir)) {
-        mkdir($data_dir, 0755, true);
-    }
-
-    $output_file = $data_dir . '/feed-kicksdb-wc-latest.json';
+    $output_file = Config::dataDir() . '/feed-kicksdb-wc-latest.json';
     file_put_contents(
         $output_file,
         json_encode($wc_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)

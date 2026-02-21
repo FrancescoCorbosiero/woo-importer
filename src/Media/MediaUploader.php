@@ -73,7 +73,7 @@ class MediaUploader
      */
     private function loadExistingMap(): void
     {
-        $map_file = Config::projectRoot() . '/image-map.json';
+        $map_file = Config::imageMapFile();
         if (file_exists($map_file)) {
             $this->image_map = json_decode(file_get_contents($map_file), true) ?: [];
             $this->logger->info("Loaded existing image map: " . count($this->image_map) . " entries");
@@ -85,7 +85,7 @@ class MediaUploader
      */
     private function saveImageMap(): void
     {
-        $map_file = Config::projectRoot() . '/image-map.json';
+        $map_file = Config::imageMapFile();
         file_put_contents(
             $map_file,
             json_encode($this->image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
@@ -199,7 +199,7 @@ class MediaUploader
      */
     private function fetchImagesFromKicksDB(): array
     {
-        $assortment_file = Config::projectRoot() . '/data/kicksdb-assortment.json';
+        $assortment_file = Config::dataDir() . '/kicksdb-assortment.json';
 
         if (!file_exists($assortment_file)) {
             throw new \Exception("KicksDB assortment not found: {$assortment_file}. Run bin/kicksdb-discover first.");

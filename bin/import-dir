@@ -134,12 +134,7 @@ if ($limit && $limit < count($products)) {
 }
 
 // Step 2: Write intermediate JSON for BulkUploader
-$data_dir = Config::projectRoot() . '/data';
-if (!is_dir($data_dir)) {
-    mkdir($data_dir, 0755, true);
-}
-
-$feed_file = $data_dir . '/shopify-import-feed.json';
+$feed_file = Config::dataDir() . '/shopify-import-feed.json';
 file_put_contents(
     $feed_file,
     json_encode($products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)

@@ -101,12 +101,12 @@ class BulkUploader
      */
     private function loadExistingMaps(): void
     {
-        $tax_file = Config::projectRoot() . '/data/taxonomy-map.json';
+        $tax_file = Config::dataDir() . '/taxonomy-map.json';
         if (file_exists($tax_file)) {
             $this->taxonomy_map = json_decode(file_get_contents($tax_file), true) ?: [];
         }
 
-        $img_file = Config::projectRoot() . '/image-map.json';
+        $img_file = Config::imageMapFile();
         if (file_exists($img_file)) {
             $this->image_map = json_decode(file_get_contents($img_file), true) ?: [];
         }
@@ -968,12 +968,7 @@ class BulkUploader
      */
     private function importProducts(array $wc_products): bool
     {
-        $data_dir = Config::projectRoot() . '/data';
-        if (!is_dir($data_dir)) {
-            mkdir($data_dir, 0755, true);
-        }
-
-        $feed_file = $data_dir . '/bulk-upload-feed.json';
+        $feed_file = Config::dataDir() . '/bulk-upload-feed.json';
         file_put_contents(
             $feed_file,
             json_encode($wc_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
@@ -1008,7 +1003,7 @@ class BulkUploader
     {
         // Save image map
         file_put_contents(
-            Config::projectRoot() . '/image-map.json',
+            Config::imageMapFile(),
             json_encode($this->image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
 
@@ -1017,13 +1012,8 @@ class BulkUploader
         $this->taxonomy_map['brands'] = $this->brand_cache;
         $this->taxonomy_map['updated_at'] = date('Y-m-d H:i:s');
 
-        $data_dir = Config::projectRoot() . '/data';
-        if (!is_dir($data_dir)) {
-            mkdir($data_dir, 0755, true);
-        }
-
         file_put_contents(
-            $data_dir . '/taxonomy-map.json',
+            Config::dataDir() . '/taxonomy-map.json',
             json_encode($this->taxonomy_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
     }

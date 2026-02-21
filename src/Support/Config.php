@@ -14,6 +14,7 @@ class Config
 {
     private static ?array $config = null;
     private static ?string $projectRoot = null;
+    private static ?string $dataDir = null;
 
     /**
      * Load the full configuration array
@@ -68,10 +69,61 @@ class Config
     }
 
     /**
+     * Get the data directory for intermediate files (feeds, assortments, maps)
+     *
+     * Supports multi-customer mode: set DATA_DIR in the customer's .env file
+     * to isolate each store's data. Relative paths resolve from project root.
+     *
+     * Examples:
+     *   DATA_DIR=data/clientA  →  /path/to/woo-importer/data/clientA
+     *   DATA_DIR=/tmp/clientA  →  /tmp/clientA
+     *   (not set)              →  /path/to/woo-importer/data
+     *
+     * @return string Absolute path to data directory (no trailing slash)
+     */
+    public static function dataDir(): string
+    {
+        if (self::$dataDir !== null) {
+            return self::$dataDir;
+        }
+
+        $dir = $_ENV['DATA_DIR'] ?? getenv('DATA_DIR') ?: null;
+
+        if ($dir) {
+            $dir = rtrim($dir, '/');
+            // Resolve relative paths from project root
+            if ($dir[0] !== '/') {
+                $dir = self::projectRoot() . '/' . $dir;
+            }
+        } else {
+            $dir = self::projectRoot() . '/data';
+        }
+
+        // Ensure directory exists
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        self::$dataDir = $dir;
+        return $dir;
+    }
+
+    /**
+     * Get the path to image-map.json (inside the data directory)
+     *
+     * @return string Absolute path to image-map.json
+     */
+    public static function imageMapFile(): string
+    {
+        return self::dataDir() . '/image-map.json';
+    }
+
+    /**
      * Reset cached config (useful for testing)
      */
     public static function reset(): void
     {
         self::$config = null;
+        self::$dataDir = null;
     }
 }

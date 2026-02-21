@@ -366,7 +366,7 @@ class TaxonomyManager
      */
     private function fetchBrandNamesFromKicksDB(): array
     {
-        $assortment_file = Config::projectRoot() . '/data/kicksdb-assortment.json';
+        $assortment_file = Config::dataDir() . '/kicksdb-assortment.json';
 
         if (!file_exists($assortment_file)) {
             $this->logger->error("KicksDB assortment not found: {$assortment_file}");
@@ -396,7 +396,7 @@ class TaxonomyManager
      */
     private function fetchBrandNamesFromCatalog(): array
     {
-        $assortment_file = Config::projectRoot() . '/data/kicksdb-assortment.json';
+        $assortment_file = Config::dataDir() . '/kicksdb-assortment.json';
 
         if (!file_exists($assortment_file)) {
             $this->logger->error("KicksDB assortment not found: {$assortment_file}");
@@ -434,7 +434,7 @@ class TaxonomyManager
      */
     private function ensureCatalogCategories(): void
     {
-        $assortment_file = Config::projectRoot() . '/data/kicksdb-assortment.json';
+        $assortment_file = Config::dataDir() . '/kicksdb-assortment.json';
 
         if (!file_exists($assortment_file)) {
             $this->logger->error("KicksDB assortment not found: {$assortment_file}");
@@ -545,7 +545,7 @@ class TaxonomyManager
 
         try {
             // Load existing map to preserve entries from other sources
-            $map_file = Config::projectRoot() . '/data/taxonomy-map.json';
+            $map_file = Config::dataDir() . '/taxonomy-map.json';
             if (file_exists($map_file)) {
                 $existing = json_decode(file_get_contents($map_file), true) ?: [];
                 $this->map['categories'] = $existing['categories'] ?? [];
@@ -610,11 +610,6 @@ class TaxonomyManager
 
             // Save taxonomy map
             $this->map['updated_at'] = date('Y-m-d H:i:s');
-
-            $data_dir = Config::projectRoot() . '/data';
-            if (!is_dir($data_dir)) {
-                mkdir($data_dir, 0755, true);
-            }
 
             file_put_contents(
                 $map_file,

@@ -135,7 +135,7 @@ if ($single_sku) {
     $registry = new SkuRegistry($wc_client, $kicksdb, [
         'webhook_id' => $pricing['kicksdb_webhook_id'] ?? null,
         'callback_url' => $pricing['webhook_callback_url'] ?? '',
-        'registry_file' => Config::projectRoot() . '/data/sku-registry.json',
+        'registry_file' => Config::dataDir() . '/sku-registry.json',
     ], $logger);
 
     $sync_result = $registry->sync();
@@ -149,7 +149,7 @@ if ($single_sku) {
     $logger->info('Step 1: Skipped (--skip-registry)');
 
     // Load SKUs from existing registry
-    $registry_file = Config::projectRoot() . '/data/sku-registry.json';
+    $registry_file = Config::dataDir() . '/sku-registry.json';
     if (file_exists($registry_file)) {
         $registry_data = json_decode(file_get_contents($registry_file), true);
         $skus_to_process = array_keys($registry_data['skus'] ?? []);

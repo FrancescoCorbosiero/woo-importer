@@ -86,10 +86,7 @@ try {
     $wc_products = $builder->buildAll($adapter->fetchProducts());
 
     // Write output
-    $data_dir = Config::projectRoot() . '/data';
-    if (!is_dir($data_dir)) {
-        mkdir($data_dir, 0755, true);
-    }
+    $data_dir = Config::dataDir();
 
     $output_file = $data_dir . '/feed-wc-latest.json';
     file_put_contents(
