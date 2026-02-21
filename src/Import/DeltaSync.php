@@ -320,7 +320,8 @@ class DeltaSync
     private function triggerImport(): bool
     {
         $cmd = 'php ' . escapeshellarg(Config::projectRoot() . '/bin/import-wc') .
-               ' --feed=' . escapeshellarg($this->diff_file);
+               ' --feed=' . escapeshellarg($this->diff_file) .
+               Config::envArgFragment();
 
         $this->logger->info("Executing: {$cmd}");
         $this->logger->info('');
