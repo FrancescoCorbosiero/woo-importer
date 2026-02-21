@@ -14,11 +14,11 @@
 #   ./kicksdb-sync.sh --force-full        # Force full import (ignore delta)
 #   ./kicksdb-sync.sh --verbose           # Detailed output from all steps
 #   ./kicksdb-sync.sh --limit=100         # Limit assortment size
-#   ./kicksdb-sync.sh --env=customers/clientA.env  # Multi-customer mode
+#   ./kicksdb-sync.sh --env=environment/clientA.env  # Multi-customer mode
 #
 # Multi-customer crontab (single install, multiple stores):
-#   0 */6 * * * cd /path/to/woo-importer && ./kicksdb-sync.sh --env=customers/clientA.env >> logs/clientA-kicksdb.log 2>&1
-#   0 */6 * * * cd /path/to/woo-importer && ./kicksdb-sync.sh --env=customers/clientB.env >> logs/clientB-kicksdb.log 2>&1
+#   0 */6 * * * cd /path/to/woo-importer && ./kicksdb-sync.sh --env=environment/clientA.env >> logs/clientA-kicksdb.log 2>&1
+#   0 */6 * * * cd /path/to/woo-importer && ./kicksdb-sync.sh --env=environment/clientB.env >> logs/clientB-kicksdb.log 2>&1
 #
 # =============================================================================
 

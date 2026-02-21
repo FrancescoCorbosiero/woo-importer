@@ -5,8 +5,8 @@
  * Loads settings from .env file with Italian defaults.
  *
  * Supports multi-customer mode from a single install:
- *   bin/kicksdb-discover --env=customers/clientA.env
- *   ENV_FILE=customers/clientA.env ./kicksdb-sync.sh
+ *   bin/kicksdb-discover --env=environment/clientA.env
+ *   ENV_FILE=environment/clientA.env ./kicksdb-sync.sh
  *
  * Falls back to .env in the project root if no override is given.
  *
