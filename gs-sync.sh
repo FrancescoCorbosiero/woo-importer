@@ -12,9 +12,11 @@
 #   ./gs-sync.sh --skip-media        # Skip image upload step
 #   ./gs-sync.sh --force-full        # Force full import (ignore delta)
 #   ./gs-sync.sh --verbose           # Detailed output from all steps
+#   ./gs-sync.sh --env=customers/clientA.env  # Multi-customer mode
 #
-# Crontab example (every 30 minutes):
-#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh >> logs/cron.log 2>&1
+# Multi-customer crontab (single install, multiple stores):
+#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh --env=customers/clientA.env >> logs/clientA-gs.log 2>&1
+#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh --env=customers/clientB.env >> logs/clientB-gs.log 2>&1
 #
 # =============================================================================
 
@@ -26,6 +28,7 @@ DRY_RUN=""
 VERBOSE=""
 SKIP_MEDIA=""
 FORCE_FULL=""
+ENV_ARG=""
 
 for arg in "$@"; do
     case $arg in
@@ -33,6 +36,7 @@ for arg in "$@"; do
         --verbose|-v)  VERBOSE="--verbose" ;;
         --skip-media)  SKIP_MEDIA="1" ;;
         --force-full)  FORCE_FULL="--force-full" ;;
+        --env=*)       ENV_ARG="$arg" ;;
         --help|-h)
             echo "Usage: ./gs-sync.sh [options]"
             echo ""
@@ -62,13 +66,13 @@ echo ""
 
 # Step 1: Ensure taxonomies exist (categories, attributes, brands from GS feed)
 echo "[Step 1/4] Preparing taxonomies..."
-php bin/prepare-taxonomies --from-gs $DRY_RUN $VERBOSE
+php bin/prepare-taxonomies --from-gs $DRY_RUN $VERBOSE $ENV_ARG
 echo ""
 
 # Step 2: Upload new images to WordPress media library
 if [ -z "$SKIP_MEDIA" ]; then
     echo "[Step 2/4] Preparing media..."
-    php bin/prepare-media --from-gs $DRY_RUN $VERBOSE
+    php bin/prepare-media --from-gs $DRY_RUN $VERBOSE $ENV_ARG
     echo ""
 else
     echo "[Step 2/4] Skipping media (--skip-media)"
@@ -77,17 +81,17 @@ fi
 
 # Step 2.5: Validate image map (remove stale media references)
 echo "[Step 2.5] Validating image map..."
-php bin/prepare-media --validate $VERBOSE
+php bin/prepare-media --validate $VERBOSE $ENV_ARG
 echo ""
 
 # Step 3: Transform GS feed → WooCommerce format
 echo "[Step 3/4] Transforming feed..."
-php bin/gs-transform $VERBOSE
+php bin/gs-transform $VERBOSE $ENV_ARG
 echo ""
 
 # Step 4: Delta sync + import
 echo "[Step 4/4] Running delta sync..."
-php bin/sync-wc --feed=data/feed-wc-latest.json $DRY_RUN $VERBOSE $FORCE_FULL
+php bin/sync-wc --feed=data/feed-wc-latest.json $DRY_RUN $VERBOSE $FORCE_FULL $ENV_ARG
 
 echo ""
 echo "========================================"

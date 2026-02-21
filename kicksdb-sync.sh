@@ -14,9 +14,11 @@
 #   ./kicksdb-sync.sh --force-full        # Force full import (ignore delta)
 #   ./kicksdb-sync.sh --verbose           # Detailed output from all steps
 #   ./kicksdb-sync.sh --limit=100         # Limit assortment size
+#   ./kicksdb-sync.sh --env=customers/clientA.env  # Multi-customer mode
 #
-# Crontab example (every 6 hours):
-#   0 */6 * * * cd /path/to/woo-importer && ./kicksdb-sync.sh >> logs/cron-kicksdb.log 2>&1
+# Multi-customer crontab (single install, multiple stores):
+#   0 */6 * * * cd /path/to/woo-importer && ./kicksdb-sync.sh --env=customers/clientA.env >> logs/clientA-kicksdb.log 2>&1
+#   0 */6 * * * cd /path/to/woo-importer && ./kicksdb-sync.sh --env=customers/clientB.env >> logs/clientB-kicksdb.log 2>&1
 #
 # =============================================================================
 
@@ -30,6 +32,7 @@ SKIP_MEDIA=""
 SKIP_DISCOVER=""
 FORCE_FULL=""
 LIMIT_ARG=""
+ENV_ARG=""
 
 for arg in "$@"; do
     case $arg in
@@ -39,6 +42,7 @@ for arg in "$@"; do
         --skip-discover)   SKIP_DISCOVER="1" ;;
         --force-full)      FORCE_FULL="--force-full" ;;
         --limit=*)         LIMIT_ARG="$arg" ;;
+        --env=*)           ENV_ARG="$arg" ;;
         --help|-h)
             echo "Usage: ./kicksdb-sync.sh [options]"
             echo ""
@@ -71,7 +75,7 @@ echo ""
 # Step 1: Discover popular products from KicksDB
 if [ -z "$SKIP_DISCOVER" ]; then
     echo "[Step 1/5] Discovering KicksDB assortment..."
-    php bin/kicksdb-discover $VERBOSE $LIMIT_ARG $DRY_RUN
+    php bin/kicksdb-discover $VERBOSE $LIMIT_ARG $DRY_RUN $ENV_ARG
     echo ""
 else
     echo "[Step 1/5] Skipping discovery (--skip-discover)"
@@ -80,13 +84,13 @@ fi
 
 # Step 2: Ensure taxonomies exist (hierarchical categories + brands from catalog)
 echo "[Step 2/5] Preparing taxonomies..."
-php bin/prepare-taxonomies --from-catalog $DRY_RUN $VERBOSE
+php bin/prepare-taxonomies --from-catalog $DRY_RUN $VERBOSE $ENV_ARG
 echo ""
 
 # Step 3: Upload new images to WordPress media library
 if [ -z "$SKIP_MEDIA" ]; then
     echo "[Step 3/5] Preparing media..."
-    php bin/prepare-media --from-kicksdb $DRY_RUN $VERBOSE
+    php bin/prepare-media --from-kicksdb $DRY_RUN $VERBOSE $ENV_ARG
     echo ""
 else
     echo "[Step 3/5] Skipping media (--skip-media)"
@@ -95,12 +99,12 @@ fi
 
 # Step 3.5: Validate image map (remove stale media references)
 echo "[Step 3.5] Validating image map..."
-php bin/prepare-media --validate $VERBOSE
+php bin/prepare-media --validate $VERBOSE $ENV_ARG
 echo ""
 
 # Step 4: Transform KicksDB feed → WooCommerce format
 echo "[Step 4/5] Transforming feed..."
-php bin/kicksdb-transform $VERBOSE $LIMIT_ARG
+php bin/kicksdb-transform $VERBOSE $LIMIT_ARG $ENV_ARG
 echo ""
 
 # Step 5: Delta sync + import
@@ -109,7 +113,7 @@ php bin/sync-wc \
     --feed=data/feed-kicksdb-wc-latest.json \
     --baseline=data/feed-kicksdb-wc.json \
     --diff=data/diff-kicksdb-wc.json \
-    $DRY_RUN $VERBOSE $FORCE_FULL
+    $DRY_RUN $VERBOSE $FORCE_FULL $ENV_ARG
 
 echo ""
 echo "========================================"
