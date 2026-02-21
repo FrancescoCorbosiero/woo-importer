@@ -415,7 +415,7 @@ class WcProductBuilder
     private function loadMaps(): void
     {
         // Taxonomy map
-        $tax_file = Config::projectRoot() . '/data/taxonomy-map.json';
+        $tax_file = Config::dataDir() . '/taxonomy-map.json';
         if (file_exists($tax_file)) {
             $this->taxonomy_map = json_decode(file_get_contents($tax_file), true) ?: [];
             $this->log('info', "Builder: loaded taxonomy map — " .
@@ -428,7 +428,7 @@ class WcProductBuilder
         }
 
         // Image map
-        $img_file = Config::projectRoot() . '/image-map.json';
+        $img_file = Config::imageMapFile();
         if (file_exists($img_file)) {
             $this->image_map = json_decode(file_get_contents($img_file), true) ?: [];
             $this->log('info', "Builder: loaded image map — " . count($this->image_map) . " entries");

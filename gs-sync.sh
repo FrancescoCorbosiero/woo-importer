@@ -54,8 +54,13 @@ for arg in "$@"; do
     esac
 done
 
-# Ensure logs directory exists
-mkdir -p logs
+# Resolve DATA_DIR for file paths (must match what PHP sees via Config::dataDir())
+if [ -n "$ENV_ARG" ]; then
+    ENV_PATH="${ENV_ARG#--env=}"
+    DATA_DIR=$(grep -s '^DATA_DIR=' "$ENV_PATH" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"'"'" || true)
+fi
+DATA_DIR="${DATA_DIR:-data}"
+mkdir -p "$DATA_DIR" logs
 
 echo ""
 echo "========================================"
@@ -91,7 +96,7 @@ echo ""
 
 # Step 4: Delta sync + import
 echo "[Step 4/4] Running delta sync..."
-php bin/sync-wc --feed=data/feed-wc-latest.json $DRY_RUN $VERBOSE $FORCE_FULL $ENV_ARG
+php bin/sync-wc --feed="$DATA_DIR/feed-wc-latest.json" $DRY_RUN $VERBOSE $FORCE_FULL $ENV_ARG
 
 echo ""
 echo "========================================"

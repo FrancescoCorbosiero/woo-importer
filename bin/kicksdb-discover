@@ -193,8 +193,8 @@ $gs_excluded = 0;
 if (!$opt_skip_dedup) {
     $logger->info('Step 1: Loading GS SKU cache...');
 
-    $cache_file = Config::projectRoot() . '/data/gs-sku-cache.json';
-    $feed_file = Config::projectRoot() . '/data/feed-wc-latest.json';
+    $cache_file = Config::dataDir() . '/gs-sku-cache.json';
+    $feed_file = Config::dataDir() . '/feed-wc-latest.json';
 
     if (file_exists($cache_file)) {
         $cached = json_decode(file_get_contents($cache_file), true);
@@ -439,10 +439,7 @@ if ($opt_verbose && count($products) > 0) {
 // ============================================================================
 
 if (!$opt_dry_run) {
-    $data_dir = Config::projectRoot() . '/data';
-    if (!is_dir($data_dir)) {
-        mkdir($data_dir, 0755, true);
-    }
+    $data_dir = Config::dataDir();
 
     $output = [
         'discovered_at' => date('c'),

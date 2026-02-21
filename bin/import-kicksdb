@@ -245,12 +245,7 @@ if (empty($wc_products)) {
 // ============================================================================
 
 if ($opt_save_feed) {
-    $data_dir = Config::projectRoot() . '/data';
-    if (!is_dir($data_dir)) {
-        mkdir($data_dir, 0755, true);
-    }
-
-    $feed_file = $data_dir . '/feed-kicksdb.json';
+    $feed_file = Config::dataDir() . '/feed-kicksdb.json';
     file_put_contents(
         $feed_file,
         json_encode($wc_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)

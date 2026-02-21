@@ -366,7 +366,7 @@ class ProductNuker
      */
     private function cleanImageMap(array $deleted_products): void
     {
-        $map_file = Config::projectRoot() . '/image-map.json';
+        $map_file = Config::imageMapFile();
         if (!file_exists($map_file)) {
             $this->logger->info("  No image-map.json found");
             return;
