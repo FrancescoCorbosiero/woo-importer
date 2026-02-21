@@ -768,7 +768,9 @@ class WooCommerceImporter
             $product_id = $product['id'];
             $results[$product_id] = [];
 
-            // Build paginated request (page 1, 100 per page — usually sufficient)
+            // Fetch up to 100 variations per product (sufficient for sneakers: ~20-40 sizes).
+            // If a product ever has >100 variations, this would need pagination —
+            // but that's not realistic for shoe/clothing size ranges.
             $url = $this->buildWcApiUrl("products/{$product_id}/variations", ['per_page' => 100, 'page' => 1]);
             $ch = $this->createWcCurlHandle($url);
             $handles[$idx] = ['ch' => $ch, 'product_id' => $product_id];
