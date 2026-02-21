@@ -12,11 +12,11 @@
 #   ./gs-sync.sh --skip-media        # Skip image upload step
 #   ./gs-sync.sh --force-full        # Force full import (ignore delta)
 #   ./gs-sync.sh --verbose           # Detailed output from all steps
-#   ./gs-sync.sh --env=customers/clientA.env  # Multi-customer mode
+#   ./gs-sync.sh --env=environment/clientA.env  # Multi-customer mode
 #
 # Multi-customer crontab (single install, multiple stores):
-#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh --env=customers/clientA.env >> logs/clientA-gs.log 2>&1
-#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh --env=customers/clientB.env >> logs/clientB-gs.log 2>&1
+#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh --env=environment/clientA.env >> logs/clientA-gs.log 2>&1
+#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh --env=environment/clientB.env >> logs/clientB-gs.log 2>&1
 #
 # =============================================================================
 

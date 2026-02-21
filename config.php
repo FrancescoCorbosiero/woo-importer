@@ -5,15 +5,15 @@
  * Loads settings from .env file with Italian defaults.
  *
  * Supports multi-customer mode from a single install:
- *   bin/kicksdb-discover --env=customers/clientA.env
- *   ENV_FILE=customers/clientA.env ./kicksdb-sync.sh
+ *   bin/kicksdb-discover --env=environment/clientA.env
+ *   ENV_FILE=environment/clientA.env ./kicksdb-sync.sh
  *
  * Falls back to .env in the project root if no override is given.
  *
  * @package ResellPiacenza\WooImport
  */
 
-require __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 use Dotenv\Dotenv;
 
@@ -22,7 +22,8 @@ use Dotenv\Dotenv;
 //   2. ENV_FILE environment variable
 //   3. .env in project root (default)
 $env_file = null;
-foreach ($argv ?? [] as $arg) {
+$cli_args = $_SERVER['argv'] ?? $argv ?? [];
+foreach ($cli_args as $arg) {
     if (strpos($arg, '--env=') === 0) {
         $env_file = str_replace('--env=', '', $arg);
         break;
