@@ -145,7 +145,7 @@ class Client
      * @param int $limit Results per page
      * @param string $market Market code
      * @param int $page Page number (1-based)
-     * @param string|null $sort Sort order (e.g. 'most-active', 'featured', 'newest', 'deadstock_sold')
+     * @param string|null $sort Sort order: 'release_date' (newest first) or 'rank' (most popular)
      * @param string|null $order Sort direction ('ASC' or 'DESC')
      */
     public function browseProducts(string $query, int $limit = 50, string $market = 'IT', int $page = 1, ?string $sort = null, ?string $order = null): ?array
