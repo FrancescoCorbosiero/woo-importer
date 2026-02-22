@@ -250,6 +250,11 @@ try {
         json_encode($wc_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
     );
 
+    // Cache KicksDB SKUs for GS deduplication (mirror of gs-sku-cache.json)
+    $kicksdb_skus = array_values(array_filter(array_map(fn($p) => $p['sku'] ?? null, $wc_products)));
+    file_put_contents(Config::dataDir() . '/kicksdb-sku-cache.json', json_encode($kicksdb_skus, JSON_PRETTY_PRINT));
+    $logger->info("Cached " . count($kicksdb_skus) . " KicksDB SKUs to data/kicksdb-sku-cache.json");
+
     // Summary
     $duration = round(microtime(true) - $start_time, 1);
     $adapter_stats = $adapter->getStats();
