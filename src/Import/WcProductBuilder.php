@@ -533,7 +533,7 @@ class WcProductBuilder
         if (in_array($lower, ['shoes', 'sneakers', 'footwear'])) {
             return 'sneakers';
         }
-        if (in_array($lower, ['clothing', 'apparel'])) {
+        if (in_array($lower, ['clothing', 'apparel', 'streetwear'])) {
             return 'clothing';
         }
         return 'sneakers';
