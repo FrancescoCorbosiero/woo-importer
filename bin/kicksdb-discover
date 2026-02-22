@@ -134,6 +134,8 @@ if (!is_array($catalog) || empty($catalog['brands'])) {
 $per_label = $opt_per_label ?? ($config['pricing']['kicksdb_products_per_label'] ?? 50);
 $page_size = min($per_label, $config['pricing']['kicksdb_discovery_page_size'] ?? 50);
 $market = $config['pricing']['kicksdb_market'] ?? 'IT';
+$discovery_sort = $config['pricing']['kicksdb_discovery_sort'] ?? '';
+$discovery_order = $config['pricing']['kicksdb_discovery_order'] ?? '';
 
 // Build product type filter (lowercase for case-insensitive matching)
 $product_type_filter = [];
@@ -157,6 +159,11 @@ $logger->info("  Brands:     " . count($catalog['brands']));
 $logger->info("  Labels:     {$total_labels}");
 $logger->info("  Per label:  {$per_label} products");
 $logger->info("  Market:     {$market}");
+if ($discovery_sort) {
+    $logger->info("  Sort:       {$discovery_sort}" . ($discovery_order ? " ({$discovery_order})" : ''));
+} else {
+    $logger->info("  Sort:       (API default)");
+}
 if (!empty($product_type_filter)) {
     $logger->info("  Types:      " . implode(', ', $product_type_filter));
 } else {
@@ -262,7 +269,7 @@ foreach ($catalog['brands'] as $brand_entry) {
         $pages_needed = (int) ceil($brand_per_label / $page_size);
 
         for ($page = 1; $page <= $pages_needed + 2; $page++) { // +2 buffer for filtering
-            $result = $client->browseProducts($label, $page_size, $market, $page);
+            $result = $client->browseProducts($label, $page_size, $market, $page, $discovery_sort ?: null, $discovery_order ?: null);
             $api_calls++;
 
             if ($result === null) {

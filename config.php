@@ -259,6 +259,8 @@ return [
         'kicksdb_assortment_size' => (int) env('KICKSDB_ASSORTMENT_SIZE', 800),
         'kicksdb_discovery_query' => env('KICKSDB_DISCOVERY_QUERY', 'sneakers'),
         'kicksdb_discovery_page_size' => (int) env('KICKSDB_DISCOVERY_PAGE_SIZE', 50),
+        'kicksdb_discovery_sort' => env('KICKSDB_DISCOVERY_SORT', ''),
+        'kicksdb_discovery_order' => env('KICKSDB_DISCOVERY_ORDER', ''),
 
         // KicksDB Brand Catalog: JSON file with hierarchical brand/subcategory structure
         // When set, discovery fetches per subcategory label instead of generic search
