@@ -227,8 +227,11 @@ class TaxonomyManager
 
     /**
      * Ensure a brand exists in WooCommerce brands taxonomy
+     *
+     * @param string $name Brand name
+     * @param int|null $parent Parent brand ID for hierarchical brands
      */
-    private function ensureBrand(string $name): ?int
+    private function ensureBrand(string $name, ?int $parent = null): ?int
     {
         $slug = $this->sanitizeSlug($name);
 
@@ -248,17 +251,22 @@ class TaxonomyManager
 
             if ($this->dry_run) {
                 $this->stats['brands_created']++;
-                $this->logger->info("  [DRY RUN] Would create: {$name}");
-                return 99997;
+                $this->logger->info("  [DRY RUN] Would create: {$name}" . ($parent ? " (parent: {$parent})" : ''));
+                return 99997 - $this->stats['brands_created'];
             }
 
-            $result = $this->wc_client->post('products/brands', [
+            $payload = [
                 'name' => $name,
                 'slug' => $slug,
-            ]);
+            ];
+            if ($parent !== null) {
+                $payload['parent'] = $parent;
+            }
+
+            $result = $this->wc_client->post('products/brands', $payload);
 
             $this->stats['brands_created']++;
-            $this->logger->info("  Created: {$name} (ID: {$result->id})");
+            $this->logger->info("  Created: {$name} (ID: {$result->id})" . ($parent ? " under parent {$parent}" : ''));
             return $result->id;
 
         } catch (\Exception $e) {
@@ -427,12 +435,13 @@ class TaxonomyManager
     }
 
     /**
-     * Create hierarchical WC categories from the catalog structure
+     * Create hierarchical brands from the catalog structure
      *
-     * Creates: Root category (e.g., Sneakers) > Brand (e.g., Nike) > Subcategory (e.g., Nike Dunk)
-     * All category IDs are stored in the taxonomy map for downstream use.
+     * Creates: Brand (e.g., Nike) > Sub-brand (e.g., Nike Dunk)
+     * Uses the WooCommerce brands taxonomy (same as GS pipeline).
+     * All brand IDs are stored in the taxonomy map for downstream use.
      */
-    private function ensureCatalogCategories(): void
+    private function ensureCatalogBrands(): void
     {
         $assortment_file = Config::dataDir() . '/kicksdb-assortment.json';
 
@@ -449,21 +458,6 @@ class TaxonomyManager
             return;
         }
 
-        // Resolve root category (Sneakers)
-        $root_slug = $this->config['categories']['sneakers']['slug'] ?? 'sneakers';
-        $root_id = $this->map['categories'][$root_slug] ?? null;
-
-        if (!$root_id) {
-            $this->logger->warning("  Root category '{$root_slug}' not found in map, creating...");
-            $root_config = $this->config['categories']['sneakers'];
-            $root_id = $this->ensureCategory($root_config['name'], $root_config['slug']);
-            if ($root_id) {
-                $this->map['categories'][$root_slug] = $root_id;
-            }
-        }
-
-        $this->logger->info("  Root: {$root_slug} (ID: {$root_id})");
-
         foreach ($catalog['brands'] as $brand_entry) {
             $brand_name = $brand_entry['name'] ?? '';
             if (empty($brand_name)) {
@@ -472,10 +466,10 @@ class TaxonomyManager
 
             $brand_slug = $this->sanitizeSlug($brand_name);
 
-            // Create brand category under root
-            $brand_id = $this->ensureCategory($brand_name, $brand_slug, $root_id);
+            // Create parent brand
+            $brand_id = $this->ensureBrand($brand_name);
             if ($brand_id) {
-                $this->map['categories'][$brand_slug] = $brand_id;
+                $this->map['brands'][$brand_slug] = $brand_id;
             }
 
             $subcategories = $brand_entry['products'] ?? [];
@@ -483,12 +477,12 @@ class TaxonomyManager
                 continue;
             }
 
-            // Create subcategory under brand
+            // Create sub-brands under parent brand
             foreach ($subcategories as $subcat_name) {
                 $subcat_slug = $this->sanitizeSlug($subcat_name);
-                $subcat_id = $this->ensureCategory($subcat_name, $subcat_slug, $brand_id);
+                $subcat_id = $this->ensureBrand($subcat_name, $brand_id);
                 if ($subcat_id) {
-                    $this->map['categories'][$subcat_slug] = $subcat_id;
+                    $this->map['brands'][$subcat_slug] = $subcat_id;
                 }
             }
         }
@@ -584,11 +578,11 @@ class TaxonomyManager
                 }
             }
 
-            // Catalog hierarchical categories (Brand > Subcategory under root)
+            // Catalog hierarchical brands (Brand > Sub-brand in brands taxonomy)
             if ($this->brand_source === 'catalog') {
                 $this->logger->info('');
-                $this->logger->info('Creating catalog category hierarchy...');
-                $this->ensureCatalogCategories();
+                $this->logger->info('Creating catalog brand hierarchy...');
+                $this->ensureCatalogBrands();
             }
 
             // Brands (WC brands taxonomy)
