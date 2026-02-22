@@ -295,6 +295,12 @@ class WcProductBuilder
             $brand_id = $this->getBrandId($brand);
             if ($brand_id) {
                 $wc_product['brands'] = [['id' => $brand_id]];
+            } else {
+                // Slug fallback: WooCommerceImporter will auto-create via resolveBrandIds()
+                $brand_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $brand));
+                $brand_slug = preg_replace('/-+/', '-', trim($brand_slug, '-'));
+                $wc_product['brands'] = [['slug' => $brand_slug, 'name' => $brand]];
+                $this->log('debug', "  No brand ID for '{$brand}', using slug fallback (product {$sku})");
             }
         }
 

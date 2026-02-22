@@ -52,6 +52,9 @@ class WooCommerceImporter
     // Category slug → ID cache
     private $category_cache = [];
 
+    // Brand slug → ID cache
+    private $brand_cache = [];
+
     // Image map for tracking sideloaded images
     private $image_map = [];
     private $image_map_dirty = false;
@@ -377,6 +380,122 @@ class WooCommerceImporter
     }
 
     /**
+     * Resolve any slug/name-based brands to IDs via WC API
+     *
+     * Similar to resolveCategoryIds, but for the brands taxonomy.
+     * Auto-creates brands that don't exist yet so that clean environments
+     * work without requiring a separate prepare-taxonomies step.
+     *
+     * @param array &$payload Product payload (modified in place)
+     */
+    private function resolveBrandIds(array &$payload): void
+    {
+        if (empty($payload['brands'])) {
+            return;
+        }
+
+        foreach ($payload['brands'] as $idx => &$brand) {
+            if (!empty($brand['id'])) {
+                continue;
+            }
+
+            $slug = $brand['slug'] ?? null;
+            $name = $brand['name'] ?? null;
+            if (!$slug && !$name) {
+                continue;
+            }
+
+            $id = $this->lookupOrCreateBrand($slug ?? $this->sanitizeBrandSlug($name), $name);
+            if ($id) {
+                $brand = ['id' => $id];
+            } else {
+                $this->logger->warning("  Brand '{$name}' could not be found or created — product will have no brand");
+                unset($payload['brands'][$idx]);
+            }
+        }
+
+        $payload['brands'] = array_values($payload['brands']);
+    }
+
+    /**
+     * Look up a WooCommerce brand by slug, creating it if it doesn't exist
+     *
+     * @param string $slug Brand slug
+     * @param string|null $name Brand display name (for auto-creation)
+     * @return int|null Brand ID or null on failure
+     */
+    private function lookupOrCreateBrand(string $slug, ?string $name = null): ?int
+    {
+        if (array_key_exists($slug, $this->brand_cache)) {
+            return $this->brand_cache[$slug];
+        }
+
+        // Try to find existing brand
+        try {
+            $brands = $this->wc_client->get('products/brands', ['slug' => $slug]);
+
+            if (!empty($brands)) {
+                $id = $brands[0]->id;
+                $this->brand_cache[$slug] = $id;
+                $this->logger->info("  Resolved brand '{$slug}' → ID {$id}");
+                return $id;
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning("  Brand lookup failed for '{$slug}': " . $e->getMessage());
+        }
+
+        // Brand doesn't exist — try to create it
+        $display_name = $name ?? ucfirst(str_replace('-', ' ', $slug));
+        try {
+            $result = $this->wc_client->post('products/brands', [
+                'name' => $display_name,
+                'slug' => $slug,
+            ]);
+
+            if (!empty($result->id)) {
+                $id = $result->id;
+                $this->brand_cache[$slug] = $id;
+                $this->logger->info("  Auto-created brand '{$display_name}' (slug: {$slug}) → ID {$id}");
+                return $id;
+            }
+        } catch (\Exception $e) {
+            // "term_exists" means the brand was created between our lookup and create
+            if (strpos($e->getMessage(), 'term_exists') !== false) {
+                try {
+                    $brands = $this->wc_client->get('products/brands', ['slug' => $slug]);
+                    if (!empty($brands)) {
+                        $id = $brands[0]->id;
+                        $this->brand_cache[$slug] = $id;
+                        $this->logger->info("  Found existing brand '{$slug}' → ID {$id}");
+                        return $id;
+                    }
+                } catch (\Exception $e2) {
+                    // Fall through to null
+                }
+            }
+
+            $this->logger->warning("  Brand auto-creation failed for '{$slug}': " . $e->getMessage());
+        }
+
+        $this->brand_cache[$slug] = null;
+        return null;
+    }
+
+    /**
+     * Sanitize a brand name into a URL slug
+     *
+     * @param string $name Brand name
+     * @return string Slug
+     */
+    private function sanitizeBrandSlug(string $name): string
+    {
+        $slug = strtolower($name);
+        $slug = preg_replace('/[^a-z0-9-]/', '-', $slug);
+        $slug = preg_replace('/-+/', '-', $slug);
+        return trim($slug, '-');
+    }
+
+    /**
      * Process products in batch
      *
      * @param array $wc_products WooCommerce-formatted products
@@ -411,6 +530,9 @@ class WooCommerceImporter
 
             // Resolve any slug-based categories to IDs (WC API requires IDs)
             $this->resolveCategoryIds($api_payload);
+
+            // Resolve any slug/name-based brands to IDs (auto-create if missing)
+            $this->resolveBrandIds($api_payload);
 
             if (isset($existing_products[$sku])) {
                 $api_payload['id'] = $existing_products[$sku]['id'];

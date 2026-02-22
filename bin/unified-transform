@@ -275,24 +275,32 @@ try {
             $subcat_brand_id = $brands_map[$subcat_slug] ?? null;
             $parent_brand_id = $brands_map[$brand_slug] ?? null;
 
-            $brand_ids = [];
+            $brand_entries = [];
             if ($subcat_brand_id) {
-                $brand_ids[] = ['id' => $subcat_brand_id];
+                $brand_entries[] = ['id' => $subcat_brand_id];
+            } else {
+                // Slug fallback: WooCommerceImporter will auto-create via resolveBrandIds()
+                $brand_entries[] = ['slug' => $subcat_slug, 'name' => $meta['subcategory']];
             }
-            if ($parent_brand_id && $parent_brand_id !== $subcat_brand_id) {
-                $brand_ids[] = ['id' => $parent_brand_id];
+            if ($parent_brand_id) {
+                if ($parent_brand_id !== $subcat_brand_id) {
+                    $brand_entries[] = ['id' => $parent_brand_id];
+                }
+            } else {
+                $brand_entries[] = ['slug' => $brand_slug, 'name' => $meta['brand']];
             }
 
-            if (!empty($brand_ids)) {
-                $existing = $wc['brands'] ?? [];
-                $existing_ids = array_column($existing, 'id');
-                foreach ($brand_ids as $b) {
-                    if (!in_array($b['id'], $existing_ids)) {
-                        $existing[] = $b;
-                    }
+            $existing = $wc['brands'] ?? [];
+            $existing_ids = array_filter(array_column($existing, 'id'));
+            $existing_slugs = array_filter(array_column($existing, 'slug'));
+            foreach ($brand_entries as $b) {
+                if (!empty($b['id']) && !in_array($b['id'], $existing_ids)) {
+                    $existing[] = $b;
+                } elseif (!empty($b['slug']) && !in_array($b['slug'], $existing_slugs)) {
+                    $existing[] = $b;
                 }
-                $wc['brands'] = $existing;
             }
+            $wc['brands'] = $existing;
 
             $wc['meta_data'] = $wc['meta_data'] ?? [];
             $wc['meta_data'][] = ['key' => '_catalog_brand', 'value' => $meta['brand']];
