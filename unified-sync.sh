@@ -90,7 +90,9 @@ echo ""
 # Step 1: Discover popular products from KicksDB
 if [ -z "$SKIP_DISCOVER" ]; then
     echo "[Step 1/5] Discovering KicksDB assortment..."
-    php bin/kicksdb-discover $VERBOSE $LIMIT_ARG $DRY_RUN $ENV_ARG
+    # --skip-dedup: unified pipeline WANTS overlapping SKUs with GS
+    # (the FeedMerger handles dedup via variation-level merge)
+    php bin/kicksdb-discover --skip-dedup $VERBOSE $LIMIT_ARG $DRY_RUN $ENV_ARG
     echo ""
 else
     echo "[Step 1/5] Skipping discovery (--skip-discover)"
