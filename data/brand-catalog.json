@@ -179,32 +179,32 @@
     {
       "name": "Accessori",
       "slug": "accessori",
-      "product_types": ["streetwear", "collectibles"],
+      "product_types": [],
       "brands": [
         {
-          "name": "Supreme",
+          "name": "Beanie",
           "per_label": 15,
-          "products": [
-            "Supreme Beanie",
-            "Supreme Cap",
-            "Supreme Bag"
-          ]
+          "products": ["Beanie"]
         },
         {
-          "name": "New Era",
+          "name": "59FIFTY",
           "per_label": 15,
-          "products": [
-            "New Era 59fifty",
-            "New Era Cap"
-          ]
+          "products": ["59FIFTY"]
         },
         {
-          "name": "Pop Mart",
+          "name": "Cappelli",
           "per_label": 15,
-          "products": [
-            "Labubu",
-            "Pop Mart Labubu"
-          ]
+          "products": ["Cap"]
+        },
+        {
+          "name": "Borse",
+          "per_label": 15,
+          "products": ["Bag"]
+        },
+        {
+          "name": "Labubu",
+          "per_label": 15,
+          "products": ["Labubu"]
         }
       ]
     }
