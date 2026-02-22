@@ -239,15 +239,15 @@ class WcProductBuilder
             $wc_product['attributes'][] = $model_attr;
         }
 
-        // Release date attribute (pa_data-di-rilascio)
+        // Release date attribute (pa_data-di-rilascio) — year only for correct sorting
         if (!empty($release_date)) {
-            $formatted_date = $this->formatDate($release_date);
-            if (!empty($formatted_date)) {
+            $year = $this->extractYear($release_date);
+            if (!empty($year)) {
                 $release_attr = [
                     'position' => count($wc_product['attributes']),
                     'visible' => true,
                     'variation' => false,
-                    'options' => [$formatted_date],
+                    'options' => [$year],
                 ];
                 if ($release_date_attr_id) {
                     $release_attr['id'] = $release_date_attr_id;
@@ -558,7 +558,17 @@ class WcProductBuilder
     }
 
     /**
-     * Format a date string to Italian format
+     * Extract the 4-digit year from a date string (e.g. "2021-10-12" → "2021")
+     */
+    private function extractYear(string $date): string
+    {
+        $date = preg_replace('/T.*$/', '', $date);
+        $ts = strtotime($date);
+        return $ts !== false ? date('Y', $ts) : '';
+    }
+
+    /**
+     * Format a date string to Italian format (used in product descriptions)
      */
     private function formatDate(string $date): string
     {
