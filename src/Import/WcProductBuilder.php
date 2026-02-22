@@ -525,7 +525,8 @@ class WcProductBuilder
     /**
      * Normalize category type from API to config key
      *
-     * KicksDB may return "Shoes", "sneakers", etc.
+     * KicksDB may return "Shoes", "sneakers", "streetwear", "collectibles", etc.
+     * The catalog_section from brand-catalog.json overrides when present.
      */
     private function normalizeCategoryType(string $type): string
     {
@@ -533,8 +534,11 @@ class WcProductBuilder
         if (in_array($lower, ['shoes', 'sneakers', 'footwear'])) {
             return 'sneakers';
         }
-        if (in_array($lower, ['clothing', 'apparel', 'streetwear'])) {
+        if (in_array($lower, ['clothing', 'apparel', 'streetwear', 'abbigliamento'])) {
             return 'clothing';
+        }
+        if (in_array($lower, ['accessories', 'accessori', 'collectibles'])) {
+            return 'accessories';
         }
         return 'sneakers';
     }
