@@ -123,26 +123,58 @@ class WcProductBuilder
         // Extract and sort unique sizes
         $size_options = array_map(fn($v) => $v['size_eu'], $variations);
         $unique_sizes = array_values(array_unique($size_options));
-        usort($unique_sizes, fn($a, $b) => (float) $a <=> (float) $b);
+        usort($unique_sizes, function ($a, $b) {
+            $fa = is_numeric($a) ? (float) $a : PHP_FLOAT_MAX;
+            $fb = is_numeric($b) ? (float) $b : PHP_FLOAT_MAX;
+            return $fa <=> $fb;
+        });
+
+        // "One Size" products → create as simple product (no size dropdown)
+        $is_one_size = count($unique_sizes) === 1 && strtolower($unique_sizes[0]) === 'one size';
 
         // Build description: use API description when available, enriched with Italian sections
         $description = $this->buildDescription($tpl, $api_description, $colorway, $release_date, $retail_price, $gender);
         $short_description = $this->buildShortDescription($tpl, $colorway);
 
-        // Build base WC product
-        $wc_product = [
-            'name' => $name,
-            'type' => 'variable',
-            'sku' => $sku,
-            'status' => 'publish',
-            'catalog_visibility' => 'visible',
-            'manage_stock' => false,
-            'stock_status' => 'instock',
-            'short_description' => $short_description,
-            'description' => $description,
-            'categories' => [],
-            'attributes' => [],
-        ];
+        // Build base WC product — simple for "One Size", variable otherwise
+        if ($is_one_size) {
+            $one_var = $variations[0] ?? [];
+            $wc_product = [
+                'name' => $name,
+                'type' => 'simple',
+                'sku' => $sku,
+                'status' => 'publish',
+                'catalog_visibility' => 'visible',
+                'regular_price' => (string) ($one_var['price'] ?? 0),
+                'manage_stock' => true,
+                'stock_status' => 'instock',
+                'stock_quantity' => $this->stock_override ?? (int) ($one_var['stock_quantity'] ?? 90),
+                'backorders' => 'yes',
+                'short_description' => $short_description,
+                'description' => $description,
+                'categories' => [],
+                'attributes' => [],
+            ];
+
+            // Merge variant meta into product meta
+            if (!empty($one_var['meta_data'])) {
+                $extra_meta = array_merge($extra_meta, $one_var['meta_data']);
+            }
+        } else {
+            $wc_product = [
+                'name' => $name,
+                'type' => 'variable',
+                'sku' => $sku,
+                'status' => 'publish',
+                'catalog_visibility' => 'visible',
+                'manage_stock' => false,
+                'stock_status' => 'instock',
+                'short_description' => $short_description,
+                'description' => $description,
+                'categories' => [],
+                'attributes' => [],
+            ];
+        }
 
         // Extra source-specific metadata
         if (!empty($extra_meta)) {
@@ -174,8 +206,8 @@ class WcProductBuilder
             $wc_product['attributes'][] = $brand_attr;
         }
 
-        // Size attribute (pa_taglia)
-        if (!empty($unique_sizes)) {
+        // Size attribute (pa_taglia) — skip for simple "One Size" products
+        if (!empty($unique_sizes) && !$is_one_size) {
             $size_attr = [
                 'position' => count($wc_product['attributes']),
                 'visible' => true,
@@ -278,29 +310,31 @@ class WcProductBuilder
             $this->stats['without_image']++;
         }
 
-        // Build variations
-        $wc_product['_variations'] = [];
-        foreach ($variations as $var) {
-            $size_eu = $var['size_eu'] ?? '';
-            $var_sku = $sku . '-' . str_replace([' ', '/'], '', $size_eu);
+        // Build variations (skip for simple products)
+        if (!$is_one_size) {
+            $wc_product['_variations'] = [];
+            foreach ($variations as $var) {
+                $size_eu = $var['size_eu'] ?? '';
+                $var_sku = $sku . '-' . str_replace([' ', '/'], '', $size_eu);
 
-            $wc_var = [
-                'sku' => $var_sku,
-                'regular_price' => (string) ($var['price'] ?? 0),
-                'manage_stock' => true,
-                'stock_status' => 'instock',
-                'stock_quantity' => $this->stock_override ?? (int) ($var['stock_quantity'] ?? 90),
-                'backorders' => 'yes',
-                'attributes' => $size_attr_id
-                    ? [['id' => $size_attr_id, 'option' => $size_eu]]
-                    : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
-            ];
+                $wc_var = [
+                    'sku' => $var_sku,
+                    'regular_price' => (string) ($var['price'] ?? 0),
+                    'manage_stock' => true,
+                    'stock_status' => 'instock',
+                    'stock_quantity' => $this->stock_override ?? (int) ($var['stock_quantity'] ?? 90),
+                    'backorders' => 'yes',
+                    'attributes' => $size_attr_id
+                        ? [['id' => $size_attr_id, 'option' => $size_eu]]
+                        : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
+                ];
 
-            if (!empty($var['meta_data'])) {
-                $wc_var['meta_data'] = $var['meta_data'];
+                if (!empty($var['meta_data'])) {
+                    $wc_var['meta_data'] = $var['meta_data'];
+                }
+
+                $wc_product['_variations'][] = $wc_var;
             }
-
-            $wc_product['_variations'][] = $wc_var;
         }
 
         $this->stats['transformed']++;

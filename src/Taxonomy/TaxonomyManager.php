@@ -401,6 +401,10 @@ class TaxonomyManager
 
     /**
      * Fetch brand names from the catalog embedded in the KicksDB assortment
+     *
+     * Supports both catalog formats:
+     * - Sections-based: {"sections": [{"brands": [...]}, ...]}
+     * - Legacy flat: {"brands": [...]}
      */
     private function fetchBrandNamesFromCatalog(): array
     {
@@ -415,13 +419,21 @@ class TaxonomyManager
         $data = json_decode(file_get_contents($assortment_file), true);
         $catalog = $data['catalog'] ?? null;
 
-        if (!$catalog || empty($catalog['brands'])) {
+        if (!$catalog) {
             $this->logger->error("No catalog structure found in assortment. Was discovery run with a catalog file?");
             return [];
         }
 
+        // Collect brand entries from all sections (new format) or top-level (legacy)
+        $all_brand_entries = $this->extractCatalogBrandEntries($catalog);
+
+        if (empty($all_brand_entries)) {
+            $this->logger->error("No brands found in catalog structure.");
+            return [];
+        }
+
         $brands = [];
-        foreach ($catalog['brands'] as $brand_entry) {
+        foreach ($all_brand_entries as $brand_entry) {
             $name = $brand_entry['name'] ?? '';
             if ($name && !in_array($name, $brands)) {
                 $brands[] = $name;
@@ -440,6 +452,10 @@ class TaxonomyManager
      * Creates: Brand (e.g., Nike) > Sub-brand (e.g., Nike Dunk)
      * Uses the WooCommerce brands taxonomy (same as GS pipeline).
      * All brand IDs are stored in the taxonomy map for downstream use.
+     *
+     * Supports both catalog formats:
+     * - Sections-based: {"sections": [{"brands": [...]}, ...]}
+     * - Legacy flat: {"brands": [...]}
      */
     private function ensureCatalogBrands(): void
     {
@@ -453,12 +469,19 @@ class TaxonomyManager
         $data = json_decode(file_get_contents($assortment_file), true);
         $catalog = $data['catalog'] ?? null;
 
-        if (!$catalog || empty($catalog['brands'])) {
+        if (!$catalog) {
             $this->logger->error("No catalog structure found in assortment.");
             return;
         }
 
-        foreach ($catalog['brands'] as $brand_entry) {
+        $all_brand_entries = $this->extractCatalogBrandEntries($catalog);
+
+        if (empty($all_brand_entries)) {
+            $this->logger->error("No brands found in catalog structure.");
+            return;
+        }
+
+        foreach ($all_brand_entries as $brand_entry) {
             $brand_name = $brand_entry['name'] ?? '';
             if (empty($brand_name)) {
                 continue;
@@ -486,6 +509,36 @@ class TaxonomyManager
                 }
             }
         }
+    }
+
+    /**
+     * Extract brand entries from catalog, supporting both formats
+     *
+     * @param array $catalog Catalog structure from assortment
+     * @return array Flat list of brand entries (deduplicated by name)
+     */
+    private function extractCatalogBrandEntries(array $catalog): array
+    {
+        $all_brands = [];
+        $seen = [];
+
+        if (!empty($catalog['sections'])) {
+            // Sections-based format: {"sections": [{"brands": [...]}, ...]}
+            foreach ($catalog['sections'] as $section) {
+                foreach ($section['brands'] ?? [] as $brand_entry) {
+                    $name = $brand_entry['name'] ?? '';
+                    if ($name && !isset($seen[$name])) {
+                        $seen[$name] = true;
+                        $all_brands[] = $brand_entry;
+                    }
+                }
+            }
+        } elseif (!empty($catalog['brands'])) {
+            // Legacy flat format: {"brands": [...]}
+            $all_brands = $catalog['brands'];
+        }
+
+        return $all_brands;
     }
 
     /**
