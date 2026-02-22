@@ -84,7 +84,7 @@
     {
       "name": "Abbigliamento",
       "slug": "abbigliamento",
-      "product_types": ["streetwear", "apparel"],
+      "product_types": ["streetwear", "apparel", "clothing"],
       "brands": [
         {
           "name": "Supreme",
@@ -179,7 +179,7 @@
     {
       "name": "Accessori",
       "slug": "accessori",
-      "product_types": ["streetwear", "apparel", "collectibles"],
+      "product_types": ["streetwear", "apparel", "clothing", "collectibles"],
       "brands": [
         {
           "name": "Supreme",

@@ -447,22 +447,31 @@ class KicksDbAdapter implements FeedAdapter
         // Try sizes[] sub-array first — strip "US " prefix
         foreach ($variant['sizes'] ?? [] as $size_entry) {
             $raw = $size_entry['size'] ?? '';
+            $cleaned = trim($raw);
+
+            // Check for "One Size" / "OS" before stripping prefix
+            if (preg_match('/^(one\s*size|os)$/i', $cleaned)) {
+                return 'One Size';
+            }
+
             // Strip country prefix: "US S" → "S", "US XL" → "XL"
-            $cleaned = preg_replace('/^(US|EU|UK)\s+/i', '', trim($raw));
+            $cleaned = preg_replace('/^(US|EU|UK)\s+/i', '', $cleaned);
             if (preg_match('/^[XSML]{1,3}L?$|^\d*X{0,3}L$/i', $cleaned)) {
                 return strtoupper($cleaned);
             }
         }
 
-        // Fallback: direct size field (e.g. "S", "M", "L")
-        $direct = $variant['size'] ?? '';
-        if (!empty($direct) && preg_match('/^[XSML]{1,3}L?$|^\d*X{0,3}L$/i', $direct)) {
-            return strtoupper($direct);
-        }
-
-        // Fallback: ONE SIZE for accessories without sizing
-        if (!empty($variant['size']) && strtolower($variant['size']) === 'one size') {
-            return 'One Size';
+        // Fallback: direct size field
+        $direct = trim($variant['size'] ?? '');
+        if (!empty($direct)) {
+            // "One Size" / "OS"
+            if (preg_match('/^(one\s*size|os)$/i', $direct)) {
+                return 'One Size';
+            }
+            // Letter sizes: S, M, L, XL, etc.
+            if (preg_match('/^[XSML]{1,3}L?$|^\d*X{0,3}L$/i', $direct)) {
+                return strtoupper($direct);
+            }
         }
 
         return null;
