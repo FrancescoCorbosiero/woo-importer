@@ -275,10 +275,17 @@ foreach ($catalog_sections as $section) {
     $section_slug = $section['slug'] ?? strtolower($section_name);
     $section_brands = $section['brands'] ?? [];
 
-    // Per-section product_type filter (overrides global if set)
-    $product_type_filter = !empty($section['product_types'])
-        ? array_map('strtolower', $section['product_types'])
-        : $global_type_filter;
+    // Per-section product_type filter:
+    // - product_types present & non-empty: use section filter
+    // - product_types present & empty ([]): no filter (explicitly disabled)
+    // - product_types absent: use global filter
+    if (array_key_exists('product_types', $section)) {
+        $product_type_filter = !empty($section['product_types'])
+            ? array_map('strtolower', $section['product_types'])
+            : []; // Explicitly empty = no type filtering
+    } else {
+        $product_type_filter = $global_type_filter;
+    }
 
     $logger->info("  === Section: {$section_name} (types: " . implode(',', $product_type_filter ?: ['all']) . ") ===");
 

@@ -255,6 +255,7 @@ try {
                 $catalog_meta[$p['sku']] = [
                     'brand' => $p['catalog_brand'] ?? '',
                     'subcategory' => $p['catalog_subcategory'] ?? '',
+                    'section' => $p['catalog_section'] ?? '',
                 ];
             }
         }
@@ -263,6 +264,11 @@ try {
         foreach ($wc_products as &$wc) {
             $sku = $wc['sku'] ?? '';
             if (!isset($catalog_meta[$sku])) {
+                continue;
+            }
+
+            // Accessories: keep KicksDB's own brand, skip catalog brand enrichment
+            if ($catalog_meta[$sku]['section'] === 'accessori') {
                 continue;
             }
 
