@@ -175,7 +175,11 @@ $logger->info('========================================');
 $logger->info('  KicksDB Product Discovery');
 $logger->info('========================================');
 $logger->info("  Catalog:    {$catalog_file}");
-$logger->info("  Brands:     " . count($catalog['brands']));
+$total_brands = 0;
+foreach ($catalog_sections as $sec) {
+    $total_brands += count($sec['brands'] ?? []);
+}
+$logger->info("  Brands:     " . $total_brands);
 $logger->info("  Labels:     {$total_labels}");
 $logger->info("  Per label:  {$per_label} products");
 $logger->info("  Market:     {$market}");
