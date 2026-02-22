@@ -172,15 +172,15 @@ try {
     unset($wc_tmp);
     $logger->info("Release ordering: {$release_ordered}/{" . count($wc_products) . "} products have release dates");
 
-    // Enrich WC products with catalog category assignments
-    // (brand category + subcategory from the catalog hierarchy)
+    // Enrich WC products with catalog brand hierarchy
+    // Assigns sub-brand (e.g., "Nike Dunk") from the brands taxonomy
     $catalog = $assortment['catalog'] ?? null;
     if ($catalog) {
         $taxonomy_map_file = Config::dataDir() . '/taxonomy-map.json';
         $taxonomy_map = file_exists($taxonomy_map_file)
             ? (json_decode(file_get_contents($taxonomy_map_file), true) ?: [])
             : [];
-        $category_map = $taxonomy_map['categories'] ?? [];
+        $brands_map = $taxonomy_map['brands'] ?? [];
 
         // Build SKU → catalog metadata lookup from assortment products
         $catalog_meta = [];
@@ -206,16 +206,29 @@ try {
             $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $meta['subcategory']));
             $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
 
-            // Add brand category
-            $brand_cat_id = $category_map[$brand_slug] ?? null;
-            if ($brand_cat_id) {
-                $wc['categories'][] = ['id' => $brand_cat_id];
+            // Assign sub-brand (e.g., "Nike Dunk") via brands taxonomy
+            // Falls back to parent brand (e.g., "Nike") if sub-brand not in map
+            $subcat_brand_id = $brands_map[$subcat_slug] ?? null;
+            $parent_brand_id = $brands_map[$brand_slug] ?? null;
+
+            $brand_ids = [];
+            if ($subcat_brand_id) {
+                $brand_ids[] = ['id' => $subcat_brand_id];
+            }
+            if ($parent_brand_id && $parent_brand_id !== $subcat_brand_id) {
+                $brand_ids[] = ['id' => $parent_brand_id];
             }
 
-            // Add subcategory
-            $subcat_id = $category_map[$subcat_slug] ?? null;
-            if ($subcat_id) {
-                $wc['categories'][] = ['id' => $subcat_id];
+            if (!empty($brand_ids)) {
+                // Merge with any brand already assigned by WcProductBuilder
+                $existing = $wc['brands'] ?? [];
+                $existing_ids = array_column($existing, 'id');
+                foreach ($brand_ids as $b) {
+                    if (!in_array($b['id'], $existing_ids)) {
+                        $existing[] = $b;
+                    }
+                }
+                $wc['brands'] = $existing;
             }
 
             // Store catalog metadata for reference
@@ -227,7 +240,7 @@ try {
         }
         unset($wc);
 
-        $logger->info("Catalog enrichment: {$catalog_enriched}/{" . count($wc_products) . "} products assigned subcategories");
+        $logger->info("Catalog enrichment: {$catalog_enriched}/{" . count($wc_products) . "} products assigned sub-brands");
     }
 
     // Write output
