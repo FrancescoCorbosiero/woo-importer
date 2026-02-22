@@ -145,15 +145,26 @@ class Client
      * @param int $limit Results per page
      * @param string $market Market code
      * @param int $page Page number (1-based)
+     * @param string|null $sort Sort order (e.g. 'most-active', 'featured', 'newest', 'deadstock_sold')
+     * @param string|null $order Sort direction ('ASC' or 'DESC')
      */
-    public function browseProducts(string $query, int $limit = 50, string $market = 'IT', int $page = 1): ?array
+    public function browseProducts(string $query, int $limit = 50, string $market = 'IT', int $page = 1, ?string $sort = null, ?string $order = null): ?array
     {
-        return $this->request('GET', '/stockx/products', [
+        $params = [
             'query' => $query,
             'limit' => $limit,
             'market' => $market,
             'page' => $page,
-        ]);
+        ];
+
+        if ($sort !== null && $sort !== '') {
+            $params['sort'] = $sort;
+        }
+        if ($order !== null && $order !== '') {
+            $params['order'] = $order;
+        }
+
+        return $this->request('GET', '/stockx/products', $params);
     }
 
     /**
