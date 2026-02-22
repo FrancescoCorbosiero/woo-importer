@@ -232,6 +232,10 @@ return [
             'name' => env('CATEGORY_CLOTHING_NAME', 'Abbigliamento'),
             'slug' => env('CATEGORY_CLOTHING_SLUG', 'abbigliamento'),
         ],
+        'accessories' => [
+            'name' => env('CATEGORY_ACCESSORIES_NAME', 'Accessori'),
+            'slug' => env('CATEGORY_ACCESSORIES_SLUG', 'accessori'),
+        ],
     ],
 
     // ===========================================

@@ -125,9 +125,27 @@ if (empty($catalog_file) || !file_exists($catalog_file)) {
 }
 
 $catalog = json_decode(file_get_contents($catalog_file), true);
-if (!is_array($catalog) || empty($catalog['brands'])) {
-    $logger->error("Invalid or empty catalog file: {$catalog_file}");
-    $logger->error('Expected JSON with {"brands": [{"name": "...", "products": ["...", ...]}, ...]}');
+if (!is_array($catalog)) {
+    $logger->error("Invalid catalog file: {$catalog_file}");
+    exit(1);
+}
+
+// Support both formats:
+// - New: {"sections": [{"name": "Sneakers", "product_types": [...], "brands": [...]}, ...]}
+// - Legacy: {"brands": [...]}  (flat, no per-section product_type)
+$catalog_sections = [];
+if (!empty($catalog['sections'])) {
+    $catalog_sections = $catalog['sections'];
+} elseif (!empty($catalog['brands'])) {
+    // Legacy format: wrap all brands in a single sneakers section
+    $catalog_sections = [[
+        'name' => 'Sneakers',
+        'slug' => 'sneakers',
+        'product_types' => ['sneakers'],
+        'brands' => $catalog['brands'],
+    ]];
+} else {
+    $logger->error("Catalog file has no 'sections' or 'brands' key: {$catalog_file}");
     exit(1);
 }
 
@@ -137,17 +155,19 @@ $market = $config['pricing']['kicksdb_market'] ?? 'IT';
 $discovery_sort = $config['pricing']['kicksdb_discovery_sort'] ?? '';
 $discovery_order = $config['pricing']['kicksdb_discovery_order'] ?? '';
 
-// Build product type filter (lowercase for case-insensitive matching)
-$product_type_filter = [];
+// Global product type filter from .env (used when section has no own product_types)
+$global_type_filter = [];
 if (!$opt_no_type_filter) {
-    $product_type_filter = array_map('strtolower', $config['pricing']['kicksdb_product_types'] ?? ['sneakers']);
+    $global_type_filter = array_map('strtolower', $config['pricing']['kicksdb_product_types'] ?? ['sneakers']);
 }
 
-// Count total labels
+// Count total labels across all sections
 $total_labels = 0;
-foreach ($catalog['brands'] as $brand_entry) {
-    $products_list = $brand_entry['products'] ?? [];
-    $total_labels += max(1, count($products_list));
+foreach ($catalog_sections as $section) {
+    foreach ($section['brands'] ?? [] as $brand_entry) {
+        $products_list = $brand_entry['products'] ?? [];
+        $total_labels += max(1, count($products_list));
+    }
 }
 
 $logger->info('');
@@ -164,10 +184,10 @@ if ($discovery_sort) {
 } else {
     $logger->info("  Sort:       (API default)");
 }
-if (!empty($product_type_filter)) {
-    $logger->info("  Types:      " . implode(', ', $product_type_filter));
-} else {
-    $logger->info("  Types:      all (no filter)");
+$logger->info("  Sections:   " . count($catalog_sections));
+foreach ($catalog_sections as $sec) {
+    $sec_types = $sec['product_types'] ?? $global_type_filter;
+    $logger->info("    {$sec['name']}: " . count($sec['brands'] ?? []) . " brands, types=[" . implode(',', $sec_types) . "]");
 }
 if ($opt_limit) {
     $logger->info("  Global cap: {$opt_limit}");
@@ -246,116 +266,136 @@ $logger->info('');
 $logger->info('Step 2: Searching KicksDB per catalog label...');
 $logger->info('');
 
-foreach ($catalog['brands'] as $brand_entry) {
-    $catalog_brand = $brand_entry['name'] ?? '';
-    if (empty($catalog_brand)) {
-        $logger->warning('  Skipping catalog entry with empty brand name');
-        continue;
-    }
+foreach ($catalog_sections as $section) {
+    $section_name = $section['name'] ?? 'Unknown';
+    $section_slug = $section['slug'] ?? strtolower($section_name);
+    $section_brands = $section['brands'] ?? [];
 
-    $subcategories = $brand_entry['products'] ?? [];
+    // Per-section product_type filter (overrides global if set)
+    $product_type_filter = !empty($section['product_types'])
+        ? array_map('strtolower', $section['product_types'])
+        : $global_type_filter;
 
-    // If brand has no subcategories, search using the brand name itself
-    if (empty($subcategories)) {
-        $subcategories = [$catalog_brand];
-    }
+    $logger->info("  === Section: {$section_name} (types: " . implode(',', $product_type_filter ?: ['all']) . ") ===");
 
-    // Per-brand limit: use brand-level per_label if set, otherwise global
-    $brand_per_label = $brand_entry['per_label'] ?? $per_label;
-    $logger->info("  Brand: {$catalog_brand} (" . count($subcategories) . " subcategories, {$brand_per_label}/label)");
-
-    foreach ($subcategories as $label) {
-        $collected_for_label = 0;
-        $pages_needed = (int) ceil($brand_per_label / $page_size);
-
-        for ($page = 1; $page <= $pages_needed + 2; $page++) { // +2 buffer for filtering
-            $result = $client->browseProducts($label, $page_size, $market, $page, $discovery_sort ?: null, $discovery_order ?: null);
-            $api_calls++;
-
-            if ($result === null) {
-                $logger->debug("    API returned null for \"{$label}\" page {$page}");
-                break;
-            }
-
-            $items = $result['data'] ?? [];
-            if (empty($items)) {
-                break;
-            }
-
-            foreach ($items as $item) {
-                if ($collected_for_label >= $brand_per_label) {
-                    break 2;
-                }
-
-                $sku = $item['sku'] ?? null;
-                if (!$sku) {
-                    $filtered_no_sku++;
-                    continue;
-                }
-
-                if (isset($all_products[$sku])) {
-                    $filtered_duplicate++;
-                    continue;
-                }
-
-                $item_brand = $item['brand'] ?? '';
-                $item_name = $item['title'] ?? $item['name'] ?? '';
-
-                // Filter by product_type
-                if (!empty($product_type_filter)) {
-                    $item_type = strtolower($item['product_type'] ?? '');
-                    $item_categories = array_map('strtolower', $item['categories'] ?? []);
-                    $type_match = in_array($item_type, $product_type_filter)
-                        || !empty(array_intersect($item_categories, $product_type_filter));
-
-                    if (!$type_match) {
-                        $filtered_type++;
-                        $logger->debug("      SKIP (type={$item_type}): {$item_brand} {$sku} - {$item_name}");
-                        continue;
-                    }
-                }
-
-                // On-the-fly GS deduplication
-                if (isset($gs_skus[$sku])) {
-                    $gs_excluded++;
-                    continue;
-                }
-
-                $all_products[$sku] = [
-                    'sku' => $sku,
-                    'name' => $item_name,
-                    'brand' => $item_brand,
-                    'slug' => $item['slug'] ?? '',
-                    'model' => $item['model'] ?? '',
-                    'gender' => $item['gender'] ?? '',
-                    'colorway' => $item['colorway'] ?? '',
-                    'product_type' => $item['product_type'] ?? '',
-                    'category' => $item['category'] ?? '',
-                    'categories' => $item['categories'] ?? [],
-                    'rank' => $item['rank'] ?? 999999,
-                    'weekly_orders' => $item['weekly_orders'] ?? 0,
-                    'image_url' => $item['image'] ?? $item['image_url'] ?? '',
-                    'gallery' => $item['gallery'] ?? [],
-                    'gallery_360' => !empty($item['gallery_360']),
-                    'min_price' => $item['min_price'] ?? null,
-                    'avg_price' => $item['avg_price'] ?? null,
-                    'release_date' => $item['release_date'] ?? '',
-                    'catalog_brand' => $catalog_brand,
-                    'catalog_subcategory' => $label,
-                ];
-
-                $collected_for_label++;
-            }
-
-            if (count($items) < $page_size) {
-                break;
-            }
-
-            usleep(200000); // 200ms between pages
+    foreach ($section_brands as $brand_entry) {
+        $catalog_brand = $brand_entry['name'] ?? '';
+        if (empty($catalog_brand)) {
+            $logger->warning('  Skipping catalog entry with empty brand name');
+            continue;
         }
 
-        $logger->info("    {$label}: {$collected_for_label} products");
-        usleep(200000); // 200ms between labels
+        $subcategories = $brand_entry['products'] ?? [];
+
+        // If brand has no subcategories, search using the brand name itself
+        if (empty($subcategories)) {
+            $subcategories = [$catalog_brand];
+        }
+
+        // Per-brand limit: use brand-level per_label if set, otherwise global
+        $brand_per_label = $brand_entry['per_label'] ?? $per_label;
+        $logger->info("  Brand: {$catalog_brand} (" . count($subcategories) . " subcategories, {$brand_per_label}/label)");
+
+        foreach ($subcategories as $label) {
+            $collected_for_label = 0;
+            $pages_needed = (int) ceil($brand_per_label / $page_size);
+
+            for ($page = 1; $page <= $pages_needed + 2; $page++) { // +2 buffer for filtering
+                $result = $client->browseProducts($label, $page_size, $market, $page, $discovery_sort ?: null, $discovery_order ?: null);
+                $api_calls++;
+
+                if ($result === null) {
+                    $logger->debug("    API returned null for \"{$label}\" page {$page}");
+                    break;
+                }
+
+                $items = $result['data'] ?? [];
+                if (empty($items)) {
+                    break;
+                }
+
+                foreach ($items as $item) {
+                    if ($collected_for_label >= $brand_per_label) {
+                        break 2;
+                    }
+
+                    // Use SKU if available, fall back to slug for clothing/accessories
+                    $item_key = $item['sku'] ?? '';
+                    if (empty($item_key)) {
+                        $item_key = $item['slug'] ?? '';
+                    }
+                    if (empty($item_key)) {
+                        $filtered_no_sku++;
+                        continue;
+                    }
+
+                    if (isset($all_products[$item_key])) {
+                        $filtered_duplicate++;
+                        continue;
+                    }
+
+                    $item_brand = $item['brand'] ?? '';
+                    $item_name = $item['title'] ?? $item['name'] ?? '';
+
+                    // Filter by product_type (per-section)
+                    if (!empty($product_type_filter)) {
+                        $item_type = strtolower($item['product_type'] ?? '');
+                        $item_categories = array_map('strtolower', $item['categories'] ?? []);
+                        $type_match = in_array($item_type, $product_type_filter)
+                            || !empty(array_intersect($item_categories, $product_type_filter));
+
+                        if (!$type_match) {
+                            $filtered_type++;
+                            $logger->debug("      SKIP (type={$item_type}): {$item_brand} {$item_key} - {$item_name}");
+                            continue;
+                        }
+                    }
+
+                    // On-the-fly GS deduplication
+                    if (isset($gs_skus[$item_key])) {
+                        $gs_excluded++;
+                        continue;
+                    }
+
+                    $all_products[$item_key] = [
+                        'sku' => $item_key,
+                        'name' => $item_name,
+                        'brand' => $item_brand,
+                        'slug' => $item['slug'] ?? '',
+                        'model' => $item['model'] ?? '',
+                        'gender' => $item['gender'] ?? '',
+                        'colorway' => $item['colorway'] ?? '',
+                        'product_type' => $item['product_type'] ?? '',
+                        'category' => $item['category'] ?? '',
+                        'secondary_category' => $item['secondary_category'] ?? '',
+                        'categories' => $item['categories'] ?? [],
+                        'breadcrumbs' => $item['breadcrumbs'] ?? [],
+                        'rank' => $item['rank'] ?? 999999,
+                        'weekly_orders' => $item['weekly_orders'] ?? 0,
+                        'image_url' => $item['image'] ?? $item['image_url'] ?? '',
+                        'gallery' => $item['gallery'] ?? [],
+                        'gallery_360' => !empty($item['gallery_360']),
+                        'min_price' => $item['min_price'] ?? null,
+                        'avg_price' => $item['avg_price'] ?? null,
+                        'release_date' => $item['release_date'] ?? '',
+                        'catalog_brand' => $catalog_brand,
+                        'catalog_subcategory' => $label,
+                        'catalog_section' => $section_slug,
+                    ];
+
+                    $collected_for_label++;
+                }
+
+                if (count($items) < $page_size) {
+                    break;
+                }
+
+                usleep(200000); // 200ms between pages
+            }
+
+            $logger->info("    {$label}: {$collected_for_label} products");
+            usleep(200000); // 200ms between labels
+        }
     }
 }
 

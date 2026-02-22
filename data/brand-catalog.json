@@ -1,77 +1,211 @@
 {
-  "brands": [
+  "sections": [
     {
-      "name": "Nike",
-      "per_label": 30,
-      "products": [
-        "Nike Travis Scott",
-        "Nike Nocta",
-        "Nike Off White",
-        "Nike Supreme",
-        "Nike Corteiz",
-        "Nike Air Force 1",
-        "Nike Dunk SB",
-        "Nike Dunk"
+      "name": "Sneakers",
+      "slug": "sneakers",
+      "product_types": ["sneakers"],
+      "brands": [
+        {
+          "name": "Nike",
+          "per_label": 30,
+          "products": [
+            "Nike Travis Scott",
+            "Nike Nocta",
+            "Nike Off White",
+            "Nike Supreme",
+            "Nike Corteiz",
+            "Nike Air Force 1",
+            "Nike Dunk SB",
+            "Nike Dunk"
+          ]
+        },
+        {
+          "name": "Jordan",
+          "per_label": 25,
+          "products": [
+            "Jordan 1 Low",
+            "Jordan 1 Mid",
+            "Jordan 1 High",
+            "Jordan 1",
+            "Jordan 3",
+            "Jordan 4",
+            "Jordan 5",
+            "Jordan 6",
+            "Jordan 11",
+            "Jordan 12",
+            "Jordan 13"
+          ]
+        },
+        {
+          "name": "Adidas",
+          "per_label": 30,
+          "products": [
+            "Adidas Campus",
+            "Adidas Gazelle",
+            "Adidas Samba",
+            "Adidas Spezial"
+          ]
+        },
+        {
+          "name": "New Balance",
+          "per_label": 30,
+          "products": [
+            "New Balance 9060",
+            "New Balance 1906R",
+            "New Balance 550",
+            "New Balance 530",
+            "New Balance 2002",
+            "New Balance 2041"
+          ]
+        },
+        {
+          "name": "Asics",
+          "per_label": 25,
+          "products": [
+            "Asics Gel-Kayano",
+            "Asics Gel-NYC",
+            "Asics Gel-1130",
+            "Asics GT-2160"
+          ]
+        },
+        {
+          "name": "Yeezy",
+          "per_label": 20,
+          "products": [
+            "Yeezy 350",
+            "Yeezy 500",
+            "Yeezy 700",
+            "Yeezy Foam",
+            "Yeezy Slide"
+          ]
+        }
       ]
     },
     {
-      "name": "Jordan",
-      "per_label": 25,
-      "products": [
-        "Jordan 1 Low",
-        "Jordan 1 Mid",
-        "Jordan 1 High",
-        "Jordan 1",
-        "Jordan 3",
-        "Jordan 4",
-        "Jordan 5",
-        "Jordan 6",
-        "Jordan 11",
-        "Jordan 12",
-        "Jordan 13"
+      "name": "Abbigliamento",
+      "slug": "abbigliamento",
+      "product_types": ["streetwear", "apparel"],
+      "brands": [
+        {
+          "name": "Supreme",
+          "per_label": 20,
+          "products": [
+            "Supreme T-Shirt",
+            "Supreme Hoodie",
+            "Supreme Jacket",
+            "Supreme Pants"
+          ]
+        },
+        {
+          "name": "Corteiz",
+          "per_label": 15,
+          "products": [
+            "Corteiz T-Shirt",
+            "Corteiz Hoodie",
+            "Corteiz Jacket",
+            "Corteiz Pants"
+          ]
+        },
+        {
+          "name": "Essentials",
+          "per_label": 20,
+          "products": [
+            "Fear of God Essentials T-Shirt",
+            "Fear of God Essentials Hoodie",
+            "Fear of God Essentials Jacket",
+            "Fear of God Essentials Pants"
+          ]
+        },
+        {
+          "name": "Chrome Hearts",
+          "per_label": 15,
+          "products": [
+            "Chrome Hearts T-Shirt",
+            "Chrome Hearts Hoodie",
+            "Chrome Hearts Jacket",
+            "Chrome Hearts Pants"
+          ]
+        },
+        {
+          "name": "Travis Scott",
+          "per_label": 15,
+          "products": [
+            "Travis Scott T-Shirt",
+            "Travis Scott Hoodie",
+            "Travis Scott Jacket",
+            "Travis Scott Pants"
+          ]
+        },
+        {
+          "name": "C.P. Company",
+          "per_label": 15,
+          "products": [
+            "CP Company Jacket",
+            "CP Company Hoodie",
+            "CP Company Pants",
+            "CP Company T-Shirt"
+          ]
+        },
+        {
+          "name": "Bape",
+          "per_label": 15,
+          "products": [
+            "Bape T-Shirt",
+            "Bape Hoodie",
+            "Bape Jacket",
+            "Bape Pants"
+          ]
+        },
+        {
+          "name": "Kaws",
+          "per_label": 15,
+          "products": [
+            "Kaws T-Shirt",
+            "Kaws Hoodie",
+            "Kaws Jacket"
+          ]
+        },
+        {
+          "name": "Sp5der",
+          "per_label": 15,
+          "products": [
+            "Sp5der Hoodie",
+            "Sp5der T-Shirt",
+            "Sp5der Pants"
+          ]
+        }
       ]
     },
     {
-      "name": "Adidas",
-      "per_label": 30,
-      "products": [
-        "Adidas Campus",
-        "Adidas Gazelle",
-        "Adidas Samba",
-        "Adidas Spezial"
-      ]
-    },
-    {
-      "name": "New Balance",
-      "per_label": 30,
-      "products": [
-        "New Balance 9060",
-        "New Balance 1906R",
-        "New Balance 550",
-        "New Balance 530",
-        "New Balance 2002",
-        "New Balance 2041"
-      ]
-    },
-    {
-      "name": "Asics",
-      "per_label": 25,
-      "products": [
-        "Asics Gel-Kayano",
-        "Asics Gel-NYC",
-        "Asics Gel-1130",
-        "Asics GT-2160"
-      ]
-    },
-    {
-      "name": "Yeezy",
-      "per_label": 20,
-      "products": [
-        "Yeezy 350",
-        "Yeezy 500",
-        "Yeezy 700",
-        "Yeezy Foam",
-        "Yeezy Slide"
+      "name": "Accessori",
+      "slug": "accessori",
+      "product_types": ["streetwear", "apparel", "collectibles"],
+      "brands": [
+        {
+          "name": "Supreme",
+          "per_label": 15,
+          "products": [
+            "Supreme Beanie",
+            "Supreme Cap",
+            "Supreme Bag"
+          ]
+        },
+        {
+          "name": "New Era",
+          "per_label": 15,
+          "products": [
+            "New Era 59fifty",
+            "New Era Cap"
+          ]
+        },
+        {
+          "name": "Pop Mart",
+          "per_label": 15,
+          "products": [
+            "Labubu",
+            "Pop Mart Labubu"
+          ]
+        }
       ]
     }
   ]

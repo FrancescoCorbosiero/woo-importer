@@ -139,7 +139,18 @@ class KicksDbAdapter implements FeedAdapter
      */
     private function normalize(array $product, array $variants, string $original_sku): ?array
     {
-        $sku = $product['sku'] ?? $original_sku;
+        // SKU fallback: clothing/accessories often have empty SKU on KicksDB
+        // Use slug as stable identifier (e.g. "supreme-box-logo-hooded-sweatshirt-fw25-pink")
+        $sku = $product['sku'] ?? '';
+        if (empty($sku)) {
+            $sku = $product['slug'] ?? $original_sku;
+            if (empty($sku)) {
+                $this->log('warning', "  Product has no SKU or slug, skipping");
+                return null;
+            }
+            $this->log('debug', "  No SKU, using slug as identifier: {$sku}");
+        }
+
         $name = $product['title'] ?? $product['name'] ?? '';
         $brand = $product['brand'] ?? '';
 
@@ -148,7 +159,11 @@ class KicksDbAdapter implements FeedAdapter
             return null;
         }
 
-        $this->log('info', "  {$name} ({$brand}) - {$sku}");
+        // Detect if this is a clothing/accessories product (affects size extraction)
+        $product_type = strtolower($product['product_type'] ?? 'sneakers');
+        $is_clothing = in_array($product_type, ['streetwear', 'apparel', 'clothing', 'collectibles']);
+
+        $this->log('info', "  {$name} ({$brand}) - {$sku}" . ($is_clothing ? " [{$product_type}]" : ''));
 
         // Parse traits array into a flat map for easy access
         $traits = $this->parseTraits($product['traits'] ?? []);
@@ -182,7 +197,8 @@ class KicksDbAdapter implements FeedAdapter
         }
 
         // Colorway: try direct field first, then traits
-        $colorway = $product['colorway'] ?? $traits['Colorway'] ?? '';
+        // Clothing uses "Color" trait instead of "Colorway"
+        $colorway = $product['colorway'] ?? $traits['Colorway'] ?? $traits['Color'] ?? '';
         if ($colorway) {
             $meta[] = ['key' => '_colorway', 'value' => $colorway];
         }
@@ -237,6 +253,35 @@ class KicksDbAdapter implements FeedAdapter
             $meta[] = ['key' => '_kicksdb_categories', 'value' => implode(',', $kicksdb_categories)];
         }
 
+        // Breadcrumbs: hierarchical category path from KicksDB (e.g. Apparel > Tops > Hoodies)
+        $breadcrumbs = $product['breadcrumbs'] ?? [];
+        if (!empty($breadcrumbs)) {
+            $bc_values = array_column($breadcrumbs, 'value');
+            $meta[] = ['key' => '_breadcrumbs', 'value' => implode(' > ', $bc_values)];
+            // Store individual levels for WC category mapping
+            foreach ($breadcrumbs as $bc) {
+                $level = $bc['level'] ?? 0;
+                $meta[] = ['key' => '_breadcrumb_l' . $level, 'value' => $bc['value'] ?? ''];
+                if (isset($bc['alias'])) {
+                    $meta[] = ['key' => '_breadcrumb_l' . $level . '_slug', 'value' => $bc['alias']];
+                }
+            }
+        }
+
+        // Season (clothing-specific trait, e.g. "FW25", "SS24")
+        $season = $traits['Season'] ?? '';
+        if ($season) {
+            $meta[] = ['key' => '_season', 'value' => $season];
+        }
+
+        // Primary/secondary title split (useful for structured product naming)
+        if (!empty($product['primary_title'])) {
+            $meta[] = ['key' => '_primary_title', 'value' => $product['primary_title']];
+        }
+        if (!empty($product['secondary_title'])) {
+            $meta[] = ['key' => '_secondary_title', 'value' => $product['secondary_title']];
+        }
+
         // Store the original English description for future LLM translation
         if ($api_description) {
             $meta[] = ['key' => '_original_description', 'value' => $api_description];
@@ -247,13 +292,15 @@ class KicksDbAdapter implements FeedAdapter
         foreach ($variants as $variant) {
             $this->stats['variants_total']++;
 
-            // Extract EU size from the sizes[] sub-array
-            $size_eu = $this->extractEuSizeFromVariant($variant);
+            // Extract size: EU numeric for sneakers, letter size for clothing/accessories
+            $size_eu = $is_clothing
+                ? $this->extractLetterSize($variant)
+                : $this->extractEuSizeFromVariant($variant);
 
             if ($size_eu === null) {
                 $this->stats['variants_no_eu_size']++;
                 $vid = $variant['id'] ?? '?';
-                $this->log('debug', "    Variant {$vid}: no EU size found, skipping");
+                $this->log('debug', "    Variant {$vid}: no size found, skipping");
                 continue;
             }
 
@@ -386,6 +433,42 @@ class KicksDbAdapter implements FeedAdapter
     }
 
     /**
+     * Extract letter size for clothing/accessories variants
+     *
+     * Clothing variants use letter sizes (S, M, L, XL, XXL) instead of EU numeric.
+     * The sizes[] sub-array contains entries like {"size": "US S", "type": "us"}.
+     * Falls back to the direct "size" field on the variant.
+     *
+     * @param array $variant Variant data
+     * @return string|null Letter size (e.g. "S", "M", "L", "XL") or null
+     */
+    private function extractLetterSize(array $variant): ?string
+    {
+        // Try sizes[] sub-array first — strip "US " prefix
+        foreach ($variant['sizes'] ?? [] as $size_entry) {
+            $raw = $size_entry['size'] ?? '';
+            // Strip country prefix: "US S" → "S", "US XL" → "XL"
+            $cleaned = preg_replace('/^(US|EU|UK)\s+/i', '', trim($raw));
+            if (preg_match('/^[XSML]{1,3}L?$|^\d*X{0,3}L$/i', $cleaned)) {
+                return strtoupper($cleaned);
+            }
+        }
+
+        // Fallback: direct size field (e.g. "S", "M", "L")
+        $direct = $variant['size'] ?? '';
+        if (!empty($direct) && preg_match('/^[XSML]{1,3}L?$|^\d*X{0,3}L$/i', $direct)) {
+            return strtoupper($direct);
+        }
+
+        // Fallback: ONE SIZE for accessories without sizing
+        if (!empty($variant['size']) && strtolower($variant['size']) === 'one size') {
+            return 'One Size';
+        }
+
+        return null;
+    }
+
+    /**
      * Extract a specific size type from the sizes[] sub-array
      *
      * @param array $variant Variant data
@@ -481,15 +564,26 @@ class KicksDbAdapter implements FeedAdapter
     // =========================================================================
 
     /**
-     * Extract UPC/barcode from variant identifiers[] or direct field
+     * Extract UPC/EAN barcode from variant identifiers[] or direct field
+     *
+     * Sneakers typically have UPC, clothing may have EAN-13.
      */
     private function extractBarcode(array $variant): ?string
     {
         // From identifiers[] array (real API response)
+        // Prefer UPC, fall back to EAN-13
+        $ean = null;
         foreach ($variant['identifiers'] ?? [] as $id_entry) {
-            if (($id_entry['identifier_type'] ?? '') === 'UPC') {
+            $type = $id_entry['identifier_type'] ?? '';
+            if ($type === 'UPC') {
                 return $id_entry['identifier'] ?? null;
             }
+            if ($type === 'EAN-13' && $ean === null) {
+                $ean = $id_entry['identifier'] ?? null;
+            }
+        }
+        if ($ean !== null) {
+            return $ean;
         }
 
         // Direct field (simulated/variants endpoint)

@@ -140,10 +140,27 @@ try {
     }
     $logger->info('');
 
+    // Build SKU → catalog_section lookup for category override
+    // KicksDB returns "streetwear" for both clothing and accessories;
+    // the catalog_section is the authoritative category mapping
+    $section_map = [];
+    foreach ($assortment['products'] as $ap) {
+        $ap_sku = $ap['sku'] ?? '';
+        $ap_section = $ap['catalog_section'] ?? '';
+        if ($ap_sku && $ap_section) {
+            $section_map[$ap_sku] = $ap_section;
+        }
+    }
+
     // Collect KicksDB normalized products (must materialize since we need random access)
     $logger->info('Fetching KicksDB products...');
     $kdbProducts = [];
     foreach ($kdbAdapter->fetchProducts() as $p) {
+        // Override category_type from catalog section when present
+        $sku = $p['sku'] ?? '';
+        if (isset($section_map[$sku])) {
+            $p['category_type'] = $section_map[$sku];
+        }
         $kdbProducts[] = $p;
     }
     $logger->info("  KicksDB: " . count($kdbProducts) . " products normalized");
