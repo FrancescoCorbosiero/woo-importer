@@ -1,15 +1,15 @@
 #!/usr/bin/env php
 <?php
 /**
- * CLI wrapper for KicksDB Feed Transformer
+ * CLI wrapper for Unified Feed Transformer
  *
- * Reads SKUs from the KicksDB assortment (data/kicksdb-assortment.json),
- * fetches full product + variant data via KicksDbAdapter, and builds
- * WooCommerce REST API payloads via WcProductBuilder.
+ * Merges KicksDB (catalog master) + Golden Sneakers (pricing/stock overlay)
+ * into a single WC-formatted feed. Variation-level merge: each size independently
+ * gets GS real pricing when available, KicksDB market pricing otherwise.
  *
- * Mirrors bin/gs-transform but for the KicksDB source.
+ * Pipeline: KicksDbAdapter + GoldenSneakersAdapter → FeedMerger → WcProductBuilder
  *
- * Outputs: data/feed-kicksdb-wc-latest.json
+ * Outputs: data/feed-unified-wc-latest.json
  *
  * @package ResellPiacenza\Import
  */
@@ -20,6 +20,8 @@ use Monolog\Logger;
 use ResellPiacenza\Support\Config;
 use ResellPiacenza\Support\LoggerFactory;
 use ResellPiacenza\Import\KicksDbAdapter;
+use ResellPiacenza\Import\GoldenSneakersAdapter;
+use ResellPiacenza\Import\FeedMerger;
 use ResellPiacenza\Import\WcProductBuilder;
 
 // ============================================================================
@@ -28,14 +30,15 @@ use ResellPiacenza\Import\WcProductBuilder;
 
 if (in_array('--help', $argv) || in_array('-h', $argv)) {
     echo <<<HELP
-KicksDB Feed Transformer
-Transforms KicksDB assortment into WooCommerce REST format.
+Unified Feed Transformer
+Merges KicksDB catalog + Golden Sneakers pricing into WooCommerce REST format.
 
 Usage:
-  bin/kicksdb-transform [options]
+  bin/unified-transform [options]
 
 Options:
-  --limit=N         Transform first N products only
+  --limit=N         Transform first N KicksDB products only
+  --skip-gs         Skip GS overlay (KicksDB only, useful for debugging)
   --verbose, -v     Detailed output
   --help, -h        Show help
 
@@ -45,18 +48,21 @@ Requires:
   image-map.json                 (from prepare-media, optional)
 
 Output:
-  data/feed-kicksdb-wc-latest.json - WooCommerce REST API formatted products
+  data/feed-unified-wc-latest.json - Merged WooCommerce REST API formatted products
+  data/unified-sku-cache.json      - SKU cache for cross-pipeline dedup
 
 Examples:
-  bin/kicksdb-transform                    # Full transform
-  bin/kicksdb-transform --limit=10         # First 10 products
-  bin/kicksdb-transform --verbose          # Detailed output
+  bin/unified-transform                    # Full merge + transform
+  bin/unified-transform --limit=10         # First 10 KicksDB products
+  bin/unified-transform --skip-gs          # KicksDB only (no GS overlay)
+  bin/unified-transform --verbose          # Detailed output
 
 HELP;
     exit(0);
 }
 
 $verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$skip_gs = in_array('--skip-gs', $argv);
 $limit = null;
 
 foreach ($argv as $arg) {
@@ -72,20 +78,20 @@ foreach ($argv as $arg) {
 $config = Config::load();
 $start_time = microtime(true);
 
-$logger = LoggerFactory::create('KDBTransform', [
-    'file' => Config::projectRoot() . '/logs/kicksdb-transform.log',
+$logger = LoggerFactory::create('UnifiedTransform', [
+    'file' => Config::projectRoot() . '/logs/unified-transform.log',
     'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
 ]);
 
 $logger->info('');
 $logger->info('================================');
-$logger->info('  KicksDB Feed Transformer');
-$logger->info('  KicksDB assortment → WC REST format');
+$logger->info('  Unified Feed Transformer');
+$logger->info('  KicksDB + GS → merged WC REST format');
 $logger->info('================================');
 $logger->info('');
 
 // ============================================================================
-// Load Assortment
+// Load KicksDB Assortment
 // ============================================================================
 
 $assortment_file = Config::dataDir() . '/kicksdb-assortment.json';
@@ -117,17 +123,16 @@ if ($limit && count($skus) > $limit) {
 $logger->info("  {" . count($skus) . "} SKUs to transform");
 
 // ============================================================================
-// Fetch + Build
+// Fetch from both sources
 // ============================================================================
 
 try {
-    $adapter = new KicksDbAdapter($config, $skus, $logger);
-    $builder = new WcProductBuilder($config, $logger);
-    $builder->setStockOverride(null); // Use adapter's price-based stock
+    // KicksDB adapter
+    $kdbAdapter = new KicksDbAdapter($config, $skus, $logger);
 
     // Show pricing config
-    $pricing_summary = $adapter->getPricingSummary();
-    $logger->info("  Pricing: flat {$pricing_summary['flat_margin']}, floor {$pricing_summary['floor_price']}, rounding {$pricing_summary['rounding']}");
+    $pricing_summary = $kdbAdapter->getPricingSummary();
+    $logger->info("  KicksDB pricing: flat {$pricing_summary['flat_margin']}, floor {$pricing_summary['floor_price']}, rounding {$pricing_summary['rounding']}");
     if (!empty($pricing_summary['tiers'])) {
         foreach ($pricing_summary['tiers'] as $tier) {
             $logger->info("    Tier: {$tier}");
@@ -135,10 +140,56 @@ try {
     }
     $logger->info('');
 
-    $wc_products = $builder->buildAll($adapter->fetchProducts());
+    // Collect KicksDB normalized products (must materialize since we need random access)
+    $logger->info('Fetching KicksDB products...');
+    $kdbProducts = [];
+    foreach ($kdbAdapter->fetchProducts() as $p) {
+        $kdbProducts[] = $p;
+    }
+    $logger->info("  KicksDB: " . count($kdbProducts) . " products normalized");
+
+    // GS adapter (unless --skip-gs)
+    $gsProducts = [];
+    if (!$skip_gs) {
+        $logger->info('');
+        $logger->info('Fetching Golden Sneakers products...');
+        $gsAdapter = new GoldenSneakersAdapter($config, $logger);
+        foreach ($gsAdapter->fetchProducts() as $p) {
+            $gsProducts[] = $p;
+        }
+        $logger->info("  GS: " . count($gsProducts) . " products normalized");
+    } else {
+        $logger->info('Skipping GS overlay (--skip-gs)');
+    }
+
+    // ========================================================================
+    // Merge
+    // ========================================================================
+
+    $logger->info('');
+    $logger->info('Merging feeds (variation-level)...');
+
+    $merger = new FeedMerger($logger);
+    $mergedProducts = $merger->merge($kdbProducts, $gsProducts);
+
+    $merge_stats = $merger->getStats();
+    $logger->info("  Merged:       {$merge_stats['products_merged']} products");
+    $logger->info("  KicksDB-only: {$merge_stats['products_kicksdb_only']} products");
+    $logger->info("  GS-only:      {$merge_stats['products_gs_only']} products");
+    $logger->info("  Variations - GS overlay: {$merge_stats['variations_gs_overlay']}, KDB-only: {$merge_stats['variations_kicksdb_only']}, GS-only: {$merge_stats['variations_gs_only']}");
+
+    // ========================================================================
+    // Build WC format
+    // ========================================================================
+
+    $logger->info('');
+    $logger->info('Building WooCommerce payloads...');
+
+    $builder = new WcProductBuilder($config, $logger);
+    $builder->setStockOverride(null); // Use adapter/merger-provided stock
+    $wc_products = $builder->buildAll($mergedProducts);
 
     // Sort by release_date (newest first) for menu_order assignment
-    // This makes WooCommerce's "Default sorting" show newest releases first
     usort($wc_products, function ($a, $b) {
         $date_a = 0;
         $date_b = 0;
@@ -161,7 +212,6 @@ try {
     $release_ordered = 0;
     foreach ($wc_products as $idx => &$wc_tmp) {
         $wc_tmp['menu_order'] = $idx;
-        // Check if this product has a release_date
         foreach ($wc_tmp['meta_data'] ?? [] as $m) {
             if ($m['key'] === '_release_date' && !empty($m['value'])) {
                 $release_ordered++;
@@ -173,7 +223,6 @@ try {
     $logger->info("Release ordering: {$release_ordered}/{" . count($wc_products) . "} products have release dates");
 
     // Enrich WC products with catalog brand hierarchy
-    // Assigns sub-brand (e.g., "Nike Dunk") from the brands taxonomy
     $catalog = $assortment['catalog'] ?? null;
     if ($catalog) {
         $taxonomy_map_file = Config::dataDir() . '/taxonomy-map.json';
@@ -206,8 +255,6 @@ try {
             $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $meta['subcategory']));
             $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
 
-            // Assign sub-brand (e.g., "Nike Dunk") via brands taxonomy
-            // Falls back to parent brand (e.g., "Nike") if sub-brand not in map
             $subcat_brand_id = $brands_map[$subcat_slug] ?? null;
             $parent_brand_id = $brands_map[$brand_slug] ?? null;
 
@@ -220,7 +267,6 @@ try {
             }
 
             if (!empty($brand_ids)) {
-                // Merge with any brand already assigned by WcProductBuilder
                 $existing = $wc['brands'] ?? [];
                 $existing_ids = array_column($existing, 'id');
                 foreach ($brand_ids as $b) {
@@ -231,7 +277,6 @@ try {
                 $wc['brands'] = $existing;
             }
 
-            // Store catalog metadata for reference
             $wc['meta_data'] = $wc['meta_data'] ?? [];
             $wc['meta_data'][] = ['key' => '_catalog_brand', 'value' => $meta['brand']];
             $wc['meta_data'][] = ['key' => '_catalog_subcategory', 'value' => $meta['subcategory']];
@@ -243,40 +288,56 @@ try {
         $logger->info("Catalog enrichment: {$catalog_enriched}/{" . count($wc_products) . "} products assigned sub-brands");
     }
 
+    // ========================================================================
     // Write output
-    $output_file = Config::dataDir() . '/feed-kicksdb-wc-latest.json';
+    // ========================================================================
+
+    $output_file = Config::dataDir() . '/feed-unified-wc-latest.json';
     file_put_contents(
         $output_file,
         json_encode($wc_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
     );
 
-    // Cache KicksDB SKUs for GS deduplication (mirror of gs-sku-cache.json)
-    $kicksdb_skus = array_values(array_filter(array_map(fn($p) => $p['sku'] ?? null, $wc_products)));
-    file_put_contents(Config::dataDir() . '/kicksdb-sku-cache.json', json_encode($kicksdb_skus, JSON_PRETTY_PRINT));
-    $logger->info("Cached " . count($kicksdb_skus) . " KicksDB SKUs to data/kicksdb-sku-cache.json");
+    // Cache unified SKUs for cross-pipeline dedup
+    $unified_skus = array_values(array_filter(array_map(fn($p) => $p['sku'] ?? null, $wc_products)));
+    file_put_contents(Config::dataDir() . '/unified-sku-cache.json', json_encode($unified_skus, JSON_PRETTY_PRINT));
+    $logger->info("Cached " . count($unified_skus) . " unified SKUs to data/unified-sku-cache.json");
 
+    // ========================================================================
     // Summary
+    // ========================================================================
+
     $duration = round(microtime(true) - $start_time, 1);
-    $adapter_stats = $adapter->getStats();
+    $kdb_stats = $kdbAdapter->getStats();
+    $gs_stats = isset($gsAdapter) ? $gsAdapter->getStats() : null;
     $builder_stats = $builder->getStats();
 
     $logger->info('');
     $logger->info('================================');
-    $logger->info('  TRANSFORM SUMMARY');
+    $logger->info('  UNIFIED TRANSFORM SUMMARY');
     $logger->info('================================');
-    $logger->info("  SKUs requested:       {$adapter_stats['total_skus']}");
-    $logger->info("  Products found:       {$adapter_stats['products_found']}");
-    $logger->info("  Products not found:   {$adapter_stats['products_not_found']}");
-    $logger->info("  Transformed:          {$builder_stats['transformed']}");
-    $logger->info("  Total variants:       {$adapter_stats['variants_total']}");
-    $logger->info("  Variants with price:  {$adapter_stats['variants_with_price']}");
-    $logger->info("  Variants no price:    {$adapter_stats['variants_no_price']}");
-    $logger->info("  Variants no EU size:  {$adapter_stats['variants_no_eu_size']}");
-    $logger->info("  With image:           {$builder_stats['with_image']}");
-    $logger->info("  With gallery:         {$builder_stats['with_gallery']}");
-    $logger->info("  Without image:        {$builder_stats['without_image']}");
-    $logger->info("  Duration:             {$duration}s");
-    $logger->info("  Output:               {$output_file}");
+    $logger->info("  KicksDB SKUs requested:   {$kdb_stats['total_skus']}");
+    $logger->info("  KicksDB products found:   {$kdb_stats['products_found']}");
+    $logger->info("  KicksDB not found:        {$kdb_stats['products_not_found']}");
+    if ($gs_stats) {
+        $logger->info("  GS products fetched:      {$gs_stats['fetched']}");
+    } else {
+        $logger->info("  GS: skipped (--skip-gs)");
+    }
+    $logger->info("  ---");
+    $logger->info("  Merged (both sources):    {$merge_stats['products_merged']}");
+    $logger->info("  KicksDB-only:             {$merge_stats['products_kicksdb_only']}");
+    $logger->info("  GS-only:                  {$merge_stats['products_gs_only']}");
+    $logger->info("  Var GS overlay:           {$merge_stats['variations_gs_overlay']}");
+    $logger->info("  Var KicksDB-only:         {$merge_stats['variations_kicksdb_only']}");
+    $logger->info("  Var GS-only:              {$merge_stats['variations_gs_only']}");
+    $logger->info("  ---");
+    $logger->info("  WC products built:        {$builder_stats['transformed']}");
+    $logger->info("  With image:               {$builder_stats['with_image']}");
+    $logger->info("  With gallery:             {$builder_stats['with_gallery']}");
+    $logger->info("  Without image:            {$builder_stats['without_image']}");
+    $logger->info("  Duration:                 {$duration}s");
+    $logger->info("  Output:                   {$output_file}");
     $logger->info('================================');
 
     exit(0);

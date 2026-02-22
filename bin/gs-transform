@@ -85,6 +85,23 @@ try {
 
     $wc_products = $builder->buildAll($adapter->fetchProducts());
 
+    // Cross-pipeline dedup: remove products already managed by KicksDB
+    $kicksdb_cache_file = Config::dataDir() . '/kicksdb-sku-cache.json';
+    if (file_exists($kicksdb_cache_file)) {
+        $kicksdb_skus = json_decode(file_get_contents($kicksdb_cache_file), true);
+        if (is_array($kicksdb_skus) && !empty($kicksdb_skus)) {
+            $kicksdb_lookup = array_flip($kicksdb_skus);
+            $before = count($wc_products);
+            $wc_products = array_values(array_filter($wc_products, function ($p) use ($kicksdb_lookup) {
+                return !isset($kicksdb_lookup[$p['sku'] ?? '']);
+            }));
+            $excluded = $before - count($wc_products);
+            if ($excluded > 0) {
+                $logger->info("KicksDB dedup: excluded {$excluded} products already in KicksDB");
+            }
+        }
+    }
+
     // Write output
     $data_dir = Config::dataDir();
 

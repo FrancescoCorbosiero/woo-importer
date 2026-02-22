@@ -170,7 +170,9 @@ class WooCommerceImporter
     private function fetchExistingProducts(): array
     {
         $existing = [];
+        $duplicates = [];
         $page = 1;
+        $retries = 0;
 
         do {
             try {
@@ -182,15 +184,37 @@ class WooCommerceImporter
 
                 foreach ($products as $product) {
                     if (!empty($product->sku)) {
-                        $existing[$product->sku] = ['id' => $product->id];
+                        if (isset($existing[$product->sku])) {
+                            // Track duplicate SKUs for logging
+                            $duplicates[$product->sku][] = $product->id;
+                        } else {
+                            $existing[$product->sku] = ['id' => $product->id];
+                        }
                     }
                 }
                 $page++;
+                $retries = 0;
             } catch (\Exception $e) {
-                $this->logger->error("Error fetching products page {$page}: " . $e->getMessage());
-                break;
+                $retries++;
+                if ($retries >= 3) {
+                    $this->logger->error("Error fetching products page {$page} after 3 retries: " . $e->getMessage());
+                    $retries = 0;
+                    $page++; // Skip the failed page instead of stopping entirely
+                } else {
+                    $this->logger->warning("Retrying products page {$page} ({$retries}/3)...");
+                    usleep(500000);
+                    continue;
+                }
             }
-        } while (count($products) === 100);
+        } while (count($products ?? []) === 100);
+
+        if (!empty($duplicates)) {
+            $this->logger->warning("Found " . count($duplicates) . " duplicate SKUs in WooCommerce:");
+            foreach ($duplicates as $sku => $ids) {
+                $all_ids = array_merge([$existing[$sku]['id']], $ids);
+                $this->logger->warning("  SKU {$sku}: product IDs " . implode(', ', $all_ids));
+            }
+        }
 
         return $existing;
     }
