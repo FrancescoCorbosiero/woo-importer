@@ -502,7 +502,12 @@ class WcProductBuilder
                 $this->config['templates']['image_alt'] ?? '{product_name}',
                 $tpl
             );
-            $images[] = ['src' => $image_url, 'alt' => $alt];
+            $sanitized = $this->sanitizeImageUrl($image_url);
+            $images[] = [
+                'src' => $sanitized,
+                'name' => $sku . '.jpg',
+                'alt' => $alt,
+            ];
             $this->log('debug', "  No pre-uploaded image for {$sku}, using src URL fallback");
         } else {
             $this->log('debug', "  No image available for {$sku} (no media ID and no source URL)");
@@ -515,12 +520,37 @@ class WcProductBuilder
                 $images[] = ['id' => $gal_id];
             }
         } elseif (!empty($gallery_urls)) {
-            foreach ($gallery_urls as $gal_url) {
-                $images[] = ['src' => $gal_url];
+            foreach ($gallery_urls as $idx => $gal_url) {
+                $sanitized = $this->sanitizeImageUrl($gal_url);
+                $images[] = [
+                    'src' => $sanitized,
+                    'name' => $sku . '-gallery-' . ($idx + 1) . '.jpg',
+                ];
             }
         }
 
         return $images;
+    }
+
+    /**
+     * Sanitize an image URL for WooCommerce sideloading
+     *
+     * StockX CDN URLs include `fm=webp` which serves WebP content despite
+     * the .jpg extension in the URL path. WordPress rejects the upload because
+     * the detected MIME type (image/webp) doesn't match expected types.
+     *
+     * This replaces `fm=webp` with `fm=jpg` to ensure the CDN returns JPEG
+     * content that WordPress can always accept.
+     *
+     * @param string $url Image URL
+     * @return string Sanitized URL
+     */
+    private function sanitizeImageUrl(string $url): string
+    {
+        // Replace fm=webp with fm=jpg so CDN serves JPEG (universally accepted by WordPress)
+        $url = preg_replace('/([?&])fm=webp\b/', '$1fm=jpg', $url);
+
+        return $url;
     }
 
     // =========================================================================
