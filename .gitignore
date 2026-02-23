@@ -27,6 +27,15 @@ image-map.json
 /data/sku-registry.json
 /data/feed-kicksdb.json
 /data/feed-wc-latest.json
+/data/feed-kicksdb-wc.json
+/data/feed-kicksdb-wc-latest.json
+/data/diff-kicksdb-wc.json
+/data/feed-unified-wc.json
+/data/feed-unified-wc-latest.json
+/data/diff-unified-wc.json
+/data/unified-sku-cache.json
+/data/kicksdb-assortment.json
+/data/gs-sku-cache.json
 /data/shopify-import-feed.json
 !/data/.gitkeep
 

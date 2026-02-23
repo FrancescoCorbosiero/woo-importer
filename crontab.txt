@@ -17,10 +17,16 @@
 */30 * * * * cd ~/resellpiacenza/woo-importer && ./gs-sync.sh >> logs/cron-gs.log 2>&1
 
 # -------------------------------------------
-# KicksDB - Popular Sneakers Discovery & Sync
+# Unified Sync - KicksDB Catalog + GS Pricing (Recommended)
 # -------------------------------------------
-# Discovers top ~800 popular sneakers from KicksDB, skipping SKUs
-# already covered by GS. Runs every 6 hours (discovery is slow).
+# Merges KicksDB catalog with GS real pricing at variation level.
+# Pipeline: discover → taxonomies → media → unified-transform → delta sync → import
+# 0 */6 * * * cd ~/resellpiacenza/woo-importer && ./unified-sync.sh >> logs/cron-unified.log 2>&1
+
+# -------------------------------------------
+# KicksDB - Standalone Discovery & Sync
+# -------------------------------------------
+# Discovers popular products from KicksDB, skipping SKUs already in GS.
 # Pipeline: discover → taxonomies → media → transform → delta sync → import
 0 */6 * * * cd ~/resellpiacenza/woo-importer && ./kicksdb-sync.sh >> logs/cron-kicksdb.log 2>&1
 

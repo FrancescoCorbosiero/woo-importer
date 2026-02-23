@@ -10,6 +10,7 @@ files=(
     # Shell pipeline wrappers
     "gs-sync.sh"
     "kicksdb-sync.sh"
+    "unified-sync.sh"
 
     # PHP CLI scripts (bin/)
     "bin/bulk-upload"
@@ -24,6 +25,7 @@ files=(
     "bin/prepare-taxonomies"
     "bin/pricing-reconcile"
     "bin/sync-wc"
+    "bin/unified-transform"
 
     # This script itself
     "fix-scripts.sh"
