@@ -179,32 +179,31 @@
     {
       "name": "Accessori",
       "slug": "accessori",
-      "product_types": [],
+      "product_types": ["streetwear"],
       "brands": [
         {
           "name": "Beanie",
           "per_label": 15,
-          "products": ["Beanie"]
+          "product_types": ["streetwear"],
+          "products": ["beanie"]
         },
         {
           "name": "59FIFTY",
           "per_label": 15,
-          "products": ["59FIFTY"]
+          "product_types": ["streetwear"],
+          "products": ["59fifty"]
         },
         {
           "name": "Cappelli",
           "per_label": 15,
-          "products": ["Cap"]
-        },
-        {
-          "name": "Borse",
-          "per_label": 15,
-          "products": ["Bag"]
+          "product_types": ["streetwear"],
+          "products": ["cap"]
         },
         {
           "name": "Labubu",
           "per_label": 15,
-          "products": ["Labubu"]
+          "product_types": ["collectibles"],
+          "products": ["labubu"]
         }
       ]
     }

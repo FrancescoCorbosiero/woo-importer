@@ -474,13 +474,12 @@ class WcProductBuilder
     // =========================================================================
 
     /**
-     * Build WC images array from pre-uploaded media IDs only
+     * Build WC images array from pre-uploaded media IDs with URL fallback
      *
      * Primary image is first. Gallery images follow.
-     * Only uses pre-uploaded media from image-map.json (via prepare-media).
-     * Never falls back to sideloading (src URLs) — that causes WooCommerce
-     * to download images during batch import, making it extremely slow and
-     * creating duplicate media entries.
+     * Prefers pre-uploaded media from image-map.json (via prepare-media).
+     * Falls back to sideloading via src URL when no pre-uploaded media exists,
+     * because having a slow sideload is better than having no image at all.
      */
     private function buildWcImages(
         string $sku,
@@ -492,19 +491,33 @@ class WcProductBuilder
     ): array {
         $images = [];
 
-        // Primary image: only use pre-uploaded media ID
+        // Primary image: prefer pre-uploaded media ID, fall back to src URL
         $image_id = $this->image_map[$sku]['media_id'] ?? null;
 
         if ($image_id) {
             $images[] = ['id' => $image_id];
+        } elseif (!empty($image_url)) {
+            // Fallback: let WooCommerce sideload from the source URL
+            $alt = $this->parseTemplate(
+                $this->config['templates']['image_alt'] ?? '{product_name}',
+                $tpl
+            );
+            $images[] = ['src' => $image_url, 'alt' => $alt];
+            $this->log('debug', "  No pre-uploaded image for {$sku}, using src URL fallback");
         } else {
-            $this->log('debug', "  No pre-uploaded image for {$sku}, skipping (run prepare-media to upload)");
+            $this->log('debug', "  No image available for {$sku} (no media ID and no source URL)");
         }
 
-        // Gallery images: only use pre-uploaded IDs
+        // Gallery images: prefer pre-uploaded IDs, fall back to src URLs
         $gallery_ids = $this->image_map[$sku]['gallery_ids'] ?? [];
-        foreach ($gallery_ids as $gal_id) {
-            $images[] = ['id' => $gal_id];
+        if (!empty($gallery_ids)) {
+            foreach ($gallery_ids as $gal_id) {
+                $images[] = ['id' => $gal_id];
+            }
+        } elseif (!empty($gallery_urls)) {
+            foreach ($gallery_urls as $gal_url) {
+                $images[] = ['src' => $gal_url];
+            }
         }
 
         return $images;

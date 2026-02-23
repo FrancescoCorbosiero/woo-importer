@@ -147,8 +147,9 @@ class Client
      * @param int $page Page number (1-based)
      * @param string|null $sort Sort order: 'release_date' (newest first) or 'rank' (most popular)
      * @param string|null $order Sort direction ('ASC' or 'DESC')
+     * @param string|null $filters API filters (e.g. 'product_type=streetwear')
      */
-    public function browseProducts(string $query, int $limit = 50, string $market = 'IT', int $page = 1, ?string $sort = null, ?string $order = null): ?array
+    public function browseProducts(string $query, int $limit = 50, string $market = 'IT', int $page = 1, ?string $sort = null, ?string $order = null, ?string $filters = null): ?array
     {
         $params = [
             'query' => $query,
@@ -162,6 +163,9 @@ class Client
         }
         if ($order !== null && $order !== '') {
             $params['order'] = $order;
+        }
+        if ($filters !== null && $filters !== '') {
+            $params['filters'] = $filters;
         }
 
         return $this->request('GET', '/stockx/products', $params);
