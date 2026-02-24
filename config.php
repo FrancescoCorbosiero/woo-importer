@@ -127,7 +127,7 @@ return [
         'category_name' => env('IMPORT_CATEGORY_NAME', 'Sneakers'),
 
         // Behavior
-        'batch_size' => (int) env('IMPORT_BATCH_SIZE', 100),
+        'batch_size' => (int) env('IMPORT_BATCH_SIZE', 25),
         'create_out_of_stock' => env('IMPORT_CREATE_OUT_OF_STOCK', true),
 
         // Parallel variation processing: how many products' variations to process concurrently

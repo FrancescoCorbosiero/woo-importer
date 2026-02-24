@@ -495,14 +495,25 @@ class WcProductBuilder
         $image_id = $this->image_map[$sku]['media_id'] ?? null;
 
         if ($image_id) {
-            $images[] = ['id' => $image_id];
+            $images[] = [
+                'id' => $image_id,
+                'name' => $sku . '.jpg',
+                'alt' => $this->parseTemplate(
+                    $this->config['templates']['image_alt'] ?? '{product_name}',
+                    $tpl
+                ),
+            ];
         } elseif (!empty($image_url)) {
             // Fallback: let WooCommerce sideload from the source URL
             $alt = $this->parseTemplate(
                 $this->config['templates']['image_alt'] ?? '{product_name}',
                 $tpl
             );
-            $images[] = ['src' => $image_url, 'alt' => $alt];
+            $images[] = [
+                'src' => $this->sanitizeImageUrl($image_url),
+                'name' => $sku . '.jpg',
+                'alt' => $alt,
+            ];
             $this->log('debug', "  No pre-uploaded image for {$sku}, using src URL fallback");
         } else {
             $this->log('debug', "  No image available for {$sku} (no media ID and no source URL)");
@@ -511,16 +522,43 @@ class WcProductBuilder
         // Gallery images: prefer pre-uploaded IDs, fall back to src URLs
         $gallery_ids = $this->image_map[$sku]['gallery_ids'] ?? [];
         if (!empty($gallery_ids)) {
-            foreach ($gallery_ids as $gal_id) {
-                $images[] = ['id' => $gal_id];
+            foreach ($gallery_ids as $gal_idx => $gal_id) {
+                $images[] = [
+                    'id' => $gal_id,
+                    'name' => $sku . '-gallery-' . ($gal_idx + 1) . '.jpg',
+                ];
             }
         } elseif (!empty($gallery_urls)) {
-            foreach ($gallery_urls as $gal_url) {
-                $images[] = ['src' => $gal_url];
+            foreach ($gallery_urls as $gal_idx => $gal_url) {
+                $images[] = [
+                    'src' => $this->sanitizeImageUrl($gal_url),
+                    'name' => $sku . '-gallery-' . ($gal_idx + 1) . '.jpg',
+                ];
             }
         }
 
         return $images;
+    }
+
+    /**
+     * Sanitize CDN image URLs for WordPress compatibility
+     *
+     * StockX CDN URLs with fm=webp cause WordPress upload failures because
+     * the CDN serves WebP content despite the .jpg extension, triggering
+     * a MIME type mismatch. Converting fm=webp to fm=jpg ensures the CDN
+     * serves JPEG content that matches the file extension.
+     *
+     * @param string $url Image URL
+     * @return string Sanitized URL
+     */
+    private function sanitizeImageUrl(string $url): string
+    {
+        // Convert fm=webp to fm=jpg in StockX CDN URLs to prevent MIME mismatch
+        if (strpos($url, 'stockx') !== false || strpos($url, 'stockx-assets') !== false) {
+            $url = preg_replace('/([?&])fm=webp/', '$1fm=jpg', $url);
+        }
+
+        return $url;
     }
 
     // =========================================================================

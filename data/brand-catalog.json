@@ -3,12 +3,14 @@
     {
       "name": "Sneakers",
       "slug": "sneakers",
+      "wc_category": "sneakers",
+      "discovery": "brand",
       "product_types": ["sneakers"],
       "brands": [
         {
           "name": "Nike",
           "per_label": 30,
-          "products": [
+          "queries": [
             "Nike Travis Scott",
             "Nike Nocta",
             "Nike Off White",
@@ -22,7 +24,7 @@
         {
           "name": "Jordan",
           "per_label": 25,
-          "products": [
+          "queries": [
             "Jordan 1 Low",
             "Jordan 1 Mid",
             "Jordan 1 High",
@@ -39,7 +41,7 @@
         {
           "name": "Adidas",
           "per_label": 30,
-          "products": [
+          "queries": [
             "Adidas Campus",
             "Adidas Gazelle",
             "Adidas Samba",
@@ -49,7 +51,7 @@
         {
           "name": "New Balance",
           "per_label": 30,
-          "products": [
+          "queries": [
             "New Balance 9060",
             "New Balance 1906R",
             "New Balance 550",
@@ -61,7 +63,7 @@
         {
           "name": "Asics",
           "per_label": 25,
-          "products": [
+          "queries": [
             "Asics Gel-Kayano",
             "Asics Gel-NYC",
             "Asics Gel-1130",
@@ -71,7 +73,7 @@
         {
           "name": "Yeezy",
           "per_label": 20,
-          "products": [
+          "queries": [
             "Yeezy 350",
             "Yeezy 500",
             "Yeezy 700",
@@ -84,12 +86,14 @@
     {
       "name": "Abbigliamento",
       "slug": "abbigliamento",
+      "wc_category": "clothing",
+      "discovery": "brand",
       "product_types": ["streetwear"],
       "brands": [
         {
           "name": "Supreme",
           "per_label": 20,
-          "products": [
+          "queries": [
             "Supreme T-Shirt",
             "Supreme Hoodie",
             "Supreme Jacket",
@@ -99,7 +103,7 @@
         {
           "name": "Corteiz",
           "per_label": 15,
-          "products": [
+          "queries": [
             "Corteiz T-Shirt",
             "Corteiz Hoodie",
             "Corteiz Jacket",
@@ -109,7 +113,7 @@
         {
           "name": "Essentials",
           "per_label": 20,
-          "products": [
+          "queries": [
             "Fear of God Essentials T-Shirt",
             "Fear of God Essentials Hoodie",
             "Fear of God Essentials Jacket",
@@ -119,7 +123,7 @@
         {
           "name": "Chrome Hearts",
           "per_label": 15,
-          "products": [
+          "queries": [
             "Chrome Hearts T-Shirt",
             "Chrome Hearts Hoodie",
             "Chrome Hearts Jacket",
@@ -129,7 +133,7 @@
         {
           "name": "Travis Scott",
           "per_label": 15,
-          "products": [
+          "queries": [
             "Travis Scott T-Shirt",
             "Travis Scott Hoodie",
             "Travis Scott Jacket",
@@ -139,7 +143,7 @@
         {
           "name": "C.P. Company",
           "per_label": 15,
-          "products": [
+          "queries": [
             "CP Company Jacket",
             "CP Company Hoodie",
             "CP Company Pants",
@@ -149,7 +153,7 @@
         {
           "name": "Bape",
           "per_label": 15,
-          "products": [
+          "queries": [
             "Bape T-Shirt",
             "Bape Hoodie",
             "Bape Jacket",
@@ -159,7 +163,7 @@
         {
           "name": "Kaws",
           "per_label": 15,
-          "products": [
+          "queries": [
             "Kaws T-Shirt",
             "Kaws Hoodie",
             "Kaws Jacket"
@@ -168,7 +172,7 @@
         {
           "name": "Sp5der",
           "per_label": 15,
-          "products": [
+          "queries": [
             "Sp5der Hoodie",
             "Sp5der T-Shirt",
             "Sp5der Pants"
@@ -179,31 +183,33 @@
     {
       "name": "Accessori",
       "slug": "accessori",
+      "wc_category": "accessories",
+      "discovery": "query",
       "product_types": ["streetwear"],
-      "brands": [
+      "items": [
         {
-          "name": "Beanie",
+          "label": "Beanie",
           "per_label": 15,
           "product_types": ["streetwear"],
-          "products": ["beanie"]
+          "queries": ["beanie"]
         },
         {
-          "name": "59FIFTY",
+          "label": "59FIFTY",
           "per_label": 15,
           "product_types": ["streetwear"],
-          "products": ["59fifty"]
+          "queries": ["59fifty"]
         },
         {
-          "name": "Cappelli",
+          "label": "Cappelli",
           "per_label": 15,
           "product_types": ["streetwear"],
-          "products": ["cap"]
+          "queries": ["cap"]
         },
         {
-          "name": "Labubu",
+          "label": "Labubu",
           "per_label": 15,
           "product_types": ["collectibles"],
-          "products": ["labubu"]
+          "queries": ["labubu"]
         }
       ]
     }

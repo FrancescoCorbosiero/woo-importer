@@ -222,6 +222,13 @@ try {
                 continue;
             }
 
+            // Accessories: keep KicksDB's own brand, skip catalog brand enrichment
+            // (catalog labels like "Beanie", "59FIFTY" are search terms, not brands)
+            $sku_section = $section_map[$sku] ?? '';
+            if ($sku_section === 'accessori') {
+                continue;
+            }
+
             $meta = $catalog_meta[$sku];
             $brand_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $meta['brand']));
             $brand_slug = preg_replace('/-+/', '-', trim($brand_slug, '-'));
