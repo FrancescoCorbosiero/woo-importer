@@ -71,13 +71,7 @@ for arg in "$@"; do
     esac
 done
 
-# Resolve DATA_DIR
-if [ -n "$ENV_ARG" ]; then
-    ENV_PATH="${ENV_ARG#--env=}"
-    DATA_DIR=$(grep -s '^DATA_DIR=' "$ENV_PATH" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"'"'" | tr -d ' \r' || true)
-fi
-DATA_DIR="${DATA_DIR:-data}"
-mkdir -p "$DATA_DIR" logs
+mkdir -p logs
 
 echo ""
 echo "========================================"
@@ -137,11 +131,7 @@ echo ""
 
 # Step 6: Delta sync to WooCommerce
 echo "[Step 6/6] Running delta sync..."
-php bin/sync-wc \
-    --feed="$DATA_DIR/feed-wc-latest.json" \
-    --baseline="$DATA_DIR/feed-wc.json" \
-    --diff="$DATA_DIR/diff-wc.json" \
-    $DRY_RUN $VERBOSE $FORCE_FULL $ENV_ARG
+php bin/sync-wc --feed-latest $DRY_RUN $VERBOSE $FORCE_FULL $ENV_ARG
 
 echo ""
 echo "========================================"
