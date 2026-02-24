@@ -47,7 +47,7 @@ class WooCommerceImporter
     // Options
     private $dry_run = false;
     private $limit = null;
-    private $batch_size = 100;
+    private $batch_size = 25;
 
     // Category slug → ID cache
     private $category_cache = [];
@@ -82,7 +82,7 @@ class WooCommerceImporter
         $this->config = $config;
         $this->dry_run = $options['dry_run'] ?? false;
         $this->limit = $options['limit'] ?? null;
-        $this->batch_size = min($config['import']['batch_size'] ?? 100, 100);
+        $this->batch_size = min($config['import']['batch_size'] ?? 25, 100);
 
         $this->setupLogger();
         $this->setupWooCommerceClient();
@@ -133,7 +133,7 @@ class WooCommerceImporter
             $url,
             $this->config['woocommerce']['consumer_key'],
             $this->config['woocommerce']['consumer_secret'],
-            ['version' => $this->config['woocommerce']['version'], 'timeout' => 120]
+            ['version' => $this->config['woocommerce']['version'], 'timeout' => 300]
         );
     }
 
@@ -592,52 +592,101 @@ class WooCommerceImporter
                 continue;
             }
 
-            try {
-                $result = $this->wc_client->post('products/batch', [$operation => $chunk]);
-                $this->stats['batch_requests']++;
+            $batch_label = (string) ($chunk_idx + 1);
+            $this->executeBatchWithRetry($operation, $chunk, $product_map, $batch_label);
+        }
+    }
 
-                foreach ($result->$operation ?? [] as $idx => $item) {
-                    if (isset($item->error)) {
-                        $this->stats['errors']++;
-                        $sku = $item->sku ?? $chunk[$idx]['sku'] ?? 'unknown';
-                        $code = $item->error->code ?? '';
-                        $msg = $item->error->message ?? 'Unknown';
-                        $this->logger->error("  Error [{$sku}]: {$msg}" . ($code ? " [{$code}]" : ''));
+    /**
+     * Execute a batch with retry logic — splits failed batches in half on timeout
+     *
+     * When a batch request times out, the batch is split in half and each
+     * sub-batch is retried independently. Sub-batches are labeled hierarchically
+     * (e.g., batch 5 becomes 5.1, 5.2, then 5.1.1, 5.1.2, etc.).
+     *
+     * @param string $operation 'create' or 'update'
+     * @param array $chunk Product payloads for this batch
+     * @param array &$product_map Reference to update with new IDs
+     * @param string $batch_label Label for logging (e.g., "1", "1.1", "1.1.2")
+     * @param int $retry_depth Current retry depth (max 3)
+     */
+    private function executeBatchWithRetry(
+        string $operation,
+        array $chunk,
+        array &$product_map,
+        string $batch_label = '1',
+        int $retry_depth = 0
+    ): void {
+        $max_retries = 3;
 
-                        // Clean stale image-map entries on invalid image ID errors
-                        if ($code === 'woocommerce_product_invalid_image_id'
-                            || strpos($msg, 'non valido') !== false
-                            || strpos($msg, 'invalid') !== false
-                        ) {
-                            if ($sku !== 'unknown' && isset($this->image_map[$sku])) {
-                                $stale_id = $this->image_map[$sku]['media_id'] ?? '?';
-                                unset($this->image_map[$sku]);
-                                $this->image_map_dirty = true;
-                                $this->stats['stale_images_cleaned']++;
-                                $this->logger->warning("  Removed stale image-map entry for {$sku} (media_id {$stale_id})");
-                            }
+        try {
+            $result = $this->wc_client->post('products/batch', [$operation => $chunk]);
+            $this->stats['batch_requests']++;
+
+            foreach ($result->$operation ?? [] as $idx => $item) {
+                if (isset($item->error)) {
+                    $this->stats['errors']++;
+                    $sku = $item->sku ?? $chunk[$idx]['sku'] ?? 'unknown';
+                    $code = $item->error->code ?? '';
+                    $msg = $item->error->message ?? 'Unknown';
+                    $this->logger->error("  Error [{$sku}]: {$msg}" . ($code ? " [{$code}]" : ''));
+
+                    // Clean stale image-map entries on invalid image ID errors
+                    if ($code === 'woocommerce_product_invalid_image_id'
+                        || strpos($msg, 'non valido') !== false
+                        || strpos($msg, 'invalid') !== false
+                    ) {
+                        if ($sku !== 'unknown' && isset($this->image_map[$sku])) {
+                            $stale_id = $this->image_map[$sku]['media_id'] ?? '?';
+                            unset($this->image_map[$sku]);
+                            $this->image_map_dirty = true;
+                            $this->stats['stale_images_cleaned']++;
+                            $this->logger->warning("  Removed stale image-map entry for {$sku} (media_id {$stale_id})");
+                        }
+                    }
+                } else {
+                    if ($operation === 'create') {
+                        $this->stats['products_created']++;
+                        if (!empty($item->sku) && isset($product_map[$item->sku])) {
+                            $product_map[$item->sku]['id'] = $item->id;
+                            unset($product_map[$item->sku]['pending']);
                         }
                     } else {
-                        if ($operation === 'create') {
-                            $this->stats['products_created']++;
-                            if (!empty($item->sku) && isset($product_map[$item->sku])) {
-                                $product_map[$item->sku]['id'] = $item->id;
-                                unset($product_map[$item->sku]['pending']);
-                            }
-                        } else {
-                            $this->stats['products_updated']++;
-                        }
-
-                        // Track image IDs from successful responses
-                        $this->trackImagesFromResponse($item);
+                        $this->stats['products_updated']++;
                     }
+
+                    // Track image IDs from successful responses
+                    $this->trackImagesFromResponse($item);
                 }
+            }
 
-                $this->logger->info("  Batch " . ($chunk_idx + 1) . ": {$operation}d " . count($chunk));
+            $this->logger->info("  Batch {$batch_label}: {$operation}d " . count($chunk));
 
-            } catch (\Exception $e) {
+        } catch (\Exception $e) {
+            $is_timeout = strpos($e->getMessage(), 'timed out') !== false
+                || strpos($e->getMessage(), 'cURL Error') !== false
+                || strpos($e->getMessage(), 'Operation timed out') !== false
+                || strpos($e->getMessage(), '504') !== false
+                || strpos($e->getMessage(), '408') !== false;
+
+            if ($is_timeout && $retry_depth < $max_retries && count($chunk) > 1) {
+                // Split the batch in half and retry each sub-batch
+                $half = (int) ceil(count($chunk) / 2);
+                $sub1 = array_slice($chunk, 0, $half);
+                $sub2 = array_slice($chunk, $half);
+
+                $backoff = pow(2, $retry_depth + 1); // 2s, 4s, 8s
+                $this->logger->warning(
+                    "  Batch {$batch_label} timed out (" . count($chunk) . " items). "
+                    . "Splitting into 2 sub-batches and retrying in {$backoff}s (depth {$retry_depth}/{$max_retries})..."
+                );
+                sleep($backoff);
+
+                $this->executeBatchWithRetry($operation, $sub1, $product_map, $batch_label . '.1', $retry_depth + 1);
+                $this->executeBatchWithRetry($operation, $sub2, $product_map, $batch_label . '.2', $retry_depth + 1);
+            } else {
                 $this->stats['errors'] += count($chunk);
-                $this->logger->error("  Batch failed: " . $e->getMessage());
+                $this->logger->error("  Batch {$batch_label} failed: " . $e->getMessage());
             }
         }
     }
@@ -1067,7 +1116,7 @@ class WooCommerceImporter
         $opts = [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 120,
+            CURLOPT_TIMEOUT => 300,
         ];
 
         if ($method === 'POST') {
