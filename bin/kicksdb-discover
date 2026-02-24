@@ -164,9 +164,13 @@ if (!$opt_no_type_filter) {
 // Count total labels across all sections
 $total_labels = 0;
 foreach ($catalog_sections as $section) {
-    foreach ($section['brands'] ?? [] as $brand_entry) {
-        $products_list = $brand_entry['products'] ?? [];
-        $total_labels += max(1, count($products_list));
+    $discovery_mode = $section['discovery'] ?? 'brand';
+    $entries = $discovery_mode === 'query'
+        ? ($section['items'] ?? [])
+        : ($section['brands'] ?? []);
+    foreach ($entries as $entry) {
+        $queries_list = $entry['queries'] ?? $entry['products'] ?? [];
+        $total_labels += max(1, count($queries_list));
     }
 }
 
@@ -175,11 +179,12 @@ $logger->info('========================================');
 $logger->info('  KicksDB Product Discovery');
 $logger->info('========================================');
 $logger->info("  Catalog:    {$catalog_file}");
-$total_brands = 0;
+$total_entries = 0;
 foreach ($catalog_sections as $sec) {
-    $total_brands += count($sec['brands'] ?? []);
+    $mode = $sec['discovery'] ?? 'brand';
+    $total_entries += count($mode === 'query' ? ($sec['items'] ?? []) : ($sec['brands'] ?? []));
 }
-$logger->info("  Brands:     " . $total_brands);
+$logger->info("  Entries:    " . $total_entries);
 $logger->info("  Labels:     {$total_labels}");
 $logger->info("  Per label:  {$per_label} products");
 $logger->info("  Market:     {$market}");
@@ -191,7 +196,9 @@ if ($discovery_sort) {
 $logger->info("  Sections:   " . count($catalog_sections));
 foreach ($catalog_sections as $sec) {
     $sec_types = $sec['product_types'] ?? $global_type_filter;
-    $logger->info("    {$sec['name']}: " . count($sec['brands'] ?? []) . " brands, types=[" . implode(',', $sec_types) . "]");
+    $mode = $sec['discovery'] ?? 'brand';
+    $entries = $mode === 'query' ? ($sec['items'] ?? []) : ($sec['brands'] ?? []);
+    $logger->info("    {$sec['name']}: " . count($entries) . " entries ({$mode}), types=[" . implode(',', $sec_types) . "]");
 }
 if ($opt_limit) {
     $logger->info("  Global cap: {$opt_limit}");
@@ -273,7 +280,8 @@ $logger->info('');
 foreach ($catalog_sections as $section) {
     $section_name = $section['name'] ?? 'Unknown';
     $section_slug = $section['slug'] ?? strtolower($section_name);
-    $section_brands = $section['brands'] ?? [];
+    $section_wc_category = $section['wc_category'] ?? null; // Config key: sneakers, clothing, accessories
+    $discovery_mode = $section['discovery'] ?? 'brand';
 
     // Per-section product_type filter:
     // - product_types present & non-empty: use section filter
@@ -288,52 +296,60 @@ foreach ($catalog_sections as $section) {
     }
 
     // Build API-level filters string from section product_types
-    // e.g. ["streetwear"] → "product_type=streetwear"
-    // This tells the KicksDB API to only return products of the right type,
-    // rather than relying solely on post-fetch filtering.
     $section_api_filters = '';
     if (!empty($product_type_filter)) {
         $section_api_filters = 'product_type=' . implode(',', $product_type_filter);
     }
 
-    $logger->info("  === Section: {$section_name} (types: " . implode(',', $product_type_filter ?: ['all']) . ") ===");
+    $logger->info("  === Section: {$section_name} (discovery={$discovery_mode}, wc_category=" . ($section_wc_category ?: 'auto') . ", types=" . implode(',', $product_type_filter ?: ['all']) . ") ===");
 
-    foreach ($section_brands as $brand_entry) {
-        $catalog_brand = $brand_entry['name'] ?? '';
-        if (empty($catalog_brand)) {
-            $logger->warning('  Skipping catalog entry with empty brand name');
+    // Normalize entries: both discovery modes produce the same iterable structure
+    // brand mode: brands[].queries[] with catalog_brand = brand name
+    // query mode: items[].queries[] with catalog_brand = item label (not a real brand)
+    $entries = $discovery_mode === 'query'
+        ? ($section['items'] ?? [])
+        : ($section['brands'] ?? []);
+
+    foreach ($entries as $entry) {
+        // Entry name: "name" for brands, "label" for query items
+        $entry_name = $entry['name'] ?? $entry['label'] ?? '';
+        if (empty($entry_name)) {
+            $logger->warning('  Skipping catalog entry with empty name/label');
             continue;
         }
 
-        $subcategories = $brand_entry['products'] ?? [];
+        // Queries: "queries" (v2) or "products" (v1 backward compat)
+        $queries = $entry['queries'] ?? $entry['products'] ?? [];
 
-        // If brand has no subcategories, search using the brand name itself
-        if (empty($subcategories)) {
-            $subcategories = [$catalog_brand];
+        // If no queries defined, search using the entry name itself
+        if (empty($queries)) {
+            $queries = [$entry_name];
         }
 
-        // Per-brand product_type override: allows mixing types within a section
+        // Per-entry product_type override: allows mixing types within a section
         // (e.g. Accessori section with streetwear hats + collectibles toys)
-        if (array_key_exists('product_types', $brand_entry)) {
-            $brand_type_filter = !empty($brand_entry['product_types'])
-                ? array_map('strtolower', $brand_entry['product_types'])
+        if (array_key_exists('product_types', $entry)) {
+            $entry_type_filter = !empty($entry['product_types'])
+                ? array_map('strtolower', $entry['product_types'])
                 : [];
-            $api_filters = !empty($brand_type_filter)
-                ? 'product_type=' . implode(',', $brand_type_filter)
+            $api_filters = !empty($entry_type_filter)
+                ? 'product_type=' . implode(',', $entry_type_filter)
                 : '';
         } else {
-            $brand_type_filter = $product_type_filter;
+            $entry_type_filter = $product_type_filter;
             $api_filters = $section_api_filters;
         }
 
-        // Per-brand limit: use brand-level per_label if set, otherwise global
-        $brand_per_label = $brand_entry['per_label'] ?? $per_label;
-        $logger->info("  Brand: {$catalog_brand} (" . count($subcategories) . " subcategories, {$brand_per_label}/label"
+        // Per-entry limit
+        $entry_per_label = $entry['per_label'] ?? $per_label;
+
+        $entry_type_label = $discovery_mode === 'query' ? 'Item' : 'Brand';
+        $logger->info("  {$entry_type_label}: {$entry_name} (" . count($queries) . " queries, {$entry_per_label}/label"
             . ($api_filters ? ", filters={$api_filters}" : '') . ")");
 
-        foreach ($subcategories as $label) {
+        foreach ($queries as $label) {
             $collected_for_label = 0;
-            $pages_needed = (int) ceil($brand_per_label / $page_size);
+            $pages_needed = (int) ceil($entry_per_label / $page_size);
 
             for ($page = 1; $page <= $pages_needed + 2; $page++) { // +2 buffer for filtering
                 $result = $client->browseProducts($label, $page_size, $market, $page, $discovery_sort ?: null, $discovery_order ?: null, $api_filters ?: null);
@@ -350,7 +366,7 @@ foreach ($catalog_sections as $section) {
                 }
 
                 foreach ($items as $item) {
-                    if ($collected_for_label >= $brand_per_label) {
+                    if ($collected_for_label >= $entry_per_label) {
                         break 2;
                     }
 
@@ -372,9 +388,8 @@ foreach ($catalog_sections as $section) {
                     $item_brand = $item['brand'] ?? '';
                     $item_name = $item['title'] ?? $item['name'] ?? '';
 
-                    // Post-fetch filter by product_type (per-section or per-brand override)
-                    // This is a safety net in addition to the API-level filter
-                    $active_filter = $brand_type_filter;
+                    // Post-fetch filter by product_type (safety net)
+                    $active_filter = $entry_type_filter;
                     if (!empty($active_filter)) {
                         $item_type = strtolower($item['product_type'] ?? '');
                         $item_categories = array_map('strtolower', $item['categories'] ?? []);
@@ -415,9 +430,12 @@ foreach ($catalog_sections as $section) {
                         'min_price' => $item['min_price'] ?? null,
                         'avg_price' => $item['avg_price'] ?? null,
                         'release_date' => $item['release_date'] ?? '',
-                        'catalog_brand' => $catalog_brand,
+                        // Catalog metadata
+                        'catalog_brand' => $discovery_mode === 'brand' ? $entry_name : '',
                         'catalog_subcategory' => $label,
                         'catalog_section' => $section_slug,
+                        'catalog_wc_category' => $section_wc_category,
+                        'catalog_discovery' => $discovery_mode,
                     ];
 
                     $collected_for_label++;
