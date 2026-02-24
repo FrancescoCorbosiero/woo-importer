@@ -59,6 +59,9 @@ class WooCommerceImporter
     private $image_map = [];
     private $image_map_dirty = false;
 
+    // Products that failed batch-create due to duplicate SKU — queued for retry as update
+    private $duplicate_retry_queue = [];
+
     // Stats
     private $stats = [
         'products_created' => 0,
@@ -482,6 +485,78 @@ class WooCommerceImporter
     }
 
     /**
+     * Retry products that failed batch-create due to duplicate SKU
+     *
+     * When fetchExistingProducts() misses some products (pagination gaps,
+     * interrupted previous runs, race conditions), the batch create returns
+     * product_invalid_sku errors. This method looks up the existing product
+     * IDs by SKU and retries them as updates.
+     *
+     * @param array &$product_map Reference to update with found IDs
+     */
+    private function retryDuplicatesAsUpdate(array &$product_map): void
+    {
+        $items = $this->duplicate_retry_queue;
+        $this->duplicate_retry_queue = [];
+
+        $count = count($items);
+        $this->logger->info("  Retrying {$count} duplicate-SKU products as updates...");
+
+        $to_update = [];
+
+        foreach ($items as $item) {
+            $sku = $item['sku'] ?? null;
+            if (!$sku) {
+                continue;
+            }
+
+            $product_id = $this->lookupProductIdBySku($sku);
+            if ($product_id) {
+                $item['id'] = $product_id;
+                $to_update[] = $item;
+
+                // Update product_map so variations get processed
+                if (isset($product_map[$sku])) {
+                    $product_map[$sku]['id'] = $product_id;
+                    unset($product_map[$sku]['pending']);
+                }
+            } else {
+                $this->stats['errors']++;
+                $this->logger->error("  Retry failed: could not find existing product for SKU {$sku}");
+            }
+        }
+
+        if (!empty($to_update)) {
+            $this->logger->info("  Updating " . count($to_update) . " recovered products...");
+            $this->executeBatch('update', $to_update, $product_map);
+        }
+    }
+
+    /**
+     * Look up a WooCommerce product ID by SKU
+     *
+     * @param string $sku Product SKU
+     * @return int|null Product ID or null if not found
+     */
+    private function lookupProductIdBySku(string $sku): ?int
+    {
+        try {
+            $results = $this->wc_client->get('products', [
+                'sku' => $sku,
+                'status' => 'any',
+            ]);
+
+            if (!empty($results) && !empty($results[0]->id)) {
+                return (int) $results[0]->id;
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning("  SKU lookup failed for {$sku}: " . $e->getMessage());
+        }
+
+        return null;
+    }
+
+    /**
      * Sanitize a brand name into a URL slug
      *
      * @param string $name Brand name
@@ -554,7 +629,13 @@ class WooCommerceImporter
         $this->logger->info("  To create: " . count($to_create) . ", to update: " . count($to_update));
 
         if (!empty($to_create)) {
+            $this->duplicate_retry_queue = [];
             $this->executeBatch('create', $to_create, $product_map);
+
+            // Retry duplicate-SKU failures as updates (products missed by fetchExistingProducts)
+            if (!empty($this->duplicate_retry_queue)) {
+                $this->retryDuplicatesAsUpdate($product_map);
+            }
         }
         if (!empty($to_update)) {
             $this->executeBatch('update', $to_update, $product_map);
@@ -625,24 +706,36 @@ class WooCommerceImporter
 
             foreach ($result->$operation ?? [] as $idx => $item) {
                 if (isset($item->error)) {
-                    $this->stats['errors']++;
                     $sku = $item->sku ?? $chunk[$idx]['sku'] ?? 'unknown';
                     $code = $item->error->code ?? '';
                     $msg = $item->error->message ?? 'Unknown';
-                    $this->logger->error("  Error [{$sku}]: {$msg}" . ($code ? " [{$code}]" : ''));
 
-                    // Clean stale image-map entries on invalid image ID errors
-                    if ($code === 'woocommerce_product_invalid_image_id'
-                        || strpos($msg, 'non valido') !== false
-                        || strpos($msg, 'invalid') !== false
-                    ) {
-                        if ($sku !== 'unknown' && isset($this->image_map[$sku])) {
-                            $stale_id = $this->image_map[$sku]['media_id'] ?? '?';
-                            unset($this->image_map[$sku]);
-                            $this->image_map_dirty = true;
-                            $this->stats['stale_images_cleaned']++;
-                            $this->logger->warning("  Removed stale image-map entry for {$sku} (media_id {$stale_id})");
-                        }
+                    // Duplicate SKU on create → queue for retry as update
+                    $is_duplicate_sku = $operation === 'create' && (
+                        $code === 'product_invalid_sku'
+                        || $code === 'woocommerce_rest_product_not_created'
+                    );
+
+                    if ($is_duplicate_sku && isset($chunk[$idx])) {
+                        $this->duplicate_retry_queue[] = $chunk[$idx];
+                        $this->logger->debug("  Duplicate SKU [{$sku}]: queued for retry as update");
+                    } else {
+                        $this->stats['errors']++;
+                        $this->logger->error("  Error [{$sku}]: {$msg}" . ($code ? " [{$code}]" : ''));
+                    }
+
+                    // Clean stale image-map entries ONLY for actual image errors
+                    // (not for SKU or other errors that happen to contain "non valido")
+                    $is_image_error = $code === 'woocommerce_product_invalid_image_id'
+                        || stripos($msg, 'immagine') !== false
+                        || ($code === 'rest_invalid_param' && stripos($msg, 'image') !== false);
+
+                    if ($is_image_error && $sku !== 'unknown' && isset($this->image_map[$sku])) {
+                        $stale_id = $this->image_map[$sku]['media_id'] ?? '?';
+                        unset($this->image_map[$sku]);
+                        $this->image_map_dirty = true;
+                        $this->stats['stale_images_cleaned']++;
+                        $this->logger->warning("  Removed stale image-map entry for {$sku} (media_id {$stale_id})");
                     }
                 } else {
                     if ($operation === 'create') {
