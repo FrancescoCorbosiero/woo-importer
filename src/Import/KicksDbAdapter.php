@@ -439,15 +439,24 @@ class KicksDbAdapter implements FeedAdapter
      * The sizes[] sub-array contains entries like {"size": "US S", "type": "us"}.
      * Falls back to the direct "size" field on the variant.
      *
+     * Also handles numeric hat sizes (e.g. "7 1/4" for fitted caps) by
+     * accepting the raw size string when standard patterns don't match.
+     *
      * @param array $variant Variant data
-     * @return string|null Letter size (e.g. "S", "M", "L", "XL") or null
+     * @return string|null Letter size (e.g. "S", "M", "L", "XL"), "One Size", or raw size string
      */
     private function extractLetterSize(array $variant): ?string
     {
+        $raw_fallback = null;
+
         // Try sizes[] sub-array first — strip "US " prefix
         foreach ($variant['sizes'] ?? [] as $size_entry) {
             $raw = $size_entry['size'] ?? '';
             $cleaned = trim($raw);
+
+            if (empty($cleaned)) {
+                continue;
+            }
 
             // Check for "One Size" / "OS" before stripping prefix
             if (preg_match('/^(one\s*size|os)$/i', $cleaned)) {
@@ -458,6 +467,11 @@ class KicksDbAdapter implements FeedAdapter
             $cleaned = preg_replace('/^(US|EU|UK)\s+/i', '', $cleaned);
             if (preg_match('/^[XSML]{1,3}L?$|^\d*X{0,3}L$/i', $cleaned)) {
                 return strtoupper($cleaned);
+            }
+
+            // Save first non-empty size as raw fallback (e.g. "7 1/4" for fitted caps)
+            if ($raw_fallback === null) {
+                $raw_fallback = $cleaned;
             }
         }
 
@@ -472,9 +486,15 @@ class KicksDbAdapter implements FeedAdapter
             if (preg_match('/^[XSML]{1,3}L?$|^\d*X{0,3}L$/i', $direct)) {
                 return strtoupper($direct);
             }
+            // Use direct size as raw fallback if no sizes[] fallback found
+            if ($raw_fallback === null) {
+                $raw_fallback = $direct;
+            }
         }
 
-        return null;
+        // Final fallback: use the raw size string for non-standard formats
+        // (e.g. "7 1/4" for fitted caps, "S/M" for combo sizes)
+        return $raw_fallback;
     }
 
     /**
