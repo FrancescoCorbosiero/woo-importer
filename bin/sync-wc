@@ -33,10 +33,11 @@ Usage:
 Options:
   --feed=FILE       Read WC-formatted feed from local file
                     (default: fetch from API)
+  --feed-latest     Shorthand for --feed=<DATA_DIR>/feed-wc-latest.json
   --baseline=FILE   Path to saved baseline feed for delta comparison
-                    (default: data/feed-wc.json)
+                    (default: <DATA_DIR>/feed-wc.json)
   --diff=FILE       Path to write the diff file
-                    (default: data/diff-wc.json)
+                    (default: <DATA_DIR>/diff-wc.json)
   --dry-run         Preview changes
   --check-only      Show diff only
   --force-full      Force full import
@@ -77,6 +78,11 @@ foreach ($argv as $arg) {
 }
 
 $config = Config::load();
+
+// --feed-latest: resolve feed path from Config::dataDir()
+if (in_array('--feed-latest', $argv) && empty($options['feed_file'])) {
+    $options['feed_file'] = Config::dataDir() . '/feed-wc-latest.json';
+}
 
 $sync = new DeltaSync($config, $options);
 exit($sync->run() ? 0 : 1);
