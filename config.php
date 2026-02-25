@@ -137,6 +137,10 @@ return [
         // WC REST API timeout in seconds (per batch request)
         // Lower = faster retry on timeout, higher = tolerates slow server
         'api_timeout' => (int) env('IMPORT_API_TIMEOUT', 120),
+
+        // KicksDB product cache TTL in seconds (default 24h)
+        // Cached products skip the API on subsequent catalog-transform runs
+        'kicksdb_cache_ttl' => (int) env('KICKSDB_CACHE_TTL', 86400),
     ],
 
     // ===========================================
