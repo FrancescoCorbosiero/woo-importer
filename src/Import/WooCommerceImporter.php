@@ -132,11 +132,12 @@ class WooCommerceImporter
             );
         }
 
+        $timeout = (int) ($this->config['import']['api_timeout'] ?? 120);
         $this->wc_client = new Client(
             $url,
             $this->config['woocommerce']['consumer_key'],
             $this->config['woocommerce']['consumer_secret'],
-            ['version' => $this->config['woocommerce']['version'], 'timeout' => 300]
+            ['version' => $this->config['woocommerce']['version'], 'timeout' => $timeout]
         );
     }
 
