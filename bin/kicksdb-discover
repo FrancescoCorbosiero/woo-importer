@@ -40,6 +40,7 @@ Options:
   --per-label=N           Max products per catalog label (default: from KICKSDB_PRODUCTS_PER_LABEL or 50)
   --limit=N               Global cap on total assortment size
   --no-type-filter        Disable product_type filtering entirely
+  --no-relevance-filter   Disable query word relevance filtering
   --skip-dedup            Don't exclude SKUs already in the GS feed
   --dry-run               Preview without saving
   --verbose, -v           Detailed output
@@ -84,6 +85,7 @@ $opt_verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
 $opt_dry_run = in_array('--dry-run', $argv);
 $opt_skip_dedup = in_array('--skip-dedup', $argv);
 $opt_no_type_filter = in_array('--no-type-filter', $argv);
+$opt_no_relevance_filter = in_array('--no-relevance-filter', $argv);
 $opt_limit = null;
 $opt_catalog = null;
 $opt_per_label = null;
@@ -270,6 +272,7 @@ if (!$opt_skip_dedup) {
 $all_products = []; // Keyed by SKU for dedup
 $api_calls = 0;
 $filtered_type = 0;
+$filtered_relevance = 0;
 $filtered_no_sku = 0;
 $filtered_duplicate = 0;
 
@@ -403,6 +406,40 @@ foreach ($catalog_sections as $section) {
                         }
                     }
 
+                    // Query relevance filter: ensure all significant query words appear in product text
+                    // Prevents fuzzy API matches (e.g. "Corteiz" returning "Cortez")
+                    if (!$opt_no_relevance_filter) {
+                        $query_words = preg_split('/[\s\-\/\.\,]+/', strtolower($label));
+                        $query_words = array_filter($query_words, function ($w) {
+                            return strlen($w) >= 1 && $w !== 'x';
+                        });
+
+                        if (!empty($query_words)) {
+                            $searchable_text = strtolower(implode(' ', array_filter([
+                                $item_name,
+                                $item_brand,
+                                $item['model'] ?? '',
+                                $item['slug'] ?? '',
+                                $item['colorway'] ?? '',
+                            ])));
+                            $searchable_words = array_flip(preg_split('/[\s\-\/\.\,\(\)\'\"\_\:\&\+]+/', $searchable_text));
+
+                            $relevance_pass = true;
+                            foreach ($query_words as $qw) {
+                                if (!isset($searchable_words[$qw])) {
+                                    $relevance_pass = false;
+                                    $logger->debug("      SKIP (relevance, missing '{$qw}'): {$item_brand} {$item_key} - {$item_name} [query={$label}]");
+                                    break;
+                                }
+                            }
+
+                            if (!$relevance_pass) {
+                                $filtered_relevance++;
+                                continue;
+                            }
+                        }
+                    }
+
                     // On-the-fly GS deduplication
                     if (isset($gs_skus[$item_key])) {
                         $gs_excluded++;
@@ -454,12 +491,15 @@ foreach ($catalog_sections as $section) {
     }
 }
 
-$total_examined = count($all_products) + $gs_excluded + $filtered_type + $filtered_no_sku + $filtered_duplicate;
+$total_examined = count($all_products) + $gs_excluded + $filtered_type + $filtered_relevance + $filtered_no_sku + $filtered_duplicate;
 $logger->info('');
 $logger->info("  Total examined: {$total_examined} products ({$api_calls} API calls)");
 $logger->info("  Accepted:       " . count($all_products) . " unique products");
 if ($filtered_type > 0) {
     $logger->info("  Filtered (type):   {$filtered_type}");
+}
+if ($filtered_relevance > 0) {
+    $logger->info("  Filtered (relevance): {$filtered_relevance}");
 }
 if ($gs_excluded > 0) {
     $logger->info("  GS SKUs skipped:   {$gs_excluded}");
@@ -674,6 +714,7 @@ $logger->info("  Per-label limit:    {$per_label}");
 $logger->info("  API calls:          {$api_calls}");
 $logger->info("  Products examined:  {$total_examined}");
 $logger->info("  Filtered (type):    {$filtered_type}");
+$logger->info("  Filtered (relevance): {$filtered_relevance}");
 $logger->info("  GS SKUs excluded:   {$gs_excluded}");
 $logger->info("  Retained (prev):    {$retained}");
 $logger->info("  Dropped (stale):    {$dropped}");
