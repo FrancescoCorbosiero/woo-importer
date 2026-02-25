@@ -133,6 +133,10 @@ return [
         // Parallel variation processing: how many products' variations to process concurrently
         // Higher = faster but more WC API load. Recommended: 3-8
         'variation_concurrency' => (int) env('IMPORT_VARIATION_CONCURRENCY', 5),
+
+        // WC REST API timeout in seconds (per batch request)
+        // Lower = faster retry on timeout, higher = tolerates slow server
+        'api_timeout' => (int) env('IMPORT_API_TIMEOUT', 120),
     ],
 
     // ===========================================
