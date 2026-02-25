@@ -226,6 +226,7 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
                     'catalog_discovery' => 'gs_enriched',
                     'gs_tracked' => true,
                     'source' => 'gs_enriched',
+                    '_raw' => $data,
                 ];
                 $gs_enriched++;
                 $logger->debug("    [{$idx}] {$sku}: enriched via KicksDB");

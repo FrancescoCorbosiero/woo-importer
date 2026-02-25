@@ -29,6 +29,9 @@ class KicksDbAdapter implements FeedAdapter
     private string $market;
     private array $skus;
 
+    /** @var array Pre-loaded raw product data from assortment (SKU → raw API response) */
+    private array $preloaded = [];
+
     /** @var array In-memory product cache (SKU → raw API response) */
     private array $product_cache = [];
 
@@ -42,8 +45,9 @@ class KicksDbAdapter implements FeedAdapter
         'total_skus' => 0,
         'products_found' => 0,
         'products_not_found' => 0,
+        'preloaded_hits' => 0,
         'cache_hits' => 0,
-        'cache_misses' => 0,
+        'api_fetches' => 0,
         'variants_total' => 0,
         'variants_with_price' => 0,
         'variants_no_price' => 0,
@@ -82,11 +86,34 @@ class KicksDbAdapter implements FeedAdapter
     }
 
     /**
+     * Pre-load raw product data from the assortment file
+     *
+     * Discovery already fetches full product data (variants, traits, identifiers)
+     * via browseProducts with rich_display=true. This method loads that data so
+     * fetchProducts() can use it directly instead of re-fetching per SKU.
+     *
+     * @param array $assortment_map SKU → assortment product (with '_raw' key)
+     */
+    public function preloadFromAssortment(array $assortment_map): void
+    {
+        $loaded = 0;
+        foreach ($assortment_map as $sku => $product) {
+            $raw = $product['_raw'] ?? null;
+            if (is_array($raw) && !empty($raw['variants'])) {
+                $this->preloaded[$sku] = $raw;
+                $loaded++;
+            }
+        }
+        $this->log('info', "  Pre-loaded {$loaded} products from assortment (with variants)");
+    }
+
+    /**
      * Fetch each SKU from KicksDB and yield normalized products
      *
-     * Uses a local disk cache to avoid re-fetching products that were
-     * already retrieved in a previous run. Cache TTL is configurable
-     * via KICKSDB_CACHE_TTL (default 24h).
+     * Resolution order per SKU:
+     *   1. Pre-loaded data from assortment (_raw from discovery) — zero API calls
+     *   2. Disk cache (kicksdb-product-cache.json) — zero API calls
+     *   3. KicksDB API (individual fetch) — last resort
      */
     public function fetchProducts(): iterable
     {
@@ -101,19 +128,27 @@ class KicksDbAdapter implements FeedAdapter
 
             $progress = $idx + 1;
 
-            // Check product cache first
-            $cached = $this->getCachedProduct($sku);
-            if ($cached !== null) {
+            // 1. Pre-loaded from assortment (discovery already fetched rich data)
+            if (isset($this->preloaded[$sku])) {
+                $this->stats['preloaded_hits']++;
+                $this->stats['products_found']++;
+                $product_data = $this->preloaded[$sku];
+                $variants = $product_data['variants'] ?? [];
+                $this->log('debug', "[{$progress}/{$this->stats['total_skus']}] Preloaded: {$sku}");
+            }
+            // 2. Disk cache (from a previous catalog-transform run)
+            elseif (($cached = $this->getCachedProduct($sku)) !== null) {
                 $this->stats['cache_hits']++;
                 $this->stats['products_found']++;
                 $product_data = $cached['data'] ?? $cached;
                 $variants = $product_data['variants'] ?? [];
                 $this->log('debug', "[{$progress}/{$this->stats['total_skus']}] Cache hit: {$sku}");
-            } else {
-                $this->stats['cache_misses']++;
+            }
+            // 3. API fetch (last resort — GS-only SKUs or missing _raw)
+            else {
+                $this->stats['api_fetches']++;
                 $this->log('info', "[{$progress}/{$this->stats['total_skus']}] Fetching {$sku}...");
 
-                // Fetch product with display fields and market
                 $product = $this->kicksdb->getStockXProduct($sku, $this->market);
                 if ($product === null) {
                     $this->stats['products_not_found']++;
@@ -126,38 +161,33 @@ class KicksDbAdapter implements FeedAdapter
                 $variants = $product_data['variants'] ?? [];
 
                 if (empty($variants)) {
-                    // Fallback: dedicated variants endpoint
                     $product_id = $product_data['id'] ?? $product_data['slug'] ?? $sku;
                     $this->log('debug', "  No embedded variants, trying variants endpoint for {$product_id}...");
                     $raw = $this->kicksdb->getStockXVariants($product_id, $this->market);
                     if ($raw !== null) {
                         $variants = $raw['data'] ?? $raw;
-                        // Embed variants into product data for cache
                         $product_data['variants'] = $variants;
                     }
                 }
 
-                // Cache the full API response
+                // Save to disk cache for future runs
                 $this->setCachedProduct($sku, $product_data);
                 $cache_dirty = true;
 
-                // Rate limit: 200ms between API requests
                 usleep(200000);
             }
 
-            // Normalize
             $normalized = $this->normalize($product_data, $variants, $sku);
             if ($normalized !== null) {
                 yield $normalized;
             }
         }
 
-        // Persist cache to disk
         if ($cache_dirty) {
             $this->saveProductCache();
         }
 
-        $this->log('info', "  Cache stats: {$this->stats['cache_hits']} hits, {$this->stats['cache_misses']} misses");
+        $this->log('info', "  Source stats: {$this->stats['preloaded_hits']} preloaded, {$this->stats['cache_hits']} cached, {$this->stats['api_fetches']} API fetches");
     }
 
     public function getStats(): array
