@@ -44,6 +44,7 @@ Usage:
 Options:
   --limit=N         Transform first N products only
   --skip-gs         Skip GS variation overlay
+  --no-cache        Bypass KicksDB product cache (force fresh API fetch)
   --verbose, -v     Detailed output
   --help, -h        Show help
 
@@ -68,6 +69,7 @@ HELP;
 
 $verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
 $skip_gs = in_array('--skip-gs', $argv);
+$no_cache = in_array('--no-cache', $argv);
 $limit = null;
 
 foreach ($argv as $arg) {
@@ -149,8 +151,15 @@ foreach ($products as $p) {
 // ============================================================================
 
 try {
-    // KicksDB adapter: fetches full product data per SKU
+    // KicksDB adapter: uses pre-loaded assortment data when available (zero API calls)
+    if ($no_cache) {
+        $config['import']['kicksdb_cache_ttl'] = 0;
+        $logger->info('  KicksDB cache: disabled (--no-cache)');
+    }
     $kdbAdapter = new KicksDbAdapter($config, $skus, $logger);
+
+    // Pre-load rich product data from discovery (avoids per-SKU API calls)
+    $kdbAdapter->preloadFromAssortment($assortment_map);
 
     $pricing_summary = $kdbAdapter->getPricingSummary();
     $logger->info("  KicksDB pricing: flat {$pricing_summary['flat_margin']}, floor {$pricing_summary['floor_price']}, rounding {$pricing_summary['rounding']}");
@@ -361,6 +370,9 @@ try {
     $logger->info("  Assortment source:    {$assortment_source}");
     $logger->info("  KicksDB SKUs:         {$kdb_stats['total_skus']}");
     $logger->info("  KicksDB found:        {$kdb_stats['products_found']}");
+    $logger->info("  KicksDB preloaded:    {$kdb_stats['preloaded_hits']}");
+    $logger->info("  KicksDB cache hits:   {$kdb_stats['cache_hits']}");
+    $logger->info("  KicksDB API fetches:  {$kdb_stats['api_fetches']}");
     $logger->info("  KicksDB not found:    {$kdb_stats['products_not_found']}");
     if ($gs_stats) {
         $logger->info("  GS products:          {$gs_stats['fetched']}");

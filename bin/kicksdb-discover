@@ -355,7 +355,7 @@ foreach ($catalog_sections as $section) {
             $pages_needed = (int) ceil($entry_per_label / $page_size);
 
             for ($page = 1; $page <= $pages_needed + 2; $page++) { // +2 buffer for filtering
-                $result = $client->browseProducts($label, $page_size, $market, $page, $discovery_sort ?: null, $discovery_order ?: null, $api_filters ?: null);
+                $result = $client->browseProducts($label, $page_size, $market, $page, $discovery_sort ?: null, $discovery_order ?: null, $api_filters ?: null, true);
                 $api_calls++;
 
                 if ($result === null) {
@@ -473,6 +473,9 @@ foreach ($catalog_sections as $section) {
                         'catalog_section' => $section_slug,
                         'catalog_wc_category' => $section_wc_category,
                         'catalog_discovery' => $discovery_mode,
+                        // Full API response (variants, traits, identifiers, gallery_360, description)
+                        // Used by catalog-transform to avoid per-SKU re-fetching
+                        '_raw' => $item,
                     ];
 
                     $collected_for_label++;

@@ -136,10 +136,11 @@ class Client
     }
 
     /**
-     * Browse StockX products with lightweight response (no variants/traits/identifiers)
+     * Browse StockX products with configurable response detail
      *
-     * Used for discovery/assortment building where we only need
-     * SKU, name, brand, rank, and image URL — not full product details.
+     * When $rich_display is true, includes variants, traits, and identifiers
+     * in each product — same data as getStockXProduct() but for all results
+     * in one call. This eliminates the need for per-SKU re-fetching downstream.
      *
      * @param string $query Search term (brand name, category, etc.)
      * @param int $limit Results per page
@@ -148,8 +149,9 @@ class Client
      * @param string|null $sort Sort order: 'release_date' (newest first) or 'rank' (most popular)
      * @param string|null $order Sort direction ('ASC' or 'DESC')
      * @param string|null $filters API filters (e.g. 'product_type=streetwear')
+     * @param bool $rich_display Include variants/traits/identifiers in response
      */
-    public function browseProducts(string $query, int $limit = 50, string $market = 'IT', int $page = 1, ?string $sort = null, ?string $order = null, ?string $filters = null): ?array
+    public function browseProducts(string $query, int $limit = 50, string $market = 'IT', int $page = 1, ?string $sort = null, ?string $order = null, ?string $filters = null, bool $rich_display = false): ?array
     {
         $params = [
             'query' => $query,
@@ -157,6 +159,10 @@ class Client
             'market' => $market,
             'page' => $page,
         ];
+
+        if ($rich_display) {
+            $params = array_merge($params, self::DISPLAY_FIELDS);
+        }
 
         if ($sort !== null && $sort !== '') {
             $params['sort'] = $sort;

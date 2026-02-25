@@ -40,6 +40,7 @@ SKIP_MEDIA=""
 SKIP_DISCOVER=""
 SKIP_GS=""
 FORCE_FULL=""
+NO_CACHE=""
 LIMIT_ARG=""
 ENV_ARG=""
 
@@ -51,6 +52,7 @@ for arg in "$@"; do
         --skip-discover)   SKIP_DISCOVER="1" ;;
         --skip-gs)         SKIP_GS="1" ;;
         --force-full)      FORCE_FULL="--force-full" ;;
+        --no-cache)        NO_CACHE="--no-cache" ;;
         --limit=*)         LIMIT_ARG="$arg" ;;
         --env=*)           ENV_ARG="$arg" ;;
         --help|-h)
@@ -62,6 +64,7 @@ for arg in "$@"; do
             echo "  --skip-discover     Skip KicksDB discovery (use cached assortment)"
             echo "  --skip-gs           Skip GS feed ingestion"
             echo "  --force-full        Force full import (ignore delta)"
+            echo "  --no-cache          Force fresh KicksDB API fetch (bypass product cache)"
             echo "  --limit=N           Limit assortment size"
             echo "  --verbose, -v       Detailed output from all steps"
             echo "  --env=FILE          Use alternate .env file"
@@ -126,7 +129,7 @@ SKIP_GS_FLAG=""
 if [ -n "$SKIP_GS" ]; then
     SKIP_GS_FLAG="--skip-gs"
 fi
-php bin/catalog-transform $VERBOSE $LIMIT_ARG $SKIP_GS_FLAG $ENV_ARG
+php bin/catalog-transform $VERBOSE $LIMIT_ARG $SKIP_GS_FLAG $NO_CACHE $ENV_ARG
 echo ""
 
 # Step 6: Delta sync to WooCommerce
