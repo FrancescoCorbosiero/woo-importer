@@ -491,7 +491,11 @@ class WcProductBuilder
     ): array {
         $images = [];
 
-        // Primary image: prefer pre-uploaded media ID, fall back to src URL
+        // Primary image: use pre-uploaded media ID only
+        // Sideloading via src URL is disabled — it causes WC batch timeouts
+        // because WooCommerce downloads each image server-side during the request.
+        // Products without pre-uploaded images get created without images;
+        // run prepare-media + a follow-up sync to attach them.
         $image_id = $this->image_map[$sku]['media_id'] ?? null;
 
         if ($image_id) {
@@ -503,35 +507,16 @@ class WcProductBuilder
                     $tpl
                 ),
             ];
-        } elseif (!empty($image_url)) {
-            // Fallback: let WooCommerce sideload from the source URL
-            $alt = $this->parseTemplate(
-                $this->config['templates']['image_alt'] ?? '{product_name}',
-                $tpl
-            );
-            $images[] = [
-                'src' => $this->sanitizeImageUrl($image_url),
-                'name' => $sku . '.jpg',
-                'alt' => $alt,
-            ];
-            $this->log('debug', "  No pre-uploaded image for {$sku}, using src URL fallback");
         } else {
-            $this->log('debug', "  No image available for {$sku} (no media ID and no source URL)");
+            $this->log('debug', "  No pre-uploaded image for {$sku}, skipping (run prepare-media to upload)");
         }
 
-        // Gallery images: prefer pre-uploaded IDs, fall back to src URLs
+        // Gallery images: use pre-uploaded IDs only (no sideloading)
         $gallery_ids = $this->image_map[$sku]['gallery_ids'] ?? [];
         if (!empty($gallery_ids)) {
             foreach ($gallery_ids as $gal_idx => $gal_id) {
                 $images[] = [
                     'id' => $gal_id,
-                    'name' => $sku . '-gallery-' . ($gal_idx + 1) . '.jpg',
-                ];
-            }
-        } elseif (!empty($gallery_urls)) {
-            foreach ($gallery_urls as $gal_idx => $gal_url) {
-                $images[] = [
-                    'src' => $this->sanitizeImageUrl($gal_url),
                     'name' => $sku . '-gallery-' . ($gal_idx + 1) . '.jpg',
                 ];
             }
