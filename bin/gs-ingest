@@ -1,0 +1,414 @@
+#!/usr/bin/env php
+<?php
+/**
+ * GS Feed Ingestion — Enrich GS SKUs via KicksDB and merge into assortment
+ *
+ * Fetches the Golden Sneakers feed, identifies SKUs not yet in the KicksDB
+ * assortment, enriches them via KicksDB single-product lookup, and produces
+ * a merged assortment + a gs-tracked-skus.json for the lightweight update loop.
+ *
+ * Pipeline position: runs AFTER kicksdb-discover, BEFORE catalog-transform
+ *
+ * Input:
+ *   data/kicksdb-assortment.json   (from kicksdb-discover)
+ *   GS API feed
+ *
+ * Output:
+ *   data/merged-assortment.json    (KicksDB + GS-enriched + GS-only products)
+ *   data/gs-tracked-skus.json      (SKU → variation price/stock snapshot)
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Import\GoldenSneakersAdapter;
+use ResellPiacenza\KicksDb\Client as KicksDbClient;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+GS Feed Ingestion
+Enriches Golden Sneakers SKUs via KicksDB and merges into the catalog assortment.
+
+Usage:
+  bin/gs-ingest [options]
+
+Options:
+  --skip-enrich       Skip KicksDB lookup for new GS SKUs (add as GS-only)
+  --dry-run           Preview without saving
+  --verbose, -v       Detailed output
+  --help, -h          Show help
+
+Requires:
+  data/kicksdb-assortment.json   (from kicksdb-discover)
+
+Output:
+  data/merged-assortment.json    Merged catalog (KicksDB + GS)
+  data/gs-tracked-skus.json      GS SKU → variation snapshot
+
+Examples:
+  bin/gs-ingest                    # Full ingest + enrich
+  bin/gs-ingest --skip-enrich      # Add GS products without KicksDB lookup
+  bin/gs-ingest --dry-run          # Preview
+
+HELP;
+    exit(0);
+}
+
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$dry_run = in_array('--dry-run', $argv);
+$skip_enrich = in_array('--skip-enrich', $argv);
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('GsIngest', [
+    'file' => Config::projectRoot() . '/logs/gs-ingest.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  GS Feed Ingestion');
+$logger->info('  GS SKUs → KicksDB enrich → merged assortment');
+$logger->info('========================================');
+if ($dry_run) {
+    $logger->warning('  DRY RUN');
+}
+if ($skip_enrich) {
+    $logger->info('  Skipping KicksDB enrichment (--skip-enrich)');
+}
+$logger->info('');
+
+// ============================================================================
+// Step 1: Load KicksDB assortment
+// ============================================================================
+
+$logger->info('Step 1: Loading KicksDB assortment...');
+
+$assortment_file = Config::dataDir() . '/kicksdb-assortment.json';
+$assortment = null;
+$kdb_products = [];
+
+if (file_exists($assortment_file)) {
+    $assortment = json_decode(file_get_contents($assortment_file), true);
+    if (is_array($assortment) && !empty($assortment['products'])) {
+        foreach ($assortment['products'] as $p) {
+            $sku = $p['sku'] ?? '';
+            if ($sku) {
+                $kdb_products[$sku] = $p;
+            }
+        }
+        $logger->info("  Loaded " . count($kdb_products) . " products from KicksDB assortment");
+    } else {
+        $logger->warning("  Empty or invalid assortment file");
+        $assortment = ['products' => [], 'discovered_at' => date('c'), 'catalog' => null];
+    }
+} else {
+    $logger->info("  No KicksDB assortment found (first run without discovery)");
+    $assortment = ['products' => [], 'discovered_at' => date('c'), 'catalog' => null];
+}
+
+// ============================================================================
+// Step 2: Fetch GS feed
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 2: Fetching Golden Sneakers feed...');
+
+try {
+    $gsAdapter = new GoldenSneakersAdapter($config, $logger);
+    $gs_products = [];
+    foreach ($gsAdapter->fetchProducts() as $p) {
+        $gs_products[$p['sku']] = $p;
+    }
+    $logger->info("  GS feed: " . count($gs_products) . " products");
+} catch (\Exception $e) {
+    $logger->error("  GS fetch failed: " . $e->getMessage());
+    // GS failure is not fatal — we still output the KicksDB assortment
+    $gs_products = [];
+}
+
+// ============================================================================
+// Step 3: Identify new GS SKUs and enrich via KicksDB
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 3: Processing GS SKUs...');
+
+$gs_tracked = [];       // SKU → variation snapshot for gs-tracked-skus.json
+$gs_new_skus = [];      // SKUs not in KicksDB assortment
+$gs_overlap_skus = [];  // SKUs already in KicksDB assortment
+$gs_enriched = 0;
+$gs_fallback = 0;
+
+foreach ($gs_products as $sku => $gs_product) {
+    // Build variation snapshot for tracking
+    $var_snapshot = [];
+    foreach ($gs_product['variations'] ?? [] as $var) {
+        $size = $var['size_eu'] ?? '';
+        if ($size) {
+            $var_snapshot[$size] = [
+                'price' => $var['price'] ?? 0,
+                'stock_quantity' => $var['stock_quantity'] ?? 0,
+                'stock_status' => $var['stock_status'] ?? 'outofstock',
+            ];
+        }
+    }
+    $gs_tracked[$sku] = $var_snapshot;
+
+    if (isset($kdb_products[$sku])) {
+        // Already in KicksDB assortment — mark as GS-tracked
+        $kdb_products[$sku]['gs_tracked'] = true;
+        $gs_overlap_skus[] = $sku;
+    } else {
+        $gs_new_skus[] = $sku;
+    }
+}
+
+$logger->info("  GS overlap with KicksDB: " . count($gs_overlap_skus) . " SKUs");
+$logger->info("  GS-only (new): " . count($gs_new_skus) . " SKUs");
+
+// Enrich new GS SKUs via KicksDB single-product lookup
+if (!empty($gs_new_skus) && !$skip_enrich) {
+    $logger->info('');
+    $logger->info('  Enriching new GS SKUs via KicksDB lookup...');
+
+    $api_key = $config['pricing']['kicksdb_api_key'] ?? '';
+    if (!empty($api_key)) {
+        $kicksdb = new KicksDbClient($api_key, [
+            'base_url' => $config['pricing']['kicksdb_base_url'] ?? 'https://api.kicks.dev/v3',
+        ], $logger);
+
+        $market = $config['pricing']['kicksdb_market'] ?? 'IT';
+
+        foreach ($gs_new_skus as $idx => $sku) {
+            $product = $kicksdb->getStockXProduct($sku, $market);
+
+            if ($product !== null) {
+                $data = $product['data'] ?? $product;
+                $kdb_products[$sku] = [
+                    'sku' => $sku,
+                    'name' => $data['title'] ?? $data['name'] ?? $gs_products[$sku]['name'] ?? '',
+                    'brand' => $data['brand'] ?? $gs_products[$sku]['brand'] ?? '',
+                    'slug' => $data['slug'] ?? '',
+                    'model' => $data['model'] ?? '',
+                    'gender' => $data['gender'] ?? '',
+                    'colorway' => $data['colorway'] ?? '',
+                    'product_type' => $data['product_type'] ?? '',
+                    'category' => $data['category'] ?? '',
+                    'secondary_category' => $data['secondary_category'] ?? '',
+                    'categories' => $data['categories'] ?? [],
+                    'breadcrumbs' => $data['breadcrumbs'] ?? [],
+                    'rank' => $data['rank'] ?? 999999,
+                    'weekly_orders' => $data['weekly_orders'] ?? 0,
+                    'image_url' => $data['image'] ?? $data['image_url'] ?? '',
+                    'gallery' => $data['gallery'] ?? [],
+                    'gallery_360' => !empty($data['gallery_360']),
+                    'min_price' => $data['min_price'] ?? null,
+                    'avg_price' => $data['avg_price'] ?? null,
+                    'release_date' => $data['release_date'] ?? '',
+                    'catalog_brand' => '',
+                    'catalog_subcategory' => '',
+                    'catalog_section' => '',
+                    'catalog_wc_category' => null, // Will be auto-detected by WcProductBuilder
+                    'catalog_discovery' => 'gs_enriched',
+                    'gs_tracked' => true,
+                    'source' => 'gs_enriched',
+                    '_raw' => $data,
+                ];
+                $gs_enriched++;
+                $logger->debug("    [{$idx}] {$sku}: enriched via KicksDB");
+            } else {
+                // Fallback: use GS data as-is (minimal metadata)
+                $gs_p = $gs_products[$sku];
+                $kdb_products[$sku] = [
+                    'sku' => $sku,
+                    'name' => $gs_p['name'] ?? '',
+                    'brand' => $gs_p['brand'] ?? '',
+                    'slug' => '',
+                    'model' => '',
+                    'gender' => '',
+                    'colorway' => '',
+                    'product_type' => $gs_p['category_type'] ?? 'sneakers',
+                    'category' => '',
+                    'secondary_category' => '',
+                    'categories' => [],
+                    'breadcrumbs' => [],
+                    'rank' => 999999,
+                    'weekly_orders' => 0,
+                    'image_url' => $gs_p['image_url'] ?? '',
+                    'gallery' => [],
+                    'gallery_360' => false,
+                    'min_price' => null,
+                    'avg_price' => null,
+                    'release_date' => '',
+                    'catalog_brand' => '',
+                    'catalog_subcategory' => '',
+                    'catalog_section' => '',
+                    'catalog_wc_category' => null,
+                    'catalog_discovery' => 'gs_only',
+                    'gs_tracked' => true,
+                    'source' => 'gs_only',
+                ];
+                $gs_fallback++;
+                $logger->debug("    [{$idx}] {$sku}: KicksDB miss, using GS data");
+            }
+
+            usleep(200000); // 200ms rate limit
+        }
+    } else {
+        $logger->warning("  KICKSDB_API_KEY not set, adding all new GS SKUs as GS-only");
+        foreach ($gs_new_skus as $sku) {
+            $gs_p = $gs_products[$sku];
+            $kdb_products[$sku] = [
+                'sku' => $sku,
+                'name' => $gs_p['name'] ?? '',
+                'brand' => $gs_p['brand'] ?? '',
+                'slug' => '',
+                'model' => '',
+                'gender' => '',
+                'colorway' => '',
+                'product_type' => $gs_p['category_type'] ?? 'sneakers',
+                'category' => '',
+                'secondary_category' => '',
+                'categories' => [],
+                'breadcrumbs' => [],
+                'rank' => 999999,
+                'weekly_orders' => 0,
+                'image_url' => $gs_p['image_url'] ?? '',
+                'gallery' => [],
+                'gallery_360' => false,
+                'min_price' => null,
+                'avg_price' => null,
+                'release_date' => '',
+                'catalog_brand' => '',
+                'catalog_subcategory' => '',
+                'catalog_section' => '',
+                'catalog_wc_category' => null,
+                'catalog_discovery' => 'gs_only',
+                'gs_tracked' => true,
+                'source' => 'gs_only',
+            ];
+            $gs_fallback++;
+        }
+    }
+
+    $logger->info("  Enriched via KicksDB: {$gs_enriched}");
+    $logger->info("  GS-only fallback: {$gs_fallback}");
+} elseif (!empty($gs_new_skus) && $skip_enrich) {
+    // --skip-enrich: add all new GS SKUs as GS-only
+    foreach ($gs_new_skus as $sku) {
+        $gs_p = $gs_products[$sku];
+        $kdb_products[$sku] = [
+            'sku' => $sku,
+            'name' => $gs_p['name'] ?? '',
+            'brand' => $gs_p['brand'] ?? '',
+            'slug' => '',
+            'model' => '',
+            'gender' => '',
+            'colorway' => '',
+            'product_type' => $gs_p['category_type'] ?? 'sneakers',
+            'category' => '',
+            'secondary_category' => '',
+            'categories' => [],
+            'breadcrumbs' => [],
+            'rank' => 999999,
+            'weekly_orders' => 0,
+            'image_url' => $gs_p['image_url'] ?? '',
+            'gallery' => [],
+            'gallery_360' => false,
+            'min_price' => null,
+            'avg_price' => null,
+            'release_date' => '',
+            'catalog_brand' => '',
+            'catalog_subcategory' => '',
+            'catalog_section' => '',
+            'catalog_wc_category' => null,
+            'catalog_discovery' => 'gs_only',
+            'gs_tracked' => true,
+            'source' => 'gs_only',
+        ];
+        $gs_fallback++;
+    }
+    $logger->info("  Skipped enrichment: {$gs_fallback} products added as GS-only");
+}
+
+// ============================================================================
+// Step 4: Save outputs
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 4: Saving outputs...');
+
+$merged_products = array_values($kdb_products);
+
+if (!$dry_run) {
+    // Save merged assortment
+    $merged_output = [
+        'built_at' => date('c'),
+        'total' => count($merged_products),
+        'kicksdb_discovered' => count($kdb_products) - $gs_enriched - $gs_fallback,
+        'gs_enriched' => $gs_enriched,
+        'gs_only' => $gs_fallback,
+        'gs_overlap' => count($gs_overlap_skus),
+        'catalog' => $assortment['catalog'] ?? null,
+        'products' => $merged_products,
+    ];
+
+    $merged_file = Config::dataDir() . '/merged-assortment.json';
+    file_put_contents(
+        $merged_file,
+        json_encode($merged_output, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    );
+    $logger->info("  Saved merged assortment: {$merged_file} (" . count($merged_products) . " products)");
+
+    // Save GS tracked SKUs
+    $gs_tracked_file = Config::dataDir() . '/gs-tracked-skus.json';
+    file_put_contents(
+        $gs_tracked_file,
+        json_encode([
+            'updated_at' => date('c'),
+            'total' => count($gs_tracked),
+            'skus' => $gs_tracked,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    );
+    $logger->info("  Saved GS tracked SKUs: {$gs_tracked_file} (" . count($gs_tracked) . " SKUs)");
+} else {
+    $logger->info("  [DRY RUN] Would save " . count($merged_products) . " products to merged-assortment.json");
+    $logger->info("  [DRY RUN] Would save " . count($gs_tracked) . " tracked SKUs to gs-tracked-skus.json");
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  GS INGEST SUMMARY');
+$logger->info('========================================');
+$logger->info("  KicksDB assortment:     " . (count($kdb_products) - $gs_enriched - $gs_fallback));
+$logger->info("  GS feed:                " . count($gs_products));
+$logger->info("  GS overlap with KDB:    " . count($gs_overlap_skus));
+$logger->info("  GS enriched (KDB hit):  {$gs_enriched}");
+$logger->info("  GS-only (KDB miss):     {$gs_fallback}");
+$logger->info("  ---");
+$logger->info("  Merged total:           " . count($merged_products));
+$logger->info("  GS tracked SKUs:        " . count($gs_tracked));
+$logger->info("  Duration:               {$duration}s");
+$logger->info('========================================');
+
+exit(0);

@@ -12,11 +12,11 @@
 #   ./gs-sync.sh --skip-media        # Skip image upload step
 #   ./gs-sync.sh --force-full        # Force full import (ignore delta)
 #   ./gs-sync.sh --verbose           # Detailed output from all steps
-#   ./gs-sync.sh --env=customers/clientA.env  # Multi-customer mode
+#   ./gs-sync.sh --env=environment/clientA.env  # Multi-customer mode
 #
 # Multi-customer crontab (single install, multiple stores):
-#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh --env=customers/clientA.env >> logs/clientA-gs.log 2>&1
-#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh --env=customers/clientB.env >> logs/clientB-gs.log 2>&1
+#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh --env=environment/clientA.env >> logs/clientA-gs.log 2>&1
+#   */30 * * * * cd /path/to/woo-importer && ./gs-sync.sh --env=environment/clientB.env >> logs/clientB-gs.log 2>&1
 #
 # =============================================================================
 
@@ -57,7 +57,7 @@ done
 # Resolve DATA_DIR for file paths (must match what PHP sees via Config::dataDir())
 if [ -n "$ENV_ARG" ]; then
     ENV_PATH="${ENV_ARG#--env=}"
-    DATA_DIR=$(grep -s '^DATA_DIR=' "$ENV_PATH" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"'"'" || true)
+    DATA_DIR=$(grep -s '^DATA_DIR=' "$ENV_PATH" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"'"'" | tr -d ' \r' || true)
 fi
 DATA_DIR="${DATA_DIR:-data}"
 mkdir -p "$DATA_DIR" logs

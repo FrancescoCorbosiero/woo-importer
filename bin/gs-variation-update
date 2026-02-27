@@ -1,0 +1,432 @@
+#!/usr/bin/env php
+<?php
+/**
+ * GS Variation Update — Lightweight price/stock patcher
+ *
+ * Fetches the GS feed and patches WooCommerce variation prices and stock
+ * for known GS-tracked SKUs. Does NOT rebuild products — only updates
+ * existing variations via the WC REST API batch endpoint.
+ *
+ * New GS SKUs (not yet in the catalog) are queued for the next catalog-build.
+ *
+ * Designed to run every 30 minutes as a cron job.
+ *
+ * Input:
+ *   data/gs-tracked-skus.json   (from gs-ingest or previous run)
+ *   GS API feed
+ *
+ * Output:
+ *   WC variation price/stock updates (via REST API)
+ *   data/gs-tracked-skus.json   (updated snapshot)
+ *   data/gs-queue.json          (new SKUs pending catalog-build)
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use Automattic\WooCommerce\Client;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Import\GoldenSneakersAdapter;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+GS Variation Update
+Lightweight price/stock patcher for GS-tracked WooCommerce variations.
+
+Usage:
+  bin/gs-variation-update [options]
+
+Options:
+  --dry-run           Preview changes without updating WooCommerce
+  --verbose, -v       Detailed output
+  --help, -h          Show help
+
+Requires:
+  data/gs-tracked-skus.json   (from gs-ingest or previous run)
+
+Output:
+  WC variation updates via REST API
+  data/gs-tracked-skus.json   (updated snapshot)
+  data/gs-queue.json          (new SKUs for next catalog-build)
+
+Examples:
+  bin/gs-variation-update                    # Full update
+  bin/gs-variation-update --dry-run          # Preview
+  bin/gs-variation-update --verbose          # Detailed output
+
+HELP;
+    exit(0);
+}
+
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$dry_run = in_array('--dry-run', $argv);
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('GsUpdate', [
+    'file' => Config::projectRoot() . '/logs/gs-variation-update.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  GS Variation Update');
+$logger->info('  Lightweight price/stock patcher');
+$logger->info('========================================');
+if ($dry_run) {
+    $logger->warning('  DRY RUN');
+}
+$logger->info('');
+
+// WooCommerce client
+$wc_url = rtrim(trim($config['woocommerce']['url'] ?? ''), ':');
+if (empty($wc_url)) {
+    $logger->error('WC_URL not configured');
+    exit(1);
+}
+
+$wc_client = new Client(
+    $wc_url,
+    $config['woocommerce']['consumer_key'],
+    $config['woocommerce']['consumer_secret'],
+    ['version' => $config['woocommerce']['version'] ?? 'wc/v3', 'timeout' => 120]
+);
+
+// ============================================================================
+// Step 1: Load GS tracked SKUs
+// ============================================================================
+
+$logger->info('Step 1: Loading GS tracked SKUs...');
+
+$tracked_file = Config::dataDir() . '/gs-tracked-skus.json';
+$tracked_data = null;
+
+if (file_exists($tracked_file)) {
+    $tracked_data = json_decode(file_get_contents($tracked_file), true);
+}
+
+$tracked_skus = $tracked_data['skus'] ?? [];
+$logger->info("  " . count($tracked_skus) . " tracked SKUs");
+
+if (empty($tracked_skus)) {
+    $logger->info("  No tracked SKUs. Run bin/gs-ingest first to establish tracking.");
+    $logger->info("  Will still check for new GS SKUs to queue.");
+}
+
+// ============================================================================
+// Step 2: Fetch GS feed
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 2: Fetching Golden Sneakers feed...');
+
+try {
+    $gsAdapter = new GoldenSneakersAdapter($config, $logger);
+    $gs_products = [];
+    foreach ($gsAdapter->fetchProducts() as $p) {
+        $gs_products[$p['sku']] = $p;
+    }
+    $logger->info("  GS feed: " . count($gs_products) . " products");
+} catch (\Exception $e) {
+    $logger->error("  GS fetch failed: " . $e->getMessage());
+    exit(1);
+}
+
+// ============================================================================
+// Step 3: Compare and find changes
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 3: Detecting changes...');
+
+$changes = [];        // SKU → changed variations
+$new_queue = [];      // New GS SKUs not yet tracked
+$unchanged = 0;
+
+foreach ($gs_products as $sku => $gs_product) {
+    if (!isset($tracked_skus[$sku])) {
+        // New SKU — queue for catalog-build
+        $new_queue[$sku] = [
+            'name' => $gs_product['name'] ?? '',
+            'brand' => $gs_product['brand'] ?? '',
+            'added_at' => date('c'),
+        ];
+        continue;
+    }
+
+    $cached = $tracked_skus[$sku];
+    $product_changes = [];
+
+    foreach ($gs_product['variations'] ?? [] as $var) {
+        $size = $var['size_eu'] ?? '';
+        if (empty($size)) {
+            continue;
+        }
+
+        $new_price = $var['price'] ?? 0;
+        $new_stock = $var['stock_quantity'] ?? 0;
+        $new_status = $var['stock_status'] ?? 'outofstock';
+
+        $old = $cached[$size] ?? null;
+        if ($old === null) {
+            // New size for this SKU
+            $product_changes[$size] = [
+                'price' => $new_price,
+                'stock_quantity' => $new_stock,
+                'stock_status' => $new_status,
+                'reason' => 'new_size',
+            ];
+            continue;
+        }
+
+        $price_changed = abs(($old['price'] ?? 0) - $new_price) > 0.01;
+        $stock_changed = ($old['stock_quantity'] ?? 0) !== $new_stock;
+
+        if ($price_changed || $stock_changed) {
+            $product_changes[$size] = [
+                'price' => $new_price,
+                'stock_quantity' => $new_stock,
+                'stock_status' => $new_status,
+                'reason' => $price_changed && $stock_changed ? 'price+stock'
+                    : ($price_changed ? 'price' : 'stock'),
+                'old_price' => $old['price'] ?? 0,
+                'old_stock' => $old['stock_quantity'] ?? 0,
+            ];
+        }
+    }
+
+    if (!empty($product_changes)) {
+        $changes[$sku] = $product_changes;
+    } else {
+        $unchanged++;
+    }
+}
+
+$total_var_changes = array_sum(array_map('count', $changes));
+$logger->info("  Products with changes: " . count($changes));
+$logger->info("  Total variation changes: {$total_var_changes}");
+$logger->info("  Unchanged products: {$unchanged}");
+$logger->info("  New GS SKUs (queued): " . count($new_queue));
+
+if (empty($changes) && empty($new_queue)) {
+    $logger->info('');
+    $logger->info('Nothing to update.');
+    exit(0);
+}
+
+// ============================================================================
+// Step 4: Patch WC variations
+// ============================================================================
+
+$stats = [
+    'products_processed' => 0,
+    'variations_updated' => 0,
+    'variations_skipped' => 0,
+    'errors' => 0,
+    'batch_requests' => 0,
+];
+
+if (!empty($changes)) {
+    $logger->info('');
+    $logger->info('Step 4: Patching WC variations...');
+
+    $batch_size = min((int) ($config['import']['batch_size'] ?? 25), 100);
+
+    foreach ($changes as $sku => $var_changes) {
+        $stats['products_processed']++;
+
+        // Find WC product by SKU
+        try {
+            $wc_products = $wc_client->get('products', ['sku' => $sku, 'per_page' => 1]);
+        } catch (\Exception $e) {
+            $logger->error("  [{$sku}] WC lookup failed: " . $e->getMessage());
+            $stats['errors']++;
+            continue;
+        }
+
+        if (empty($wc_products)) {
+            $logger->warning("  [{$sku}] Not found in WooCommerce, skipping");
+            $stats['variations_skipped'] += count($var_changes);
+            continue;
+        }
+
+        $product_id = $wc_products[0]->id;
+
+        // Fetch existing variations
+        try {
+            $wc_variations = $wc_client->get("products/{$product_id}/variations", ['per_page' => 100]);
+        } catch (\Exception $e) {
+            $logger->error("  [{$sku}] Failed to fetch variations: " . $e->getMessage());
+            $stats['errors']++;
+            continue;
+        }
+
+        // Build size → variation ID map
+        $var_id_map = [];
+        foreach ($wc_variations as $wc_var) {
+            foreach ($wc_var->attributes ?? [] as $attr) {
+                $attr_slug = $attr->slug ?? $attr->name ?? '';
+                if (stripos($attr_slug, 'taglia') !== false || stripos($attr_slug, 'size') !== false) {
+                    $var_id_map[$attr->option] = $wc_var->id;
+                    break;
+                }
+            }
+        }
+
+        // Build batch update payload
+        $to_update = [];
+        foreach ($var_changes as $size => $change) {
+            if (!isset($var_id_map[$size])) {
+                $logger->debug("  [{$sku}] Size {$size}: no WC variation found, skipping");
+                $stats['variations_skipped']++;
+                continue;
+            }
+
+            $update = ['id' => $var_id_map[$size]];
+
+            if (isset($change['price'])) {
+                $update['regular_price'] = (string) $change['price'];
+            }
+            if (isset($change['stock_quantity'])) {
+                $update['stock_quantity'] = (int) $change['stock_quantity'];
+                $update['stock_status'] = $change['stock_status'] ?? 'instock';
+                $update['manage_stock'] = true;
+            }
+
+            $to_update[] = $update;
+
+            $reason = $change['reason'] ?? 'unknown';
+            if ($verbose) {
+                $old_price = $change['old_price'] ?? '?';
+                $old_stock = $change['old_stock'] ?? '?';
+                $logger->debug("  [{$sku}] EU {$size}: {$reason} | price {$old_price}→{$change['price']}, stock {$old_stock}→{$change['stock_quantity']}");
+            }
+        }
+
+        if (empty($to_update)) {
+            continue;
+        }
+
+        // Execute batch update
+        if (!$dry_run) {
+            $chunks = array_chunk($to_update, $batch_size);
+            foreach ($chunks as $chunk) {
+                try {
+                    $result = $wc_client->post(
+                        "products/{$product_id}/variations/batch",
+                        ['update' => $chunk]
+                    );
+                    $stats['batch_requests']++;
+
+                    foreach ($result->update ?? [] as $item) {
+                        if (isset($item->error)) {
+                            $stats['errors']++;
+                            $logger->error("  [{$sku}] Variation {$item->id}: " . ($item->error->message ?? 'Unknown'));
+                        } else {
+                            $stats['variations_updated']++;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    $stats['errors'] += count($chunk);
+                    $logger->error("  [{$sku}] Batch update failed: " . $e->getMessage());
+                }
+            }
+        } else {
+            $stats['variations_updated'] += count($to_update);
+            $logger->info("  [DRY RUN] [{$sku}] Would update " . count($to_update) . " variations");
+        }
+
+        usleep(100000); // 100ms between products
+    }
+}
+
+// ============================================================================
+// Step 5: Update tracked SKUs + save queue
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 5: Updating tracking data...');
+
+// Update tracked SKUs snapshot with current GS values
+foreach ($gs_products as $sku => $gs_product) {
+    $var_snapshot = [];
+    foreach ($gs_product['variations'] ?? [] as $var) {
+        $size = $var['size_eu'] ?? '';
+        if ($size) {
+            $var_snapshot[$size] = [
+                'price' => $var['price'] ?? 0,
+                'stock_quantity' => $var['stock_quantity'] ?? 0,
+                'stock_status' => $var['stock_status'] ?? 'outofstock',
+            ];
+        }
+    }
+    $tracked_skus[$sku] = $var_snapshot;
+}
+
+if (!$dry_run) {
+    // Save updated tracked SKUs
+    file_put_contents(
+        $tracked_file,
+        json_encode([
+            'updated_at' => date('c'),
+            'total' => count($tracked_skus),
+            'skus' => $tracked_skus,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    );
+    $logger->info("  Updated gs-tracked-skus.json (" . count($tracked_skus) . " SKUs)");
+
+    // Save/merge new SKU queue
+    if (!empty($new_queue)) {
+        $queue_file = Config::dataDir() . '/gs-queue.json';
+        $existing_queue = [];
+        if (file_exists($queue_file)) {
+            $existing_queue = json_decode(file_get_contents($queue_file), true) ?: [];
+        }
+        $merged_queue = array_merge($existing_queue, $new_queue);
+
+        file_put_contents(
+            $queue_file,
+            json_encode($merged_queue, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        );
+        $logger->info("  Queued " . count($new_queue) . " new SKUs to gs-queue.json (total: " . count($merged_queue) . ")");
+    }
+} else {
+    $logger->info("  [DRY RUN] Would update gs-tracked-skus.json");
+    if (!empty($new_queue)) {
+        $logger->info("  [DRY RUN] Would queue " . count($new_queue) . " new SKUs");
+    }
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  GS UPDATE SUMMARY');
+$logger->info('========================================');
+$logger->info("  GS feed:               " . count($gs_products) . " products");
+$logger->info("  Products with changes:  " . count($changes));
+$logger->info("  Variations updated:     {$stats['variations_updated']}");
+$logger->info("  Variations skipped:     {$stats['variations_skipped']}");
+$logger->info("  Batch requests:         {$stats['batch_requests']}");
+$logger->info("  Errors:                 {$stats['errors']}");
+$logger->info("  New SKUs queued:        " . count($new_queue));
+$logger->info("  Duration:               {$duration}s");
+$logger->info('========================================');
+
+exit($stats['errors'] > 0 ? 1 : 0);

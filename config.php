@@ -5,15 +5,15 @@
  * Loads settings from .env file with Italian defaults.
  *
  * Supports multi-customer mode from a single install:
- *   bin/kicksdb-discover --env=customers/clientA.env
- *   ENV_FILE=customers/clientA.env ./kicksdb-sync.sh
+ *   bin/kicksdb-discover --env=environment/clientA.env
+ *   ENV_FILE=environment/clientA.env ./kicksdb-sync.sh
  *
  * Falls back to .env in the project root if no override is given.
  *
  * @package ResellPiacenza\WooImport
  */
 
-require __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 use Dotenv\Dotenv;
 
@@ -22,7 +22,8 @@ use Dotenv\Dotenv;
 //   2. ENV_FILE environment variable
 //   3. .env in project root (default)
 $env_file = null;
-foreach ($argv ?? [] as $arg) {
+$cli_args = $_SERVER['argv'] ?? $argv ?? [];
+foreach ($cli_args as $arg) {
     if (strpos($arg, '--env=') === 0) {
         $env_file = str_replace('--env=', '', $arg);
         break;
@@ -126,12 +127,20 @@ return [
         'category_name' => env('IMPORT_CATEGORY_NAME', 'Sneakers'),
 
         // Behavior
-        'batch_size' => (int) env('IMPORT_BATCH_SIZE', 100),
+        'batch_size' => (int) env('IMPORT_BATCH_SIZE', 25),
         'create_out_of_stock' => env('IMPORT_CREATE_OUT_OF_STOCK', true),
 
         // Parallel variation processing: how many products' variations to process concurrently
         // Higher = faster but more WC API load. Recommended: 3-8
         'variation_concurrency' => (int) env('IMPORT_VARIATION_CONCURRENCY', 5),
+
+        // WC REST API timeout in seconds (per batch request)
+        // Lower = faster retry on timeout, higher = tolerates slow server
+        'api_timeout' => (int) env('IMPORT_API_TIMEOUT', 120),
+
+        // KicksDB product cache TTL in seconds (default 24h)
+        // Cached products skip the API on subsequent catalog-transform runs
+        'kicksdb_cache_ttl' => (int) env('KICKSDB_CACHE_TTL', 86400),
     ],
 
     // ===========================================
@@ -152,6 +161,34 @@ return [
             'slug' => env('ATTRIBUTE_BRAND_SLUG', 'marca'),
             'type' => 'select',
             'order_by' => 'name',
+            'has_archives' => true,
+        ],
+        'colorway' => [
+            'name' => env('ATTRIBUTE_COLORWAY_NAME', 'Colorway'),
+            'slug' => env('ATTRIBUTE_COLORWAY_SLUG', 'colorway'),
+            'type' => 'select',
+            'order_by' => 'name',
+            'has_archives' => true,
+        ],
+        'gender' => [
+            'name' => env('ATTRIBUTE_GENDER_NAME', 'Genere'),
+            'slug' => env('ATTRIBUTE_GENDER_SLUG', 'genere'),
+            'type' => 'select',
+            'order_by' => 'name',
+            'has_archives' => true,
+        ],
+        'model' => [
+            'name' => env('ATTRIBUTE_MODEL_NAME', 'Modello'),
+            'slug' => env('ATTRIBUTE_MODEL_SLUG', 'modello'),
+            'type' => 'select',
+            'order_by' => 'name',
+            'has_archives' => true,
+        ],
+        'release_date' => [
+            'name' => env('ATTRIBUTE_RELEASE_DATE_NAME', 'Data di Rilascio'),
+            'slug' => env('ATTRIBUTE_RELEASE_DATE_SLUG', 'data-di-rilascio'),
+            'type' => 'select',
+            'order_by' => 'menu_order',
             'has_archives' => true,
         ],
     ],
@@ -203,6 +240,10 @@ return [
             'name' => env('CATEGORY_CLOTHING_NAME', 'Abbigliamento'),
             'slug' => env('CATEGORY_CLOTHING_SLUG', 'abbigliamento'),
         ],
+        'accessories' => [
+            'name' => env('CATEGORY_ACCESSORIES_NAME', 'Accessori'),
+            'slug' => env('CATEGORY_ACCESSORIES_SLUG', 'accessori'),
+        ],
     ],
 
     // ===========================================
@@ -230,6 +271,8 @@ return [
         'kicksdb_assortment_size' => (int) env('KICKSDB_ASSORTMENT_SIZE', 800),
         'kicksdb_discovery_query' => env('KICKSDB_DISCOVERY_QUERY', 'sneakers'),
         'kicksdb_discovery_page_size' => (int) env('KICKSDB_DISCOVERY_PAGE_SIZE', 50),
+        'kicksdb_discovery_sort' => env('KICKSDB_DISCOVERY_SORT', ''),
+        'kicksdb_discovery_order' => env('KICKSDB_DISCOVERY_ORDER', ''),
 
         // KicksDB Brand Catalog: JSON file with hierarchical brand/subcategory structure
         // When set, discovery fetches per subcategory label instead of generic search

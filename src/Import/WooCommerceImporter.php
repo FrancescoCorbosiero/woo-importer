@@ -47,14 +47,20 @@ class WooCommerceImporter
     // Options
     private $dry_run = false;
     private $limit = null;
-    private $batch_size = 100;
+    private $batch_size = 25;
 
     // Category slug → ID cache
     private $category_cache = [];
 
+    // Brand slug → ID cache
+    private $brand_cache = [];
+
     // Image map for tracking sideloaded images
     private $image_map = [];
     private $image_map_dirty = false;
+
+    // Products that failed batch-create due to duplicate SKU — queued for retry as update
+    private $duplicate_retry_queue = [];
 
     // Stats
     private $stats = [
@@ -79,7 +85,7 @@ class WooCommerceImporter
         $this->config = $config;
         $this->dry_run = $options['dry_run'] ?? false;
         $this->limit = $options['limit'] ?? null;
-        $this->batch_size = min($config['import']['batch_size'] ?? 100, 100);
+        $this->batch_size = min($config['import']['batch_size'] ?? 25, 100);
 
         $this->setupLogger();
         $this->setupWooCommerceClient();
@@ -126,11 +132,12 @@ class WooCommerceImporter
             );
         }
 
+        $timeout = (int) ($this->config['import']['api_timeout'] ?? 120);
         $this->wc_client = new Client(
             $url,
             $this->config['woocommerce']['consumer_key'],
             $this->config['woocommerce']['consumer_secret'],
-            ['version' => $this->config['woocommerce']['version'], 'timeout' => 120]
+            ['version' => $this->config['woocommerce']['version'], 'timeout' => $timeout]
         );
     }
 
@@ -170,7 +177,9 @@ class WooCommerceImporter
     private function fetchExistingProducts(): array
     {
         $existing = [];
+        $duplicates = [];
         $page = 1;
+        $retries = 0;
 
         do {
             try {
@@ -182,15 +191,37 @@ class WooCommerceImporter
 
                 foreach ($products as $product) {
                     if (!empty($product->sku)) {
-                        $existing[$product->sku] = ['id' => $product->id];
+                        if (isset($existing[$product->sku])) {
+                            // Track duplicate SKUs for logging
+                            $duplicates[$product->sku][] = $product->id;
+                        } else {
+                            $existing[$product->sku] = ['id' => $product->id];
+                        }
                     }
                 }
                 $page++;
+                $retries = 0;
             } catch (\Exception $e) {
-                $this->logger->error("Error fetching products page {$page}: " . $e->getMessage());
-                break;
+                $retries++;
+                if ($retries >= 3) {
+                    $this->logger->error("Error fetching products page {$page} after 3 retries: " . $e->getMessage());
+                    $retries = 0;
+                    $page++; // Skip the failed page instead of stopping entirely
+                } else {
+                    $this->logger->warning("Retrying products page {$page} ({$retries}/3)...");
+                    usleep(500000);
+                    continue;
+                }
             }
-        } while (count($products) === 100);
+        } while (count($products ?? []) === 100);
+
+        if (!empty($duplicates)) {
+            $this->logger->warning("Found " . count($duplicates) . " duplicate SKUs in WooCommerce:");
+            foreach ($duplicates as $sku => $ids) {
+                $all_ids = array_merge([$existing[$sku]['id']], $ids);
+                $this->logger->warning("  SKU {$sku}: product IDs " . implode(', ', $all_ids));
+            }
+        }
 
         return $existing;
     }
@@ -353,6 +384,194 @@ class WooCommerceImporter
     }
 
     /**
+     * Resolve any slug/name-based brands to IDs via WC API
+     *
+     * Similar to resolveCategoryIds, but for the brands taxonomy.
+     * Auto-creates brands that don't exist yet so that clean environments
+     * work without requiring a separate prepare-taxonomies step.
+     *
+     * @param array &$payload Product payload (modified in place)
+     */
+    private function resolveBrandIds(array &$payload): void
+    {
+        if (empty($payload['brands'])) {
+            return;
+        }
+
+        foreach ($payload['brands'] as $idx => &$brand) {
+            if (!empty($brand['id'])) {
+                continue;
+            }
+
+            $slug = $brand['slug'] ?? null;
+            $name = $brand['name'] ?? null;
+            if (!$slug && !$name) {
+                continue;
+            }
+
+            $id = $this->lookupOrCreateBrand($slug ?? $this->sanitizeBrandSlug($name), $name);
+            if ($id) {
+                $brand = ['id' => $id];
+            } else {
+                $this->logger->warning("  Brand '{$name}' could not be found or created — product will have no brand");
+                unset($payload['brands'][$idx]);
+            }
+        }
+
+        $payload['brands'] = array_values($payload['brands']);
+    }
+
+    /**
+     * Look up a WooCommerce brand by slug, creating it if it doesn't exist
+     *
+     * @param string $slug Brand slug
+     * @param string|null $name Brand display name (for auto-creation)
+     * @return int|null Brand ID or null on failure
+     */
+    private function lookupOrCreateBrand(string $slug, ?string $name = null): ?int
+    {
+        if (array_key_exists($slug, $this->brand_cache)) {
+            return $this->brand_cache[$slug];
+        }
+
+        // Try to find existing brand
+        try {
+            $brands = $this->wc_client->get('products/brands', ['slug' => $slug]);
+
+            if (!empty($brands)) {
+                $id = $brands[0]->id;
+                $this->brand_cache[$slug] = $id;
+                $this->logger->info("  Resolved brand '{$slug}' → ID {$id}");
+                return $id;
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning("  Brand lookup failed for '{$slug}': " . $e->getMessage());
+        }
+
+        // Brand doesn't exist — try to create it
+        $display_name = $name ?? ucfirst(str_replace('-', ' ', $slug));
+        try {
+            $result = $this->wc_client->post('products/brands', [
+                'name' => $display_name,
+                'slug' => $slug,
+            ]);
+
+            if (!empty($result->id)) {
+                $id = $result->id;
+                $this->brand_cache[$slug] = $id;
+                $this->logger->info("  Auto-created brand '{$display_name}' (slug: {$slug}) → ID {$id}");
+                return $id;
+            }
+        } catch (\Exception $e) {
+            // "term_exists" means the brand was created between our lookup and create
+            if (strpos($e->getMessage(), 'term_exists') !== false) {
+                try {
+                    $brands = $this->wc_client->get('products/brands', ['slug' => $slug]);
+                    if (!empty($brands)) {
+                        $id = $brands[0]->id;
+                        $this->brand_cache[$slug] = $id;
+                        $this->logger->info("  Found existing brand '{$slug}' → ID {$id}");
+                        return $id;
+                    }
+                } catch (\Exception $e2) {
+                    // Fall through to null
+                }
+            }
+
+            $this->logger->warning("  Brand auto-creation failed for '{$slug}': " . $e->getMessage());
+        }
+
+        $this->brand_cache[$slug] = null;
+        return null;
+    }
+
+    /**
+     * Retry products that failed batch-create due to duplicate SKU
+     *
+     * When fetchExistingProducts() misses some products (pagination gaps,
+     * interrupted previous runs, race conditions), the batch create returns
+     * product_invalid_sku errors. This method looks up the existing product
+     * IDs by SKU and retries them as updates.
+     *
+     * @param array &$product_map Reference to update with found IDs
+     */
+    private function retryDuplicatesAsUpdate(array &$product_map): void
+    {
+        $items = $this->duplicate_retry_queue;
+        $this->duplicate_retry_queue = [];
+
+        $count = count($items);
+        $this->logger->info("  Retrying {$count} duplicate-SKU products as updates...");
+
+        $to_update = [];
+
+        foreach ($items as $item) {
+            $sku = $item['sku'] ?? null;
+            if (!$sku) {
+                continue;
+            }
+
+            $product_id = $this->lookupProductIdBySku($sku);
+            if ($product_id) {
+                $item['id'] = $product_id;
+                $to_update[] = $item;
+
+                // Update product_map so variations get processed
+                if (isset($product_map[$sku])) {
+                    $product_map[$sku]['id'] = $product_id;
+                    unset($product_map[$sku]['pending']);
+                }
+            } else {
+                $this->stats['errors']++;
+                $this->logger->error("  Retry failed: could not find existing product for SKU {$sku}");
+            }
+        }
+
+        if (!empty($to_update)) {
+            $this->logger->info("  Updating " . count($to_update) . " recovered products...");
+            $this->executeBatch('update', $to_update, $product_map);
+        }
+    }
+
+    /**
+     * Look up a WooCommerce product ID by SKU
+     *
+     * @param string $sku Product SKU
+     * @return int|null Product ID or null if not found
+     */
+    private function lookupProductIdBySku(string $sku): ?int
+    {
+        try {
+            $results = $this->wc_client->get('products', [
+                'sku' => $sku,
+                'status' => 'any',
+            ]);
+
+            if (!empty($results) && !empty($results[0]->id)) {
+                return (int) $results[0]->id;
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning("  SKU lookup failed for {$sku}: " . $e->getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * Sanitize a brand name into a URL slug
+     *
+     * @param string $name Brand name
+     * @return string Slug
+     */
+    private function sanitizeBrandSlug(string $name): string
+    {
+        $slug = strtolower($name);
+        $slug = preg_replace('/[^a-z0-9-]/', '-', $slug);
+        $slug = preg_replace('/-+/', '-', $slug);
+        return trim($slug, '-');
+    }
+
+    /**
      * Process products in batch
      *
      * @param array $wc_products WooCommerce-formatted products
@@ -388,6 +607,9 @@ class WooCommerceImporter
             // Resolve any slug-based categories to IDs (WC API requires IDs)
             $this->resolveCategoryIds($api_payload);
 
+            // Resolve any slug/name-based brands to IDs (auto-create if missing)
+            $this->resolveBrandIds($api_payload);
+
             if (isset($existing_products[$sku])) {
                 $api_payload['id'] = $existing_products[$sku]['id'];
                 $to_update[] = $api_payload;
@@ -408,7 +630,13 @@ class WooCommerceImporter
         $this->logger->info("  To create: " . count($to_create) . ", to update: " . count($to_update));
 
         if (!empty($to_create)) {
+            $this->duplicate_retry_queue = [];
             $this->executeBatch('create', $to_create, $product_map);
+
+            // Retry duplicate-SKU failures as updates (products missed by fetchExistingProducts)
+            if (!empty($this->duplicate_retry_queue)) {
+                $this->retryDuplicatesAsUpdate($product_map);
+            }
         }
         if (!empty($to_update)) {
             $this->executeBatch('update', $to_update, $product_map);
@@ -446,52 +674,113 @@ class WooCommerceImporter
                 continue;
             }
 
-            try {
-                $result = $this->wc_client->post('products/batch', [$operation => $chunk]);
-                $this->stats['batch_requests']++;
+            $batch_label = (string) ($chunk_idx + 1);
+            $this->executeBatchWithRetry($operation, $chunk, $product_map, $batch_label);
+        }
+    }
 
-                foreach ($result->$operation ?? [] as $idx => $item) {
-                    if (isset($item->error)) {
+    /**
+     * Execute a batch with retry logic — splits failed batches in half on timeout
+     *
+     * When a batch request times out, the batch is split in half and each
+     * sub-batch is retried independently. Sub-batches are labeled hierarchically
+     * (e.g., batch 5 becomes 5.1, 5.2, then 5.1.1, 5.1.2, etc.).
+     *
+     * @param string $operation 'create' or 'update'
+     * @param array $chunk Product payloads for this batch
+     * @param array &$product_map Reference to update with new IDs
+     * @param string $batch_label Label for logging (e.g., "1", "1.1", "1.1.2")
+     * @param int $retry_depth Current retry depth (max 3)
+     */
+    private function executeBatchWithRetry(
+        string $operation,
+        array $chunk,
+        array &$product_map,
+        string $batch_label = '1',
+        int $retry_depth = 0
+    ): void {
+        $max_retries = 3;
+
+        try {
+            $result = $this->wc_client->post('products/batch', [$operation => $chunk]);
+            $this->stats['batch_requests']++;
+
+            foreach ($result->$operation ?? [] as $idx => $item) {
+                if (isset($item->error)) {
+                    $sku = $item->sku ?? $chunk[$idx]['sku'] ?? 'unknown';
+                    $code = $item->error->code ?? '';
+                    $msg = $item->error->message ?? 'Unknown';
+
+                    // Duplicate SKU on create → queue for retry as update
+                    $is_duplicate_sku = $operation === 'create' && (
+                        $code === 'product_invalid_sku'
+                        || $code === 'woocommerce_rest_product_not_created'
+                    );
+
+                    if ($is_duplicate_sku && isset($chunk[$idx])) {
+                        $this->duplicate_retry_queue[] = $chunk[$idx];
+                        $this->logger->debug("  Duplicate SKU [{$sku}]: queued for retry as update");
+                    } else {
                         $this->stats['errors']++;
-                        $sku = $item->sku ?? $chunk[$idx]['sku'] ?? 'unknown';
-                        $code = $item->error->code ?? '';
-                        $msg = $item->error->message ?? 'Unknown';
                         $this->logger->error("  Error [{$sku}]: {$msg}" . ($code ? " [{$code}]" : ''));
+                    }
 
-                        // Clean stale image-map entries on invalid image ID errors
-                        if ($code === 'woocommerce_product_invalid_image_id'
-                            || strpos($msg, 'non valido') !== false
-                            || strpos($msg, 'invalid') !== false
-                        ) {
-                            if ($sku !== 'unknown' && isset($this->image_map[$sku])) {
-                                $stale_id = $this->image_map[$sku]['media_id'] ?? '?';
-                                unset($this->image_map[$sku]);
-                                $this->image_map_dirty = true;
-                                $this->stats['stale_images_cleaned']++;
-                                $this->logger->warning("  Removed stale image-map entry for {$sku} (media_id {$stale_id})");
-                            }
+                    // Clean stale image-map entries ONLY for actual image errors
+                    // (not for SKU or other errors that happen to contain "non valido")
+                    $is_image_error = $code === 'woocommerce_product_invalid_image_id'
+                        || stripos($msg, 'immagine') !== false
+                        || ($code === 'rest_invalid_param' && stripos($msg, 'image') !== false);
+
+                    if ($is_image_error && $sku !== 'unknown' && isset($this->image_map[$sku])) {
+                        $stale_id = $this->image_map[$sku]['media_id'] ?? '?';
+                        unset($this->image_map[$sku]);
+                        $this->image_map_dirty = true;
+                        $this->stats['stale_images_cleaned']++;
+                        $this->logger->warning("  Removed stale image-map entry for {$sku} (media_id {$stale_id})");
+                    }
+                } else {
+                    if ($operation === 'create') {
+                        $this->stats['products_created']++;
+                        if (!empty($item->sku) && isset($product_map[$item->sku])) {
+                            $product_map[$item->sku]['id'] = $item->id;
+                            unset($product_map[$item->sku]['pending']);
                         }
                     } else {
-                        if ($operation === 'create') {
-                            $this->stats['products_created']++;
-                            if (!empty($item->sku) && isset($product_map[$item->sku])) {
-                                $product_map[$item->sku]['id'] = $item->id;
-                                unset($product_map[$item->sku]['pending']);
-                            }
-                        } else {
-                            $this->stats['products_updated']++;
-                        }
-
-                        // Track image IDs from successful responses
-                        $this->trackImagesFromResponse($item);
+                        $this->stats['products_updated']++;
                     }
+
+                    // Track image IDs from successful responses
+                    $this->trackImagesFromResponse($item);
                 }
+            }
 
-                $this->logger->info("  Batch " . ($chunk_idx + 1) . ": {$operation}d " . count($chunk));
+            $this->logger->info("  Batch {$batch_label}: {$operation}d " . count($chunk));
 
-            } catch (\Exception $e) {
+        } catch (\Exception $e) {
+            $is_timeout = strpos($e->getMessage(), 'timed out') !== false
+                || strpos($e->getMessage(), 'cURL Error') !== false
+                || strpos($e->getMessage(), 'Operation timed out') !== false
+                || strpos($e->getMessage(), '504') !== false
+                || strpos($e->getMessage(), '408') !== false;
+
+            if ($is_timeout && $retry_depth < $max_retries && count($chunk) > 1) {
+                // Split the batch in half and retry each sub-batch
+                $half = (int) ceil(count($chunk) / 2);
+                $sub1 = array_slice($chunk, 0, $half);
+                $sub2 = array_slice($chunk, $half);
+
+                $backoff = pow(2, $retry_depth + 1); // 2s, 4s, 8s
+                $this->logger->warning(
+                    "  Batch {$batch_label} timed out (" . count($chunk) . " items). "
+                    . "Splitting into 2 sub-batches and retrying in {$backoff}s (depth {$retry_depth}/{$max_retries})..."
+                );
+                sleep($backoff);
+
+                $this->executeBatchWithRetry($operation, $sub1, $product_map, $batch_label . '.1', $retry_depth + 1);
+                $this->executeBatchWithRetry($operation, $sub2, $product_map, $batch_label . '.2', $retry_depth + 1);
+            } else {
                 $this->stats['errors'] += count($chunk);
-                $this->logger->error("  Batch failed: " . $e->getMessage());
+                $this->logger->error("  Batch {$batch_label} failed: " . $e->getMessage());
             }
         }
     }
@@ -921,7 +1210,7 @@ class WooCommerceImporter
         $opts = [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 120,
+            CURLOPT_TIMEOUT => 300,
         ];
 
         if ($method === 'POST') {

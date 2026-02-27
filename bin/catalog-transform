@@ -1,0 +1,401 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Catalog Transform — Merged assortment → WooCommerce REST format
+ *
+ * Replaces unified-transform with cleaner architecture:
+ * - Category comes from catalog's wc_category (no normalizeCategoryType hacks)
+ * - Brand enrichment only for discovery=brand sections (no hardcoded skip)
+ * - GS variation overlay via FeedMerger (unchanged)
+ *
+ * Pipeline: merged-assortment.json → KicksDbAdapter → FeedMerger → WcProductBuilder
+ *
+ * Input:
+ *   data/merged-assortment.json    (from gs-ingest, or kicksdb-assortment.json fallback)
+ *
+ * Output:
+ *   data/feed-wc-latest.json       (WC REST API formatted products)
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Import\KicksDbAdapter;
+use ResellPiacenza\Import\GoldenSneakersAdapter;
+use ResellPiacenza\Import\FeedMerger;
+use ResellPiacenza\Import\WcProductBuilder;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Catalog Transform
+Transforms the merged assortment into WooCommerce REST API format.
+
+Usage:
+  bin/catalog-transform [options]
+
+Options:
+  --limit=N         Transform first N products only
+  --skip-gs         Skip GS variation overlay
+  --no-cache        Bypass KicksDB product cache (force fresh API fetch)
+  --verbose, -v     Detailed output
+  --help, -h        Show help
+
+Requires:
+  data/merged-assortment.json   (from gs-ingest)
+  OR data/kicksdb-assortment.json (fallback, from kicksdb-discover)
+  data/taxonomy-map.json         (from prepare-taxonomies)
+  image-map.json                 (from prepare-media, optional)
+
+Output:
+  data/feed-wc-latest.json - WooCommerce REST API formatted products
+
+Examples:
+  bin/catalog-transform                    # Full transform
+  bin/catalog-transform --limit=10         # First 10 products
+  bin/catalog-transform --skip-gs          # No GS overlay
+  bin/catalog-transform --verbose          # Detailed output
+
+HELP;
+    exit(0);
+}
+
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$skip_gs = in_array('--skip-gs', $argv);
+$no_cache = in_array('--no-cache', $argv);
+$limit = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--limit=') === 0) {
+        $limit = (int) str_replace('--limit=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('CatalogTransform', [
+    'file' => Config::projectRoot() . '/logs/catalog-transform.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('================================');
+$logger->info('  Catalog Transform');
+$logger->info('  Merged assortment → WC REST format');
+$logger->info('================================');
+$logger->info('');
+
+// ============================================================================
+// Load assortment (merged preferred, KicksDB fallback)
+// ============================================================================
+
+$merged_file = Config::dataDir() . '/merged-assortment.json';
+$kdb_file = Config::dataDir() . '/kicksdb-assortment.json';
+
+$assortment = null;
+$assortment_source = '';
+
+if (file_exists($merged_file)) {
+    $assortment = json_decode(file_get_contents($merged_file), true);
+    $assortment_source = 'merged-assortment.json';
+} elseif (file_exists($kdb_file)) {
+    $assortment = json_decode(file_get_contents($kdb_file), true);
+    $assortment_source = 'kicksdb-assortment.json (fallback)';
+}
+
+if (!is_array($assortment) || empty($assortment['products'])) {
+    $logger->error("No assortment file found. Run bin/kicksdb-discover and/or bin/gs-ingest first.");
+    exit(1);
+}
+
+$products = $assortment['products'];
+$logger->info("Loaded assortment: " . count($products) . " products from {$assortment_source}");
+
+// Extract SKU list for KicksDB adapter
+$skus = array_values(array_filter(array_column($products, 'sku')));
+
+if ($limit && count($skus) > $limit) {
+    $skus = array_slice($skus, 0, $limit);
+    $logger->info("  Limited to first {$limit}");
+}
+
+$logger->info("  " . count($skus) . " SKUs to transform");
+
+// ============================================================================
+// Build assortment lookup maps
+// ============================================================================
+
+// SKU → assortment product (for category override + brand enrichment)
+$assortment_map = [];
+foreach ($products as $p) {
+    $sku = $p['sku'] ?? '';
+    if ($sku) {
+        $assortment_map[$sku] = $p;
+    }
+}
+
+// ============================================================================
+// Fetch from both sources
+// ============================================================================
+
+try {
+    // KicksDB adapter: uses pre-loaded assortment data when available (zero API calls)
+    if ($no_cache) {
+        $config['import']['kicksdb_cache_ttl'] = 0;
+        $logger->info('  KicksDB cache: disabled (--no-cache)');
+    }
+    $kdbAdapter = new KicksDbAdapter($config, $skus, $logger);
+
+    // Pre-load rich product data from discovery (avoids per-SKU API calls)
+    $kdbAdapter->preloadFromAssortment($assortment_map);
+
+    $pricing_summary = $kdbAdapter->getPricingSummary();
+    $logger->info("  KicksDB pricing: flat {$pricing_summary['flat_margin']}, floor {$pricing_summary['floor_price']}, rounding {$pricing_summary['rounding']}");
+    if (!empty($pricing_summary['tiers'])) {
+        foreach ($pricing_summary['tiers'] as $tier) {
+            $logger->info("    Tier: {$tier}");
+        }
+    }
+    $logger->info('');
+
+    // Collect KicksDB normalized products with category override from catalog
+    $logger->info('Fetching KicksDB products...');
+    $kdbProducts = [];
+    foreach ($kdbAdapter->fetchProducts() as $p) {
+        $sku = $p['sku'] ?? '';
+
+        // Category override: use wc_category from catalog when available
+        // This replaces the old section_map hack — category is authoritative from the catalog
+        if (isset($assortment_map[$sku]['catalog_wc_category'])) {
+            $wc_cat = $assortment_map[$sku]['catalog_wc_category'];
+            if ($wc_cat) {
+                $p['category_type'] = $wc_cat;
+            }
+        }
+
+        $kdbProducts[] = $p;
+    }
+    $logger->info("  KicksDB: " . count($kdbProducts) . " products normalized");
+
+    // GS adapter (unless --skip-gs)
+    $gsProducts = [];
+    if (!$skip_gs) {
+        $logger->info('');
+        $logger->info('Fetching Golden Sneakers products...');
+        $gsAdapter = new GoldenSneakersAdapter($config, $logger);
+        foreach ($gsAdapter->fetchProducts() as $p) {
+            $gsProducts[] = $p;
+        }
+        $logger->info("  GS: " . count($gsProducts) . " products normalized");
+    } else {
+        $logger->info('Skipping GS overlay (--skip-gs)');
+    }
+
+    // ========================================================================
+    // Merge
+    // ========================================================================
+
+    $logger->info('');
+    $logger->info('Merging feeds (variation-level)...');
+
+    $merger = new FeedMerger($logger);
+    $mergedProducts = $merger->merge($kdbProducts, $gsProducts);
+
+    $merge_stats = $merger->getStats();
+    $logger->info("  Merged:       {$merge_stats['products_merged']} products");
+    $logger->info("  KicksDB-only: {$merge_stats['products_kicksdb_only']} products");
+    $logger->info("  GS-only:      {$merge_stats['products_gs_only']} products");
+    $logger->info("  Variations - GS overlay: {$merge_stats['variations_gs_overlay']}, KDB-only: {$merge_stats['variations_kicksdb_only']}, GS-only: {$merge_stats['variations_gs_only']}");
+
+    // ========================================================================
+    // Build WC format
+    // ========================================================================
+
+    $logger->info('');
+    $logger->info('Building WooCommerce payloads...');
+
+    $builder = new WcProductBuilder($config, $logger);
+    $builder->setStockOverride(null); // Use adapter/merger-provided stock
+    $wc_products = $builder->buildAll($mergedProducts);
+
+    // Sort by release_date (newest first) for menu_order assignment
+    usort($wc_products, function ($a, $b) {
+        $date_a = 0;
+        $date_b = 0;
+        foreach ($a['meta_data'] ?? [] as $m) {
+            if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                $date_a = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                break;
+            }
+        }
+        foreach ($b['meta_data'] ?? [] as $m) {
+            if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                $date_b = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                break;
+            }
+        }
+        return $date_b - $date_a; // Newest first
+    });
+
+    // Assign menu_order based on release recency
+    $release_ordered = 0;
+    foreach ($wc_products as $idx => &$wc_tmp) {
+        $wc_tmp['menu_order'] = $idx;
+        foreach ($wc_tmp['meta_data'] ?? [] as $m) {
+            if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                $release_ordered++;
+                break;
+            }
+        }
+    }
+    unset($wc_tmp);
+    $logger->info("Release ordering: {$release_ordered}/" . count($wc_products) . " products have release dates");
+
+    // ========================================================================
+    // Brand enrichment (only for discovery=brand sections)
+    // ========================================================================
+
+    $catalog = $assortment['catalog'] ?? null;
+    $taxonomy_map_file = Config::dataDir() . '/taxonomy-map.json';
+    $taxonomy_map = file_exists($taxonomy_map_file)
+        ? (json_decode(file_get_contents($taxonomy_map_file), true) ?: [])
+        : [];
+    $brands_map = $taxonomy_map['brands'] ?? [];
+
+    $catalog_enriched = 0;
+    foreach ($wc_products as &$wc) {
+        $sku = $wc['sku'] ?? '';
+        if (!isset($assortment_map[$sku])) {
+            continue;
+        }
+
+        $meta = $assortment_map[$sku];
+
+        // Only enrich brands for discovery=brand sections
+        // Query-mode items (Accessori) don't have real brand hierarchies
+        if (($meta['catalog_discovery'] ?? '') !== 'brand') {
+            continue;
+        }
+
+        $catalog_brand = $meta['catalog_brand'] ?? '';
+        $catalog_subcategory = $meta['catalog_subcategory'] ?? '';
+        if (empty($catalog_brand) || empty($catalog_subcategory)) {
+            continue;
+        }
+
+        $brand_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $catalog_brand));
+        $brand_slug = preg_replace('/-+/', '-', trim($brand_slug, '-'));
+        $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $catalog_subcategory));
+        $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
+
+        $subcat_brand_id = $brands_map[$subcat_slug] ?? null;
+        $parent_brand_id = $brands_map[$brand_slug] ?? null;
+
+        $brand_entries = [];
+        if ($subcat_brand_id) {
+            $brand_entries[] = ['id' => $subcat_brand_id];
+        } else {
+            $brand_entries[] = ['slug' => $subcat_slug, 'name' => $catalog_subcategory];
+        }
+        if ($parent_brand_id) {
+            if ($parent_brand_id !== $subcat_brand_id) {
+                $brand_entries[] = ['id' => $parent_brand_id];
+            }
+        } else {
+            $brand_entries[] = ['slug' => $brand_slug, 'name' => $catalog_brand];
+        }
+
+        $existing = $wc['brands'] ?? [];
+        $existing_ids = array_filter(array_column($existing, 'id'));
+        $existing_slugs = array_filter(array_column($existing, 'slug'));
+        foreach ($brand_entries as $b) {
+            if (!empty($b['id']) && !in_array($b['id'], $existing_ids)) {
+                $existing[] = $b;
+            } elseif (!empty($b['slug']) && !in_array($b['slug'], $existing_slugs)) {
+                $existing[] = $b;
+            }
+        }
+        $wc['brands'] = $existing;
+
+        $wc['meta_data'] = $wc['meta_data'] ?? [];
+        $wc['meta_data'][] = ['key' => '_catalog_brand', 'value' => $catalog_brand];
+        $wc['meta_data'][] = ['key' => '_catalog_subcategory', 'value' => $catalog_subcategory];
+
+        $catalog_enriched++;
+    }
+    unset($wc);
+
+    $logger->info("Catalog enrichment: {$catalog_enriched}/" . count($wc_products) . " products assigned sub-brands");
+
+    // ========================================================================
+    // Write output
+    // ========================================================================
+
+    $output_file = Config::dataDir() . '/feed-wc-latest.json';
+    file_put_contents(
+        $output_file,
+        json_encode($wc_products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    );
+
+    // Cache unified SKUs for cross-pipeline dedup
+    $unified_skus = array_values(array_filter(array_map(fn($p) => $p['sku'] ?? null, $wc_products)));
+    file_put_contents(Config::dataDir() . '/unified-sku-cache.json', json_encode($unified_skus, JSON_PRETTY_PRINT));
+    $logger->info("Cached " . count($unified_skus) . " SKUs to unified-sku-cache.json");
+
+    // ========================================================================
+    // Summary
+    // ========================================================================
+
+    $duration = round(microtime(true) - $start_time, 1);
+    $kdb_stats = $kdbAdapter->getStats();
+    $gs_stats = isset($gsAdapter) ? $gsAdapter->getStats() : null;
+    $builder_stats = $builder->getStats();
+
+    $logger->info('');
+    $logger->info('================================');
+    $logger->info('  CATALOG TRANSFORM SUMMARY');
+    $logger->info('================================');
+    $logger->info("  Assortment source:    {$assortment_source}");
+    $logger->info("  KicksDB SKUs:         {$kdb_stats['total_skus']}");
+    $logger->info("  KicksDB found:        {$kdb_stats['products_found']}");
+    $logger->info("  KicksDB preloaded:    {$kdb_stats['preloaded_hits']}");
+    $logger->info("  KicksDB cache hits:   {$kdb_stats['cache_hits']}");
+    $logger->info("  KicksDB API fetches:  {$kdb_stats['api_fetches']}");
+    $logger->info("  KicksDB not found:    {$kdb_stats['products_not_found']}");
+    if ($gs_stats) {
+        $logger->info("  GS products:          {$gs_stats['fetched']}");
+    } else {
+        $logger->info("  GS: skipped (--skip-gs)");
+    }
+    $logger->info("  ---");
+    $logger->info("  Merged (both):        {$merge_stats['products_merged']}");
+    $logger->info("  KicksDB-only:         {$merge_stats['products_kicksdb_only']}");
+    $logger->info("  GS-only:              {$merge_stats['products_gs_only']}");
+    $logger->info("  ---");
+    $logger->info("  WC products built:    {$builder_stats['transformed']}");
+    $logger->info("  With image:           {$builder_stats['with_image']}");
+    $logger->info("  With gallery:         {$builder_stats['with_gallery']}");
+    $logger->info("  Without image:        {$builder_stats['without_image']}");
+    $logger->info("  Brand enriched:       {$catalog_enriched}");
+    $logger->info("  Duration:             {$duration}s");
+    $logger->info("  Output:               {$output_file}");
+    $logger->info('================================');
+
+    exit(0);
+
+} catch (\Exception $e) {
+    $logger->error('Error: ' . $e->getMessage());
+    exit(1);
+}

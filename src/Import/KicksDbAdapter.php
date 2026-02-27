@@ -29,10 +29,25 @@ class KicksDbAdapter implements FeedAdapter
     private string $market;
     private array $skus;
 
+    /** @var array Pre-loaded raw product data from assortment (SKU → raw API response) */
+    private array $preloaded = [];
+
+    /** @var array In-memory product cache (SKU → raw API response) */
+    private array $product_cache = [];
+
+    /** @var string|null Path to the product cache file */
+    private ?string $cache_file = null;
+
+    /** @var int Cache TTL in seconds (default 24h) */
+    private int $cache_ttl;
+
     private array $stats = [
         'total_skus' => 0,
         'products_found' => 0,
         'products_not_found' => 0,
+        'preloaded_hits' => 0,
+        'cache_hits' => 0,
+        'api_fetches' => 0,
         'variants_total' => 0,
         'variants_with_price' => 0,
         'variants_no_price' => 0,
@@ -60,6 +75,9 @@ class KicksDbAdapter implements FeedAdapter
 
         $this->calculator = new PriceCalculator($pricing['margin'] ?? []);
         $this->market = $pricing['kicksdb_market'] ?? 'IT';
+        $this->cache_ttl = (int) ($config['import']['kicksdb_cache_ttl'] ?? 86400);
+
+        $this->loadProductCache();
     }
 
     public function getSourceName(): string
@@ -68,11 +86,39 @@ class KicksDbAdapter implements FeedAdapter
     }
 
     /**
+     * Pre-load raw product data from the assortment file
+     *
+     * Discovery already fetches full product data (variants, traits, identifiers)
+     * via browseProducts with rich_display=true. This method loads that data so
+     * fetchProducts() can use it directly instead of re-fetching per SKU.
+     *
+     * @param array $assortment_map SKU → assortment product (with '_raw' key)
+     */
+    public function preloadFromAssortment(array $assortment_map): void
+    {
+        $loaded = 0;
+        foreach ($assortment_map as $sku => $product) {
+            $raw = $product['_raw'] ?? null;
+            if (is_array($raw) && !empty($raw['variants'])) {
+                $this->preloaded[$sku] = $raw;
+                $loaded++;
+            }
+        }
+        $this->log('info', "  Pre-loaded {$loaded} products from assortment (with variants)");
+    }
+
+    /**
      * Fetch each SKU from KicksDB and yield normalized products
+     *
+     * Resolution order per SKU:
+     *   1. Pre-loaded data from assortment (_raw from discovery) — zero API calls
+     *   2. Disk cache (kicksdb-product-cache.json) — zero API calls
+     *   3. KicksDB API (individual fetch) — last resort
      */
     public function fetchProducts(): iterable
     {
         $this->stats['total_skus'] = count($this->skus);
+        $cache_dirty = false;
 
         foreach ($this->skus as $idx => $sku) {
             $sku = trim($sku);
@@ -81,45 +127,167 @@ class KicksDbAdapter implements FeedAdapter
             }
 
             $progress = $idx + 1;
-            $this->log('info', "[{$progress}/{$this->stats['total_skus']}] Fetching {$sku}...");
 
-            // Fetch product with display fields and market
-            $product = $this->kicksdb->getStockXProduct($sku, $this->market);
-            if ($product === null) {
-                $this->stats['products_not_found']++;
-                $this->log('warning', "  Not found in KicksDB: {$sku}");
-                continue;
+            // 1. Pre-loaded from assortment (discovery already fetched rich data)
+            if (isset($this->preloaded[$sku])) {
+                $this->stats['preloaded_hits']++;
+                $this->stats['products_found']++;
+                $product_data = $this->preloaded[$sku];
+                $variants = $product_data['variants'] ?? [];
+                $this->log('debug', "[{$progress}/{$this->stats['total_skus']}] Preloaded: {$sku}");
             }
+            // 2. Disk cache (from a previous catalog-transform run)
+            elseif (($cached = $this->getCachedProduct($sku)) !== null) {
+                $this->stats['cache_hits']++;
+                $this->stats['products_found']++;
+                $product_data = $cached['data'] ?? $cached;
+                $variants = $product_data['variants'] ?? [];
+                $this->log('debug', "[{$progress}/{$this->stats['total_skus']}] Cache hit: {$sku}");
+            }
+            // 3. API fetch (last resort — GS-only SKUs or missing _raw)
+            else {
+                $this->stats['api_fetches']++;
+                $this->log('info', "[{$progress}/{$this->stats['total_skus']}] Fetching {$sku}...");
 
-            $this->stats['products_found']++;
-            $product_data = $product['data'] ?? $product;
-
-            // Variants should be embedded thanks to display[variants]=true
-            $variants = $product_data['variants'] ?? [];
-            if (empty($variants)) {
-                // Fallback: dedicated variants endpoint
-                $product_id = $product_data['id'] ?? $product_data['slug'] ?? $sku;
-                $this->log('debug', "  No embedded variants, trying variants endpoint for {$product_id}...");
-                $raw = $this->kicksdb->getStockXVariants($product_id, $this->market);
-                if ($raw !== null) {
-                    $variants = $raw['data'] ?? $raw;
+                $product = $this->kicksdb->getStockXProduct($sku, $this->market);
+                if ($product === null) {
+                    $this->stats['products_not_found']++;
+                    $this->log('warning', "  Not found in KicksDB: {$sku}");
+                    continue;
                 }
+
+                $this->stats['products_found']++;
+                $product_data = $product['data'] ?? $product;
+                $variants = $product_data['variants'] ?? [];
+
+                if (empty($variants)) {
+                    $product_id = $product_data['id'] ?? $product_data['slug'] ?? $sku;
+                    $this->log('debug', "  No embedded variants, trying variants endpoint for {$product_id}...");
+                    $raw = $this->kicksdb->getStockXVariants($product_id, $this->market);
+                    if ($raw !== null) {
+                        $variants = $raw['data'] ?? $raw;
+                        $product_data['variants'] = $variants;
+                    }
+                }
+
+                // Save to disk cache for future runs
+                $this->setCachedProduct($sku, $product_data);
+                $cache_dirty = true;
+
+                usleep(200000);
             }
 
-            // Normalize
             $normalized = $this->normalize($product_data, $variants, $sku);
             if ($normalized !== null) {
                 yield $normalized;
             }
-
-            // Rate limit: 200ms between products
-            usleep(200000);
         }
+
+        if ($cache_dirty) {
+            $this->saveProductCache();
+        }
+
+        $this->log('info', "  Source stats: {$this->stats['preloaded_hits']} preloaded, {$this->stats['cache_hits']} cached, {$this->stats['api_fetches']} API fetches");
     }
 
     public function getStats(): array
     {
         return $this->stats;
+    }
+
+    // =========================================================================
+    // Product Cache
+    // =========================================================================
+
+    /**
+     * Load product cache from disk
+     *
+     * Cache file stores raw KicksDB API responses keyed by SKU with timestamps.
+     * This avoids re-fetching ~800 products on every catalog-transform run.
+     */
+    private function loadProductCache(): void
+    {
+        // Resolve cache file path: data/kicksdb-product-cache.json
+        $data_dir = dirname(__DIR__, 2) . '/data';
+        if (is_dir($data_dir)) {
+            $this->cache_file = $data_dir . '/kicksdb-product-cache.json';
+        }
+
+        if ($this->cache_file && file_exists($this->cache_file)) {
+            $raw = json_decode(file_get_contents($this->cache_file), true);
+            if (is_array($raw)) {
+                $this->product_cache = $raw;
+                $this->log('debug', "  Loaded product cache: " . count($raw) . " entries");
+            }
+        }
+    }
+
+    /**
+     * Get a product from cache if fresh enough
+     *
+     * @param string $sku Product SKU
+     * @return array|null Cached product data or null if miss/stale
+     */
+    private function getCachedProduct(string $sku): ?array
+    {
+        if (!isset($this->product_cache[$sku])) {
+            return null;
+        }
+
+        $entry = $this->product_cache[$sku];
+        $cached_at = $entry['_cached_at'] ?? 0;
+
+        // Check TTL
+        if ((time() - $cached_at) > $this->cache_ttl) {
+            return null;
+        }
+
+        // Must have variants to be useful
+        $product = $entry['product'] ?? null;
+        if ($product === null || empty($product['variants'])) {
+            return null;
+        }
+
+        return $product;
+    }
+
+    /**
+     * Store a product in the cache
+     *
+     * @param string $sku Product SKU
+     * @param array $product_data Raw API product data (with variants embedded)
+     */
+    private function setCachedProduct(string $sku, array $product_data): void
+    {
+        $this->product_cache[$sku] = [
+            '_cached_at' => time(),
+            'product' => $product_data,
+        ];
+    }
+
+    /**
+     * Persist product cache to disk
+     */
+    private function saveProductCache(): void
+    {
+        if ($this->cache_file === null) {
+            return;
+        }
+
+        // Prune stale entries before saving
+        $now = time();
+        foreach ($this->product_cache as $sku => $entry) {
+            if (($now - ($entry['_cached_at'] ?? 0)) > $this->cache_ttl * 2) {
+                unset($this->product_cache[$sku]);
+            }
+        }
+
+        file_put_contents(
+            $this->cache_file,
+            json_encode($this->product_cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        );
+
+        $this->log('info', "  Saved product cache: " . count($this->product_cache) . " entries → {$this->cache_file}");
     }
 
     /**
@@ -139,7 +307,18 @@ class KicksDbAdapter implements FeedAdapter
      */
     private function normalize(array $product, array $variants, string $original_sku): ?array
     {
-        $sku = $product['sku'] ?? $original_sku;
+        // SKU fallback: clothing/accessories often have empty SKU on KicksDB
+        // Use slug as stable identifier (e.g. "supreme-box-logo-hooded-sweatshirt-fw25-pink")
+        $sku = $product['sku'] ?? '';
+        if (empty($sku)) {
+            $sku = $product['slug'] ?? $original_sku;
+            if (empty($sku)) {
+                $this->log('warning', "  Product has no SKU or slug, skipping");
+                return null;
+            }
+            $this->log('debug', "  No SKU, using slug as identifier: {$sku}");
+        }
+
         $name = $product['title'] ?? $product['name'] ?? '';
         $brand = $product['brand'] ?? '';
 
@@ -148,7 +327,11 @@ class KicksDbAdapter implements FeedAdapter
             return null;
         }
 
-        $this->log('info', "  {$name} ({$brand}) - {$sku}");
+        // Detect if this is a clothing/accessories product (affects size extraction)
+        $product_type = strtolower($product['product_type'] ?? 'sneakers');
+        $is_clothing = in_array($product_type, ['streetwear', 'apparel', 'clothing', 'collectibles']);
+
+        $this->log('info', "  {$name} ({$brand}) - {$sku}" . ($is_clothing ? " [{$product_type}]" : ''));
 
         // Parse traits array into a flat map for easy access
         $traits = $this->parseTraits($product['traits'] ?? []);
@@ -182,7 +365,8 @@ class KicksDbAdapter implements FeedAdapter
         }
 
         // Colorway: try direct field first, then traits
-        $colorway = $product['colorway'] ?? $traits['Colorway'] ?? '';
+        // Clothing uses "Color" trait instead of "Colorway"
+        $colorway = $product['colorway'] ?? $traits['Colorway'] ?? $traits['Color'] ?? '';
         if ($colorway) {
             $meta[] = ['key' => '_colorway', 'value' => $colorway];
         }
@@ -237,6 +421,35 @@ class KicksDbAdapter implements FeedAdapter
             $meta[] = ['key' => '_kicksdb_categories', 'value' => implode(',', $kicksdb_categories)];
         }
 
+        // Breadcrumbs: hierarchical category path from KicksDB (e.g. Apparel > Tops > Hoodies)
+        $breadcrumbs = $product['breadcrumbs'] ?? [];
+        if (!empty($breadcrumbs)) {
+            $bc_values = array_column($breadcrumbs, 'value');
+            $meta[] = ['key' => '_breadcrumbs', 'value' => implode(' > ', $bc_values)];
+            // Store individual levels for WC category mapping
+            foreach ($breadcrumbs as $bc) {
+                $level = $bc['level'] ?? 0;
+                $meta[] = ['key' => '_breadcrumb_l' . $level, 'value' => $bc['value'] ?? ''];
+                if (isset($bc['alias'])) {
+                    $meta[] = ['key' => '_breadcrumb_l' . $level . '_slug', 'value' => $bc['alias']];
+                }
+            }
+        }
+
+        // Season (clothing-specific trait, e.g. "FW25", "SS24")
+        $season = $traits['Season'] ?? '';
+        if ($season) {
+            $meta[] = ['key' => '_season', 'value' => $season];
+        }
+
+        // Primary/secondary title split (useful for structured product naming)
+        if (!empty($product['primary_title'])) {
+            $meta[] = ['key' => '_primary_title', 'value' => $product['primary_title']];
+        }
+        if (!empty($product['secondary_title'])) {
+            $meta[] = ['key' => '_secondary_title', 'value' => $product['secondary_title']];
+        }
+
         // Store the original English description for future LLM translation
         if ($api_description) {
             $meta[] = ['key' => '_original_description', 'value' => $api_description];
@@ -247,13 +460,15 @@ class KicksDbAdapter implements FeedAdapter
         foreach ($variants as $variant) {
             $this->stats['variants_total']++;
 
-            // Extract EU size from the sizes[] sub-array
-            $size_eu = $this->extractEuSizeFromVariant($variant);
+            // Extract size: EU numeric for sneakers, letter size for clothing/accessories
+            $size_eu = $is_clothing
+                ? $this->extractLetterSize($variant)
+                : $this->extractEuSizeFromVariant($variant);
 
             if ($size_eu === null) {
                 $this->stats['variants_no_eu_size']++;
                 $vid = $variant['id'] ?? '?';
-                $this->log('debug', "    Variant {$vid}: no EU size found, skipping");
+                $this->log('debug', "    Variant {$vid}: no size found, skipping");
                 continue;
             }
 
@@ -386,6 +601,71 @@ class KicksDbAdapter implements FeedAdapter
     }
 
     /**
+     * Extract letter size for clothing/accessories variants
+     *
+     * Clothing variants use letter sizes (S, M, L, XL, XXL) instead of EU numeric.
+     * The sizes[] sub-array contains entries like {"size": "US S", "type": "us"}.
+     * Falls back to the direct "size" field on the variant.
+     *
+     * Also handles numeric hat sizes (e.g. "7 1/4" for fitted caps) by
+     * accepting the raw size string when standard patterns don't match.
+     *
+     * @param array $variant Variant data
+     * @return string|null Letter size (e.g. "S", "M", "L", "XL"), "One Size", or raw size string
+     */
+    private function extractLetterSize(array $variant): ?string
+    {
+        $raw_fallback = null;
+
+        // Try sizes[] sub-array first — strip "US " prefix
+        foreach ($variant['sizes'] ?? [] as $size_entry) {
+            $raw = $size_entry['size'] ?? '';
+            $cleaned = trim($raw);
+
+            if (empty($cleaned)) {
+                continue;
+            }
+
+            // Check for "One Size" / "OS" before stripping prefix
+            if (preg_match('/^(one\s*size|os)$/i', $cleaned)) {
+                return 'One Size';
+            }
+
+            // Strip country prefix: "US S" → "S", "US XL" → "XL"
+            $cleaned = preg_replace('/^(US|EU|UK)\s+/i', '', $cleaned);
+            if (preg_match('/^[XSML]{1,3}L?$|^\d*X{0,3}L$/i', $cleaned)) {
+                return strtoupper($cleaned);
+            }
+
+            // Save first non-empty size as raw fallback (e.g. "7 1/4" for fitted caps)
+            if ($raw_fallback === null) {
+                $raw_fallback = $cleaned;
+            }
+        }
+
+        // Fallback: direct size field
+        $direct = trim($variant['size'] ?? '');
+        if (!empty($direct)) {
+            // "One Size" / "OS"
+            if (preg_match('/^(one\s*size|os)$/i', $direct)) {
+                return 'One Size';
+            }
+            // Letter sizes: S, M, L, XL, etc.
+            if (preg_match('/^[XSML]{1,3}L?$|^\d*X{0,3}L$/i', $direct)) {
+                return strtoupper($direct);
+            }
+            // Use direct size as raw fallback if no sizes[] fallback found
+            if ($raw_fallback === null) {
+                $raw_fallback = $direct;
+            }
+        }
+
+        // Final fallback: use the raw size string for non-standard formats
+        // (e.g. "7 1/4" for fitted caps, "S/M" for combo sizes)
+        return $raw_fallback;
+    }
+
+    /**
      * Extract a specific size type from the sizes[] sub-array
      *
      * @param array $variant Variant data
@@ -481,15 +761,26 @@ class KicksDbAdapter implements FeedAdapter
     // =========================================================================
 
     /**
-     * Extract UPC/barcode from variant identifiers[] or direct field
+     * Extract UPC/EAN barcode from variant identifiers[] or direct field
+     *
+     * Sneakers typically have UPC, clothing may have EAN-13.
      */
     private function extractBarcode(array $variant): ?string
     {
         // From identifiers[] array (real API response)
+        // Prefer UPC, fall back to EAN-13
+        $ean = null;
         foreach ($variant['identifiers'] ?? [] as $id_entry) {
-            if (($id_entry['identifier_type'] ?? '') === 'UPC') {
+            $type = $id_entry['identifier_type'] ?? '';
+            if ($type === 'UPC') {
                 return $id_entry['identifier'] ?? null;
             }
+            if ($type === 'EAN-13' && $ean === null) {
+                $ean = $id_entry['identifier'] ?? null;
+            }
+        }
+        if ($ean !== null) {
+            return $ean;
         }
 
         // Direct field (simulated/variants endpoint)

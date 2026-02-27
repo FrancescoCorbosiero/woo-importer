@@ -111,30 +111,70 @@ class WcProductBuilder
         $size_attr_id = $this->getAttributeId($size_slug);
         $brand_slug = $this->config['attributes']['brand']['slug'] ?? 'marca';
         $brand_attr_id = $this->getAttributeId($brand_slug);
+        $colorway_slug = $this->config['attributes']['colorway']['slug'] ?? 'colorway';
+        $colorway_attr_id = $this->getAttributeId($colorway_slug);
+        $gender_slug = $this->config['attributes']['gender']['slug'] ?? 'genere';
+        $gender_attr_id = $this->getAttributeId($gender_slug);
+        $model_slug = $this->config['attributes']['model']['slug'] ?? 'modello';
+        $model_attr_id = $this->getAttributeId($model_slug);
+        $release_date_slug = $this->config['attributes']['release_date']['slug'] ?? 'data-di-rilascio';
+        $release_date_attr_id = $this->getAttributeId($release_date_slug);
 
         // Extract and sort unique sizes
         $size_options = array_map(fn($v) => $v['size_eu'], $variations);
         $unique_sizes = array_values(array_unique($size_options));
-        usort($unique_sizes, fn($a, $b) => (float) $a <=> (float) $b);
+        usort($unique_sizes, function ($a, $b) {
+            $fa = is_numeric($a) ? (float) $a : PHP_FLOAT_MAX;
+            $fb = is_numeric($b) ? (float) $b : PHP_FLOAT_MAX;
+            return $fa <=> $fb;
+        });
+
+        // "One Size" products → create as simple product (no size dropdown)
+        $is_one_size = count($unique_sizes) === 1 && strtolower($unique_sizes[0]) === 'one size';
 
         // Build description: use API description when available, enriched with Italian sections
         $description = $this->buildDescription($tpl, $api_description, $colorway, $release_date, $retail_price, $gender);
         $short_description = $this->buildShortDescription($tpl, $colorway);
 
-        // Build base WC product
-        $wc_product = [
-            'name' => $name,
-            'type' => 'variable',
-            'sku' => $sku,
-            'status' => 'publish',
-            'catalog_visibility' => 'visible',
-            'manage_stock' => false,
-            'stock_status' => 'instock',
-            'short_description' => $short_description,
-            'description' => $description,
-            'categories' => [],
-            'attributes' => [],
-        ];
+        // Build base WC product — simple for "One Size", variable otherwise
+        if ($is_one_size) {
+            $one_var = $variations[0] ?? [];
+            $wc_product = [
+                'name' => $name,
+                'type' => 'simple',
+                'sku' => $sku,
+                'status' => 'publish',
+                'catalog_visibility' => 'visible',
+                'regular_price' => (string) ($one_var['price'] ?? 0),
+                'manage_stock' => true,
+                'stock_status' => 'instock',
+                'stock_quantity' => $this->stock_override ?? (int) ($one_var['stock_quantity'] ?? 90),
+                'backorders' => 'yes',
+                'short_description' => $short_description,
+                'description' => $description,
+                'categories' => [],
+                'attributes' => [],
+            ];
+
+            // Merge variant meta into product meta
+            if (!empty($one_var['meta_data'])) {
+                $extra_meta = array_merge($extra_meta, $one_var['meta_data']);
+            }
+        } else {
+            $wc_product = [
+                'name' => $name,
+                'type' => 'variable',
+                'sku' => $sku,
+                'status' => 'publish',
+                'catalog_visibility' => 'visible',
+                'manage_stock' => false,
+                'stock_status' => 'instock',
+                'short_description' => $short_description,
+                'description' => $description,
+                'categories' => [],
+                'attributes' => [],
+            ];
+        }
 
         // Extra source-specific metadata
         if (!empty($extra_meta)) {
@@ -166,8 +206,8 @@ class WcProductBuilder
             $wc_product['attributes'][] = $brand_attr;
         }
 
-        // Size attribute (pa_taglia)
-        if (!empty($unique_sizes)) {
+        // Size attribute (pa_taglia) — skip for simple "One Size" products
+        if (!empty($unique_sizes) && !$is_one_size) {
             $size_attr = [
                 'position' => count($wc_product['attributes']),
                 'visible' => true,
@@ -182,17 +222,71 @@ class WcProductBuilder
             $wc_product['attributes'][] = $size_attr;
         }
 
-        // Release date attribute (visible, non-variation, for sorting/display)
+        // Colorway attribute (pa_colorway)
+        if (!empty($colorway)) {
+            $colorway_attr = [
+                'position' => count($wc_product['attributes']),
+                'visible' => true,
+                'variation' => false,
+                'options' => [$colorway],
+            ];
+            if ($colorway_attr_id) {
+                $colorway_attr['id'] = $colorway_attr_id;
+            } else {
+                $colorway_attr['name'] = 'pa_' . $colorway_slug;
+            }
+            $wc_product['attributes'][] = $colorway_attr;
+        }
+
+        // Gender attribute (pa_genere)
+        if (!empty($gender)) {
+            $translated_gender = $this->translateGender($gender);
+            $gender_attr = [
+                'position' => count($wc_product['attributes']),
+                'visible' => true,
+                'variation' => false,
+                'options' => [$translated_gender],
+            ];
+            if ($gender_attr_id) {
+                $gender_attr['id'] = $gender_attr_id;
+            } else {
+                $gender_attr['name'] = 'pa_' . $gender_slug;
+            }
+            $wc_product['attributes'][] = $gender_attr;
+        }
+
+        // Model attribute (pa_modello)
+        if (!empty($model)) {
+            $model_attr = [
+                'position' => count($wc_product['attributes']),
+                'visible' => true,
+                'variation' => false,
+                'options' => [$model],
+            ];
+            if ($model_attr_id) {
+                $model_attr['id'] = $model_attr_id;
+            } else {
+                $model_attr['name'] = 'pa_' . $model_slug;
+            }
+            $wc_product['attributes'][] = $model_attr;
+        }
+
+        // Release date attribute (pa_data-di-rilascio) — year only for correct sorting
         if (!empty($release_date)) {
-            $formatted_date = $this->formatDate($release_date);
-            if ($formatted_date !== $release_date || !empty($formatted_date)) {
-                $wc_product['attributes'][] = [
-                    'name' => 'Data di Rilascio',
+            $year = $this->extractYear($release_date);
+            if (!empty($year)) {
+                $release_attr = [
                     'position' => count($wc_product['attributes']),
                     'visible' => true,
                     'variation' => false,
-                    'options' => [$formatted_date],
+                    'options' => [$year],
                 ];
+                if ($release_date_attr_id) {
+                    $release_attr['id'] = $release_date_attr_id;
+                } else {
+                    $release_attr['name'] = 'pa_' . $release_date_slug;
+                }
+                $wc_product['attributes'][] = $release_attr;
             }
         }
 
@@ -201,6 +295,12 @@ class WcProductBuilder
             $brand_id = $this->getBrandId($brand);
             if ($brand_id) {
                 $wc_product['brands'] = [['id' => $brand_id]];
+            } else {
+                // Slug fallback: WooCommerceImporter will auto-create via resolveBrandIds()
+                $brand_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $brand));
+                $brand_slug = preg_replace('/-+/', '-', trim($brand_slug, '-'));
+                $wc_product['brands'] = [['slug' => $brand_slug, 'name' => $brand]];
+                $this->log('debug', "  No brand ID for '{$brand}', using slug fallback (product {$sku})");
             }
         }
 
@@ -216,29 +316,31 @@ class WcProductBuilder
             $this->stats['without_image']++;
         }
 
-        // Build variations
-        $wc_product['_variations'] = [];
-        foreach ($variations as $var) {
-            $size_eu = $var['size_eu'] ?? '';
-            $var_sku = $sku . '-' . str_replace([' ', '/'], '', $size_eu);
+        // Build variations (skip for simple products)
+        if (!$is_one_size) {
+            $wc_product['_variations'] = [];
+            foreach ($variations as $var) {
+                $size_eu = $var['size_eu'] ?? '';
+                $var_sku = $sku . '-' . str_replace([' ', '/'], '', $size_eu);
 
-            $wc_var = [
-                'sku' => $var_sku,
-                'regular_price' => (string) ($var['price'] ?? 0),
-                'manage_stock' => true,
-                'stock_status' => 'instock',
-                'stock_quantity' => $this->stock_override ?? (int) ($var['stock_quantity'] ?? 90),
-                'backorders' => 'yes',
-                'attributes' => $size_attr_id
-                    ? [['id' => $size_attr_id, 'option' => $size_eu]]
-                    : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
-            ];
+                $wc_var = [
+                    'sku' => $var_sku,
+                    'regular_price' => (string) ($var['price'] ?? 0),
+                    'manage_stock' => true,
+                    'stock_status' => 'instock',
+                    'stock_quantity' => $this->stock_override ?? (int) ($var['stock_quantity'] ?? 90),
+                    'backorders' => 'yes',
+                    'attributes' => $size_attr_id
+                        ? [['id' => $size_attr_id, 'option' => $size_eu]]
+                        : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
+                ];
 
-            if (!empty($var['meta_data'])) {
-                $wc_var['meta_data'] = $var['meta_data'];
+                if (!empty($var['meta_data'])) {
+                    $wc_var['meta_data'] = $var['meta_data'];
+                }
+
+                $wc_product['_variations'][] = $wc_var;
             }
-
-            $wc_product['_variations'][] = $wc_var;
         }
 
         $this->stats['transformed']++;
@@ -372,13 +474,12 @@ class WcProductBuilder
     // =========================================================================
 
     /**
-     * Build WC images array from pre-uploaded media IDs only
+     * Build WC images array from pre-uploaded media IDs with URL fallback
      *
      * Primary image is first. Gallery images follow.
-     * Only uses pre-uploaded media from image-map.json (via prepare-media).
-     * Never falls back to sideloading (src URLs) — that causes WooCommerce
-     * to download images during batch import, making it extremely slow and
-     * creating duplicate media entries.
+     * Prefers pre-uploaded media from image-map.json (via prepare-media).
+     * Falls back to sideloading via src URL when no pre-uploaded media exists,
+     * because having a slow sideload is better than having no image at all.
      */
     private function buildWcImages(
         string $sku,
@@ -390,22 +491,59 @@ class WcProductBuilder
     ): array {
         $images = [];
 
-        // Primary image: only use pre-uploaded media ID
+        // Primary image: use pre-uploaded media ID only
+        // Sideloading via src URL is disabled — it causes WC batch timeouts
+        // because WooCommerce downloads each image server-side during the request.
+        // Products without pre-uploaded images get created without images;
+        // run prepare-media + a follow-up sync to attach them.
         $image_id = $this->image_map[$sku]['media_id'] ?? null;
 
         if ($image_id) {
-            $images[] = ['id' => $image_id];
+            $images[] = [
+                'id' => $image_id,
+                'name' => $sku . '.jpg',
+                'alt' => $this->parseTemplate(
+                    $this->config['templates']['image_alt'] ?? '{product_name}',
+                    $tpl
+                ),
+            ];
         } else {
             $this->log('debug', "  No pre-uploaded image for {$sku}, skipping (run prepare-media to upload)");
         }
 
-        // Gallery images: only use pre-uploaded IDs
+        // Gallery images: use pre-uploaded IDs only (no sideloading)
         $gallery_ids = $this->image_map[$sku]['gallery_ids'] ?? [];
-        foreach ($gallery_ids as $gal_id) {
-            $images[] = ['id' => $gal_id];
+        if (!empty($gallery_ids)) {
+            foreach ($gallery_ids as $gal_idx => $gal_id) {
+                $images[] = [
+                    'id' => $gal_id,
+                    'name' => $sku . '-gallery-' . ($gal_idx + 1) . '.jpg',
+                ];
+            }
         }
 
         return $images;
+    }
+
+    /**
+     * Sanitize CDN image URLs for WordPress compatibility
+     *
+     * StockX CDN URLs with fm=webp cause WordPress upload failures because
+     * the CDN serves WebP content despite the .jpg extension, triggering
+     * a MIME type mismatch. Converting fm=webp to fm=jpg ensures the CDN
+     * serves JPEG content that matches the file extension.
+     *
+     * @param string $url Image URL
+     * @return string Sanitized URL
+     */
+    private function sanitizeImageUrl(string $url): string
+    {
+        // Convert fm=webp to fm=jpg in StockX CDN URLs to prevent MIME mismatch
+        if (strpos($url, 'stockx') !== false || strpos($url, 'stockx-assets') !== false) {
+            $url = preg_replace('/([?&])fm=webp/', '$1fm=jpg', $url);
+        }
+
+        return $url;
     }
 
     // =========================================================================
@@ -463,7 +601,8 @@ class WcProductBuilder
     /**
      * Normalize category type from API to config key
      *
-     * KicksDB may return "Shoes", "sneakers", etc.
+     * KicksDB may return "Shoes", "sneakers", "streetwear", "collectibles", etc.
+     * The catalog_section from brand-catalog.json overrides when present.
      */
     private function normalizeCategoryType(string $type): string
     {
@@ -471,8 +610,11 @@ class WcProductBuilder
         if (in_array($lower, ['shoes', 'sneakers', 'footwear'])) {
             return 'sneakers';
         }
-        if (in_array($lower, ['clothing', 'apparel'])) {
+        if (in_array($lower, ['clothing', 'apparel', 'streetwear', 'abbigliamento'])) {
             return 'clothing';
+        }
+        if (in_array($lower, ['accessories', 'accessori', 'collectibles'])) {
+            return 'accessories';
         }
         return 'sneakers';
     }
@@ -496,7 +638,17 @@ class WcProductBuilder
     }
 
     /**
-     * Format a date string to Italian format
+     * Extract the 4-digit year from a date string (e.g. "2021-10-12" → "2021")
+     */
+    private function extractYear(string $date): string
+    {
+        $date = preg_replace('/T.*$/', '', $date);
+        $ts = strtotime($date);
+        return $ts !== false ? date('Y', $ts) : '';
+    }
+
+    /**
+     * Format a date string to Italian format (used in product descriptions)
      */
     private function formatDate(string $date): string
     {

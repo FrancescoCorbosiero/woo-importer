@@ -1,24 +1,30 @@
 #!/bin/bash
 # =============================================================================
-# KicksDB Sync Pipeline - Crontab Entrypoint
+# Unified Sync Pipeline - Crontab Entrypoint
 # =============================================================================
 #
-# Full pipeline: discover → taxonomies → media → transform → delta sync → import
-# Source: KicksDB API (popular products auto-discovery)
+# Full pipeline: discover → taxonomies → media → unified-transform → delta sync → import
+# Source: KicksDB (catalog master) + Golden Sneakers (pricing/stock overlay)
+#
+# Merges both feeds at the variation level:
+# - Sizes available in GS get real supplier pricing and stock
+# - Sizes only in KicksDB get market-based pricing and synthetic stock
+# - GS-only products pass through with real inventory
 #
 # Usage:
-#   ./kicksdb-sync.sh                     # Full sync
-#   ./kicksdb-sync.sh --dry-run           # Preview everything
-#   ./kicksdb-sync.sh --skip-media        # Skip image upload step
-#   ./kicksdb-sync.sh --skip-discover     # Skip discovery (use cached assortment)
-#   ./kicksdb-sync.sh --force-full        # Force full import (ignore delta)
-#   ./kicksdb-sync.sh --verbose           # Detailed output from all steps
-#   ./kicksdb-sync.sh --limit=100         # Limit assortment size
-#   ./kicksdb-sync.sh --env=environment/clientA.env  # Multi-customer mode
+#   ./unified-sync.sh                     # Full sync
+#   ./unified-sync.sh --dry-run           # Preview everything
+#   ./unified-sync.sh --skip-media        # Skip image upload step
+#   ./unified-sync.sh --skip-discover     # Skip discovery (use cached assortment)
+#   ./unified-sync.sh --force-full        # Force full import (ignore delta)
+#   ./unified-sync.sh --verbose           # Detailed output from all steps
+#   ./unified-sync.sh --limit=100         # Limit assortment size
+#   ./unified-sync.sh --skip-gs           # Skip GS overlay (KicksDB only)
+#   ./unified-sync.sh --env=environment/clientA.env  # Multi-customer mode
 #
 # Multi-customer crontab (single install, multiple stores):
-#   0 */6 * * * cd /path/to/woo-importer && ./kicksdb-sync.sh --env=environment/clientA.env >> logs/clientA-kicksdb.log 2>&1
-#   0 */6 * * * cd /path/to/woo-importer && ./kicksdb-sync.sh --env=environment/clientB.env >> logs/clientB-kicksdb.log 2>&1
+#   0 */6 * * * cd /path/to/woo-importer && ./unified-sync.sh --env=environment/clientA.env >> logs/clientA-unified.log 2>&1
+#   0 */6 * * * cd /path/to/woo-importer && ./unified-sync.sh --env=environment/clientB.env >> logs/clientB-unified.log 2>&1
 #
 # =============================================================================
 
@@ -30,6 +36,7 @@ DRY_RUN=""
 VERBOSE=""
 SKIP_MEDIA=""
 SKIP_DISCOVER=""
+SKIP_GS=""
 FORCE_FULL=""
 LIMIT_ARG=""
 ENV_ARG=""
@@ -40,23 +47,25 @@ for arg in "$@"; do
         --verbose|-v)      VERBOSE="--verbose" ;;
         --skip-media)      SKIP_MEDIA="1" ;;
         --skip-discover)   SKIP_DISCOVER="1" ;;
+        --skip-gs)         SKIP_GS="--skip-gs" ;;
         --force-full)      FORCE_FULL="--force-full" ;;
         --limit=*)         LIMIT_ARG="$arg" ;;
         --env=*)           ENV_ARG="$arg" ;;
         --help|-h)
-            echo "Usage: ./kicksdb-sync.sh [options]"
+            echo "Usage: ./unified-sync.sh [options]"
             echo ""
             echo "Options:"
             echo "  --dry-run           Preview all changes without writing"
             echo "  --skip-media        Skip image upload step"
             echo "  --skip-discover     Skip discovery (use cached assortment)"
+            echo "  --skip-gs           Skip GS overlay (KicksDB only)"
             echo "  --force-full        Force full import (ignore delta)"
             echo "  --limit=N           Limit assortment size"
             echo "  --verbose, -v       Detailed output from all steps"
             echo "  --help, -h          Show this help"
             echo ""
             echo "Crontab:"
-            echo "  0 */6 * * * cd /path/to/woo-importer && ./kicksdb-sync.sh >> logs/cron-kicksdb.log 2>&1"
+            echo "  0 */6 * * * cd /path/to/woo-importer && ./unified-sync.sh >> logs/cron-unified.log 2>&1"
             exit 0
             ;;
     esac
@@ -72,7 +81,8 @@ mkdir -p "$DATA_DIR" logs
 
 echo ""
 echo "========================================"
-echo "  KicksDB Sync Pipeline"
+echo "  Unified Sync Pipeline"
+echo "  KicksDB + GS → WooCommerce"
 echo "  $(date '+%Y-%m-%d %H:%M:%S')"
 echo "========================================"
 echo ""
@@ -80,7 +90,9 @@ echo ""
 # Step 1: Discover popular products from KicksDB
 if [ -z "$SKIP_DISCOVER" ]; then
     echo "[Step 1/5] Discovering KicksDB assortment..."
-    php bin/kicksdb-discover $VERBOSE $LIMIT_ARG $DRY_RUN $ENV_ARG
+    # --skip-dedup: unified pipeline WANTS overlapping SKUs with GS
+    # (the FeedMerger handles dedup via variation-level merge)
+    php bin/kicksdb-discover --skip-dedup $VERBOSE $LIMIT_ARG $DRY_RUN $ENV_ARG
     echo ""
 else
     echo "[Step 1/5] Skipping discovery (--skip-discover)"
@@ -107,17 +119,17 @@ echo "[Step 3.5] Validating image map..."
 php bin/prepare-media --validate $VERBOSE $ENV_ARG
 echo ""
 
-# Step 4: Transform KicksDB feed → WooCommerce format
-echo "[Step 4/5] Transforming feed..."
-php bin/kicksdb-transform $VERBOSE $LIMIT_ARG $ENV_ARG
+# Step 4: Unified transform — merge KicksDB + GS → WooCommerce format
+echo "[Step 4/5] Transforming unified feed (KicksDB + GS merge)..."
+php bin/unified-transform $VERBOSE $LIMIT_ARG $SKIP_GS $ENV_ARG
 echo ""
 
 # Step 5: Delta sync + import
 echo "[Step 5/5] Running delta sync..."
 php bin/sync-wc \
-    --feed="$DATA_DIR/feed-kicksdb-wc-latest.json" \
-    --baseline="$DATA_DIR/feed-kicksdb-wc.json" \
-    --diff="$DATA_DIR/diff-kicksdb-wc.json" \
+    --feed="$DATA_DIR/feed-unified-wc-latest.json" \
+    --baseline="$DATA_DIR/feed-unified-wc.json" \
+    --diff="$DATA_DIR/diff-unified-wc.json" \
     $DRY_RUN $VERBOSE $FORCE_FULL $ENV_ARG
 
 echo ""
