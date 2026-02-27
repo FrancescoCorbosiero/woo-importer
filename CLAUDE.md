@@ -78,6 +78,7 @@ woo-importer/
 │   ├── import-wc                 # Generic WC JSON import
 │   ├── import-dir                # Shopify CSV directory import
 │   ├── bulk-upload               # Manual CSV/JSON import
+│   ├── health-check              # Store health diagnostic (prices, stock, staleness)
 │   ├── nuke-products             # Delete all WC products (dangerous)
 │   ├── gs-transform              # (legacy) GS feed → WC format
 │   ├── kicksdb-transform         # (legacy) KicksDB feed → WC format
@@ -276,3 +277,6 @@ STORE_NAME=ResellPiacenza
 - **image-map.json:** Delete this file to force re-upload of all images. Stale entries are auto-filtered by `prepare-media --validate`.
 - **Dry-run + images:** Never persist fake media IDs during `--dry-run`. Gallery upload returns `[]` in dry-run mode.
 - **KicksDB API filters:** Non-sneaker queries (clothing, accessories, collectibles) require the `filters=product_type=...` parameter. This is set automatically from `product_types` in the brand catalog.
+- **Sanity guards:** GS update and KicksDB price refresh have price change guards (`SANITY_MAX_PRICE_CHANGE_PCT=50`, `PRICING_REJECT_THRESHOLD=60`). If you see "REJECTED" in logs, the source data had a suspicious price swing. Set thresholds to 0 to disable.
+- **Feed-level guard:** GS update aborts if the API returns less than 50% of tracked products (`SANITY_MIN_FEED_RATIO=0.5`). This prevents mass-zeroing when the API is broken.
+- **Health check:** Run `bin/health-check` to diagnose silent cron failures (zero-price products, stale tracking files, log errors).

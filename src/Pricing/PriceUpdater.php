@@ -19,6 +19,7 @@ class PriceUpdater
 
     private int $batch_size;
     private float $alert_threshold;
+    private float $reject_threshold;
     private ?string $alert_email;
     private string $store_name;
     private bool $dry_run;
@@ -27,6 +28,7 @@ class PriceUpdater
         'variations_checked' => 0,
         'variations_updated' => 0,
         'variations_skipped' => 0,
+        'variations_rejected' => 0,
         'alerts_sent' => 0,
         'errors' => 0,
         'batch_requests' => 0,
@@ -42,6 +44,7 @@ class PriceUpdater
         $this->calculator = new PriceCalculator($pricing_config['margin'] ?? []);
         $this->batch_size = min((int) ($pricing_config['batch_size'] ?? 100), 100);
         $this->alert_threshold = (float) ($pricing_config['alert_threshold'] ?? 30);
+        $this->reject_threshold = (float) ($pricing_config['reject_threshold'] ?? 60);
         $this->alert_email = $pricing_config['alert_email'] ?? null;
         $this->store_name = $pricing_config['store_name'] ?? 'Store';
     }
@@ -97,9 +100,23 @@ class PriceUpdater
                 continue;
             }
 
-            if ($current_price > 0 && $this->alert_threshold > 0) {
+            if ($current_price > 0) {
                 $change_pct = abs(($new_price - $current_price) / $current_price) * 100;
-                if ($change_pct >= $this->alert_threshold) {
+
+                // Reject: block updates that exceed the reject threshold
+                if ($this->reject_threshold > 0 && $change_pct >= $this->reject_threshold) {
+                    $direction = $new_price > $current_price ? 'increase' : 'drop';
+                    $this->log('warning', "  REJECTED: {$sku} size {$size} price {$direction} " .
+                        number_format($change_pct, 1) . "%: €{$current_price} → €{$new_price} " .
+                        "(exceeds {$this->reject_threshold}% reject threshold)");
+                    $result['skipped']++;
+                    $this->stats['variations_rejected']++;
+                    $this->sendPriceAlert($sku, $product_name, $size, $current_price, $new_price, $change_pct, $breakdown);
+                    continue;
+                }
+
+                // Alert: log/email but still apply
+                if ($this->alert_threshold > 0 && $change_pct >= $this->alert_threshold) {
                     $this->sendPriceAlert($sku, $product_name, $size, $current_price, $new_price, $change_pct, $breakdown);
                 }
             }

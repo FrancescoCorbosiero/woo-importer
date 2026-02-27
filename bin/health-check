@@ -1,0 +1,361 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Store Health Check — Quick diagnostic for cron-managed pipelines
+ *
+ * Checks for common problems that cron jobs might cause silently:
+ * - Products with zero or suspiciously low prices
+ * - Products with all variations out of stock
+ * - Stale tracking files (cron not running or failing)
+ * - Recent error counts from log files
+ *
+ * Designed to be run manually or as a daily cron sanity check.
+ *
+ * @package ResellPiacenza\Support
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use Automattic\WooCommerce\Client;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Store Health Check
+Quick diagnostic for cron-managed WooCommerce pipelines.
+
+Usage:
+  bin/health-check [options]
+
+Options:
+  --verbose, -v       Show detailed per-product results
+  --env=FILE          Use alternate .env file
+  --help, -h          Show help
+
+Checks:
+  1. Products with zero price (regular_price = 0 or empty)
+  2. Products with all variations out of stock
+  3. Staleness of tracking files (gs-tracked-skus.json, sku-registry.json)
+  4. Recent errors in log files
+
+Examples:
+  bin/health-check                      # Quick summary
+  bin/health-check --verbose            # Detailed output
+
+HELP;
+    exit(0);
+}
+
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+
+$logger = LoggerFactory::create('HealthCheck', [
+    'file' => Config::projectRoot() . '/logs/health-check.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Store Health Check');
+$logger->info('  ' . date('Y-m-d H:i:s'));
+$logger->info('========================================');
+$logger->info('');
+
+$wc_url = rtrim(trim($config['woocommerce']['url'] ?? ''), ':');
+if (empty($wc_url)) {
+    $logger->error('WC_URL not configured');
+    exit(1);
+}
+
+$wc_client = new Client(
+    $wc_url,
+    $config['woocommerce']['consumer_key'],
+    $config['woocommerce']['consumer_secret'],
+    ['version' => $config['woocommerce']['version'] ?? 'wc/v3', 'timeout' => 120]
+);
+
+$issues = [];
+$warnings = [];
+
+// ============================================================================
+// Check 1: Fetch all published products and check prices
+// ============================================================================
+
+$logger->info('Check 1: Product prices...');
+
+$zero_price_products = [];
+$no_variations_products = [];
+$all_oos_products = [];
+$total_products = 0;
+
+$page = 1;
+do {
+    try {
+        $products = $wc_client->get('products', [
+            'per_page' => 100,
+            'page' => $page,
+            'status' => 'publish',
+        ]);
+    } catch (\Exception $e) {
+        $logger->error("  WC API error (page {$page}): " . $e->getMessage());
+        $issues[] = "WC API unreachable: " . $e->getMessage();
+        break;
+    }
+
+    foreach ($products as $product) {
+        $total_products++;
+        $sku = $product->sku ?? '(no sku)';
+        $name = $product->name ?? '(unnamed)';
+        $type = $product->type ?? 'simple';
+
+        if ($type === 'variable') {
+            // Check variations
+            try {
+                $variations = $wc_client->get("products/{$product->id}/variations", ['per_page' => 100]);
+            } catch (\Exception $e) {
+                $logger->debug("  [{$sku}] Failed to fetch variations: " . $e->getMessage());
+                continue;
+            }
+
+            if (empty($variations)) {
+                $no_variations_products[] = $sku;
+                if ($verbose) {
+                    $logger->warning("  [{$sku}] {$name} — variable product with 0 variations");
+                }
+                continue;
+            }
+
+            $all_oos = true;
+            $has_zero_price = false;
+
+            foreach ($variations as $var) {
+                $price = (float) ($var->regular_price ?? 0);
+                $stock_status = $var->stock_status ?? 'outofstock';
+
+                if ($price <= 0) {
+                    $has_zero_price = true;
+                }
+                if ($stock_status === 'instock') {
+                    $all_oos = false;
+                }
+            }
+
+            if ($has_zero_price) {
+                $zero_price_products[] = $sku;
+                if ($verbose) {
+                    $logger->warning("  [{$sku}] {$name} — has variations with zero price");
+                }
+            }
+            if ($all_oos) {
+                $all_oos_products[] = $sku;
+                if ($verbose) {
+                    $logger->debug("  [{$sku}] {$name} — all variations out of stock");
+                }
+            }
+        } else {
+            // Simple product
+            $price = (float) ($product->regular_price ?? 0);
+            if ($price <= 0) {
+                $zero_price_products[] = $sku;
+                if ($verbose) {
+                    $logger->warning("  [{$sku}] {$name} — zero price (simple product)");
+                }
+            }
+        }
+    }
+
+    $page++;
+    usleep(100000); // 100ms between pages
+} while (count($products) === 100);
+
+$logger->info("  Total published products: {$total_products}");
+
+if (!empty($zero_price_products)) {
+    $count = count($zero_price_products);
+    $logger->warning("  PROBLEM: {$count} products with zero price");
+    $issues[] = "{$count} products with zero price: " . implode(', ', array_slice($zero_price_products, 0, 5))
+        . ($count > 5 ? " (and " . ($count - 5) . " more)" : "");
+} else {
+    $logger->info("  Zero-price products: none");
+}
+
+if (!empty($no_variations_products)) {
+    $count = count($no_variations_products);
+    $logger->warning("  WARNING: {$count} variable products with no variations");
+    $warnings[] = "{$count} variable products with no variations";
+}
+
+if (!empty($all_oos_products)) {
+    $count = count($all_oos_products);
+    $oos_pct = $total_products > 0 ? round($count / $total_products * 100) : 0;
+    if ($oos_pct > 80) {
+        $logger->warning("  PROBLEM: {$count}/{$total_products} products fully out of stock ({$oos_pct}%)");
+        $issues[] = "{$oos_pct}% of products are fully out of stock";
+    } else {
+        $logger->info("  Fully out of stock: {$count}/{$total_products} ({$oos_pct}%)");
+    }
+}
+
+// ============================================================================
+// Check 2: Tracking file freshness
+// ============================================================================
+
+$logger->info('');
+$logger->info('Check 2: Tracking file freshness...');
+
+$data_dir = Config::dataDir();
+$stale_hours = 48; // Consider stale if older than 48h
+
+$tracking_files = [
+    'gs-tracked-skus.json' => 'GS tracked SKUs (updated by gs-update.sh)',
+    'sku-registry.json' => 'SKU registry (updated by pricing-reconcile)',
+    'feed-wc-latest.json' => 'Latest WC feed (updated by catalog-build)',
+];
+
+foreach ($tracking_files as $filename => $description) {
+    $filepath = $data_dir . '/' . $filename;
+
+    if (!file_exists($filepath)) {
+        $logger->info("  {$filename}: not found (pipeline may not have run yet)");
+        continue;
+    }
+
+    $mtime = filemtime($filepath);
+    $age_hours = round((time() - $mtime) / 3600, 1);
+
+    if ($age_hours > $stale_hours) {
+        $age_days = round($age_hours / 24, 1);
+        $logger->warning("  {$filename}: STALE — last modified {$age_days} days ago");
+        $warnings[] = "{$filename} is {$age_days} days old ({$description})";
+    } else {
+        $logger->info("  {$filename}: OK — {$age_hours}h ago");
+    }
+
+    // For gs-tracked-skus.json, check the updated_at field too
+    if ($filename === 'gs-tracked-skus.json') {
+        $data = json_decode(file_get_contents($filepath), true);
+        $total = $data['total'] ?? 0;
+        $updated_at = $data['updated_at'] ?? null;
+        $logger->info("    Tracking {$total} SKUs" . ($updated_at ? ", last update: {$updated_at}" : ""));
+    }
+}
+
+// Check gs-queue.json for pending items
+$queue_file = $data_dir . '/gs-queue.json';
+if (file_exists($queue_file)) {
+    $queue = json_decode(file_get_contents($queue_file), true) ?: [];
+    $queue_count = count($queue);
+    if ($queue_count > 0) {
+        $logger->info("  gs-queue.json: {$queue_count} SKUs pending catalog-build");
+        if ($queue_count > 50) {
+            $warnings[] = "{$queue_count} GS SKUs pending catalog-build (queue growing)";
+        }
+    }
+}
+
+// ============================================================================
+// Check 3: Recent log errors
+// ============================================================================
+
+$logger->info('');
+$logger->info('Check 3: Recent log errors...');
+
+$log_dir = Config::projectRoot() . '/logs';
+$error_summary = [];
+
+if (is_dir($log_dir)) {
+    $log_files = glob($log_dir . '/*.log');
+
+    foreach ($log_files as $log_file) {
+        $basename = basename($log_file);
+
+        // Skip our own log
+        if (strpos($basename, 'health-check') !== false) {
+            continue;
+        }
+
+        // Only check files modified in last 48h
+        if (time() - filemtime($log_file) > $stale_hours * 3600) {
+            continue;
+        }
+
+        // Count ERROR lines in last 200 lines
+        $lines = file($log_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $recent = array_slice($lines, -200);
+
+        $error_count = 0;
+        foreach ($recent as $line) {
+            if (preg_match('/\.(ERROR|CRITICAL|EMERGENCY)\b/', $line)) {
+                $error_count++;
+            }
+        }
+
+        if ($error_count > 0) {
+            $error_summary[$basename] = $error_count;
+            $logger->warning("  {$basename}: {$error_count} errors in recent entries");
+        } else {
+            $logger->info("  {$basename}: clean");
+        }
+    }
+} else {
+    $logger->info("  No logs directory found");
+}
+
+if (!empty($error_summary)) {
+    $total_errors = array_sum($error_summary);
+    $warnings[] = "{$total_errors} recent errors across " . count($error_summary) . " log files";
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  HEALTH CHECK RESULT');
+$logger->info('========================================');
+
+$exit_code = 0;
+
+if (empty($issues) && empty($warnings)) {
+    $logger->info('  Status: HEALTHY');
+    $logger->info('  No issues detected.');
+} else {
+    if (!empty($issues)) {
+        $logger->error('  Status: PROBLEMS DETECTED');
+        foreach ($issues as $i => $issue) {
+            $logger->error('  ' . ($i + 1) . '. ' . $issue);
+        }
+        $exit_code = 1;
+    }
+
+    if (!empty($warnings)) {
+        if (empty($issues)) {
+            $logger->warning('  Status: WARNINGS');
+        }
+        $logger->warning('');
+        $logger->warning('  Warnings:');
+        foreach ($warnings as $i => $warning) {
+            $logger->warning('  - ' . $warning);
+        }
+    }
+}
+
+$logger->info('');
+$logger->info("  Products checked: {$total_products}");
+$logger->info("  Issues: " . count($issues));
+$logger->info("  Warnings: " . count($warnings));
+$logger->info('========================================');
+
+exit($exit_code);

@@ -145,6 +145,25 @@ try {
 }
 
 // ============================================================================
+// Sanity guard: feed-level check
+// ============================================================================
+
+$min_feed_ratio = (float) ($config['sanity']['min_feed_ratio'] ?? 0.5);
+$tracked_count = count($tracked_skus);
+$gs_count = count($gs_products);
+
+if ($tracked_count > 0 && $gs_count > 0 && $min_feed_ratio > 0) {
+    $ratio = $gs_count / $tracked_count;
+    if ($ratio < $min_feed_ratio) {
+        $pct = round($ratio * 100);
+        $logger->error("  SANITY ABORT: GS returned {$gs_count} products but we track {$tracked_count} ({$pct}% of expected).");
+        $logger->error("  This looks like a broken API response. Aborting to protect existing prices.");
+        $logger->error("  Override with SANITY_MIN_FEED_RATIO=0 in .env to disable this check.");
+        exit(1);
+    }
+}
+
+// ============================================================================
 // Step 3: Compare and find changes
 // ============================================================================
 
@@ -154,6 +173,8 @@ $logger->info('Step 3: Detecting changes...');
 $changes = [];        // SKU → changed variations
 $new_queue = [];      // New GS SKUs not yet tracked
 $unchanged = 0;
+$rejected = 0;        // Variations rejected by sanity guard
+$max_price_change_pct = (float) ($config['sanity']['max_price_change_pct'] ?? 50);
 
 foreach ($gs_products as $sku => $gs_product) {
     if (!isset($tracked_skus[$sku])) {
@@ -194,6 +215,31 @@ foreach ($gs_products as $sku => $gs_product) {
         $price_changed = abs(($old['price'] ?? 0) - $new_price) > 0.01;
         $stock_changed = ($old['stock_quantity'] ?? 0) !== $new_stock;
 
+        // Sanity guard: reject suspiciously large price changes
+        $old_price_val = (float) ($old['price'] ?? 0);
+        if ($price_changed && $old_price_val > 0 && $max_price_change_pct > 0) {
+            $change_pct = abs($new_price - $old_price_val) / $old_price_val * 100;
+            if ($change_pct >= $max_price_change_pct) {
+                $direction = $new_price > $old_price_val ? 'increase' : 'drop';
+                $logger->warning("  [{$sku}] EU {$size}: REJECTED — price {$direction} " .
+                    number_format($change_pct, 1) . "% (€{$old_price_val}→€{$new_price}), " .
+                    "exceeds {$max_price_change_pct}% threshold");
+                $rejected++;
+                // Still allow stock-only updates
+                if ($stock_changed) {
+                    $product_changes[$size] = [
+                        'price' => $old_price_val,  // Keep old price
+                        'stock_quantity' => $new_stock,
+                        'stock_status' => $new_status,
+                        'reason' => 'stock (price rejected)',
+                        'old_price' => $old_price_val,
+                        'old_stock' => $old['stock_quantity'] ?? 0,
+                    ];
+                }
+                continue;
+            }
+        }
+
         if ($price_changed || $stock_changed) {
             $product_changes[$size] = [
                 'price' => $new_price,
@@ -219,6 +265,9 @@ $logger->info("  Products with changes: " . count($changes));
 $logger->info("  Total variation changes: {$total_var_changes}");
 $logger->info("  Unchanged products: {$unchanged}");
 $logger->info("  New GS SKUs (queued): " . count($new_queue));
+if ($rejected > 0) {
+    $logger->warning("  Price changes REJECTED (sanity): {$rejected}");
+}
 
 if (empty($changes) && empty($new_queue)) {
     $logger->info('');
@@ -425,6 +474,7 @@ $logger->info("  Variations updated:     {$stats['variations_updated']}");
 $logger->info("  Variations skipped:     {$stats['variations_skipped']}");
 $logger->info("  Batch requests:         {$stats['batch_requests']}");
 $logger->info("  Errors:                 {$stats['errors']}");
+$logger->info("  Price changes rejected: {$rejected}");
 $logger->info("  New SKUs queued:        " . count($new_queue));
 $logger->info("  Duration:               {$duration}s");
 $logger->info('========================================');

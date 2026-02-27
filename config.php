@@ -323,11 +323,28 @@ return [
 
         // Price alert threshold (% change to trigger email). 0 = disabled
         'alert_threshold' => (float) env('PRICING_ALERT_THRESHOLD', 30),
+        // Price reject threshold (% change to block the update entirely). 0 = disabled
+        // Must be higher than alert_threshold. Changes beyond this are considered bad data.
+        'reject_threshold' => (float) env('PRICING_REJECT_THRESHOLD', 60),
         'alert_email' => env('PRICING_ALERT_EMAIL', ''),
         'store_name' => env('STORE_NAME', 'ResellPiacenza'),
 
         // Batch size for WC API variation updates
         'batch_size' => (int) env('PRICING_BATCH_SIZE', 100),
+    ],
+
+    // ===========================================
+    // Sanity Guards (cron safety)
+    // ===========================================
+    'sanity' => [
+        // Maximum allowed price change percentage per variation (0 = disabled)
+        // GS updates exceeding this threshold are rejected to prevent bad data
+        'max_price_change_pct' => (float) env('SANITY_MAX_PRICE_CHANGE_PCT', 50),
+
+        // Minimum ratio of GS feed size vs tracked SKU count (0 = disabled)
+        // If GS returns fewer than this fraction of expected products, abort
+        // e.g. 0.5 = abort if GS returns less than 50% of tracked products
+        'min_feed_ratio' => (float) env('SANITY_MIN_FEED_RATIO', 0.5),
     ],
 
     // ===========================================
