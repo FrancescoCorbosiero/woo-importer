@@ -331,6 +331,18 @@ return [
     ],
 
     // ===========================================
+    // Golden Sneakers Sale Pricing
+    // ===========================================
+    // When enabled, GS-sourced variations show a "Sale" badge in WooCommerce:
+    //   regular_price = GS price × (1 + markup/100)  ← crossed-out "original"
+    //   sale_price    = GS price                      ← actual selling price
+    // This makes GS products appear discounted relative to their KicksDB-margin equivalents.
+    'gs_sale_pricing' => [
+        'enabled' => env('GS_SALE_PRICING_ENABLED', false),
+        'markup_percentage' => (float) env('GS_SALE_PRICING_MARKUP', 15),
+    ],
+
+    // ===========================================
     // Logging Configuration
     // ===========================================
     'logging' => [

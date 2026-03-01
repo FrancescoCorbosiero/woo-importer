@@ -308,6 +308,15 @@ try {
             $wc['meta_data'][] = ['key' => '_catalog_subcategory', 'value' => $catalog_subcategory];
         }
 
+        // --- GS catalog tag: marks products present in the Golden Sneakers catalog ---
+        // Enables querying all GS products via WC meta, and future sale badge support
+        $is_gs = !empty($meta['gs_tracked'])
+            || $catalog_discovery === 'gs_enriched'
+            || $catalog_discovery === 'gs_only';
+        if ($is_gs) {
+            $wc['meta_data'][] = ['key' => '_gs_catalog', 'value' => '1'];
+        }
+
         $catalog_indexed++;
 
         // --- Brand taxonomy enrichment: only for discovery=brand sections ---
