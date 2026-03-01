@@ -35,6 +35,7 @@ class TaxonomyManager
 
     private $map = [
         'categories' => [],
+        'subcategories' => [],
         'attributes' => [],
         'brands' => [],
     ];
@@ -512,6 +513,103 @@ class TaxonomyManager
     }
 
     /**
+     * Create hierarchical product sub-categories from the catalog structure
+     *
+     * For brand-mode sections: each brand name becomes a sub-category under the parent
+     *   e.g. Sneakers > Nike, Sneakers > Jordan, Abbigliamento > Supreme
+     *
+     * For query-mode sections: each item label becomes a sub-category under the parent
+     *   e.g. Accessori > Beanie, Accessori > Labubu
+     *
+     * Sub-category IDs are stored in taxonomy map under 'subcategories' keyed by
+     * parent category slug, for downstream use by catalog-transform.
+     */
+    private function ensureCatalogSubcategories(): void
+    {
+        $assortment_file = Config::dataDir() . '/kicksdb-assortment.json';
+
+        if (!file_exists($assortment_file)) {
+            $this->logger->error("KicksDB assortment not found: {$assortment_file}");
+            return;
+        }
+
+        $data = json_decode(file_get_contents($assortment_file), true);
+        $catalog = $data['catalog'] ?? null;
+
+        if (!$catalog || empty($catalog['sections'])) {
+            $this->logger->error("No catalog sections found in assortment.");
+            return;
+        }
+
+        $total_created = 0;
+
+        foreach ($catalog['sections'] as $section) {
+            $section_name = $section['name'] ?? '';
+            $wc_category_key = $section['wc_category'] ?? '';
+            $discovery_mode = $section['discovery'] ?? '';
+
+            if (empty($wc_category_key)) {
+                continue;
+            }
+
+            // Resolve parent category config and ID
+            $parent_config = $this->config['categories'][$wc_category_key] ?? null;
+            if (!$parent_config) {
+                $this->logger->warning("  No category config for '{$wc_category_key}', skipping section '{$section_name}'");
+                continue;
+            }
+
+            $parent_slug = $parent_config['slug'];
+            $parent_id = $this->map['categories'][$parent_slug] ?? null;
+            if (!$parent_id) {
+                $this->logger->warning("  Parent category '{$parent_slug}' not in taxonomy map, skipping section '{$section_name}'");
+                continue;
+            }
+
+            // Initialize subcategory map for this parent
+            if (!isset($this->map['subcategories'][$parent_slug])) {
+                $this->map['subcategories'][$parent_slug] = [];
+            }
+
+            $this->logger->info("  {$section_name} ({$parent_slug}, {$discovery_mode} mode):");
+
+            // Collect sub-category names based on discovery mode
+            $subcat_names = [];
+
+            if ($discovery_mode === 'brand') {
+                // Brand-mode: each brand name is a sub-category
+                foreach ($section['brands'] ?? [] as $brand_entry) {
+                    $name = $brand_entry['name'] ?? '';
+                    if ($name && !in_array($name, $subcat_names)) {
+                        $subcat_names[] = $name;
+                    }
+                }
+            } elseif ($discovery_mode === 'query') {
+                // Query-mode: each item label is a sub-category
+                foreach ($section['items'] ?? [] as $item) {
+                    $name = $item['label'] ?? '';
+                    if ($name && !in_array($name, $subcat_names)) {
+                        $subcat_names[] = $name;
+                    }
+                }
+            }
+
+            // Create sub-categories under parent
+            foreach ($subcat_names as $subcat_name) {
+                $subcat_slug = $this->sanitizeSlug($subcat_name);
+                $subcat_id = $this->ensureCategory($subcat_name, $subcat_slug, $parent_id);
+
+                if ($subcat_id) {
+                    $this->map['subcategories'][$parent_slug][$subcat_slug] = $subcat_id;
+                    $total_created++;
+                }
+            }
+        }
+
+        $this->logger->info("  Total sub-categories: {$total_created}");
+    }
+
+    /**
      * Extract brand entries from catalog, supporting both formats
      *
      * @param array $catalog Catalog structure from assortment
@@ -596,6 +694,7 @@ class TaxonomyManager
             if (file_exists($map_file)) {
                 $existing = json_decode(file_get_contents($map_file), true) ?: [];
                 $this->map['categories'] = $existing['categories'] ?? [];
+                $this->map['subcategories'] = $existing['subcategories'] ?? [];
                 $this->map['attributes'] = $existing['attributes'] ?? [];
                 $this->map['brands'] = $existing['brands'] ?? [];
                 $this->logger->debug("Loaded existing map: " .
@@ -638,6 +737,13 @@ class TaxonomyManager
                 $this->ensureCatalogBrands();
             }
 
+            // Catalog sub-categories (Parent Category > Sub-category)
+            if ($this->brand_source === 'catalog') {
+                $this->logger->info('');
+                $this->logger->info('Creating catalog sub-categories...');
+                $this->ensureCatalogSubcategories();
+            }
+
             // Brands (WC brands taxonomy)
             if ($this->config['brands']['enabled'] ?? true) {
                 $this->logger->info('');
@@ -672,6 +778,11 @@ class TaxonomyManager
             $this->logger->info("  Categories: {$this->stats['categories_existing']} existing, {$this->stats['categories_created']} created");
             $this->logger->info("  Attributes: {$this->stats['attributes_existing']} existing, {$this->stats['attributes_created']} created");
             $this->logger->info("  Brands:     {$this->stats['brands_existing']} existing, {$this->stats['brands_created']} created");
+            $subcat_total = 0;
+            foreach ($this->map['subcategories'] as $entries) {
+                $subcat_total += count($entries);
+            }
+            $this->logger->info("  Sub-cats:   {$subcat_total} across " . count($this->map['subcategories']) . " parents");
             $this->logger->info("  Total in map: " . count($this->map['brands']) . " brands");
             $this->logger->info("  Duration:   {$duration}s");
             $this->logger->info("  Saved to:   {$map_file}");
