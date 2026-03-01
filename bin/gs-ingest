@@ -92,6 +92,37 @@ if ($skip_enrich) {
 $logger->info('');
 
 // ============================================================================
+// Helper: Infer catalog section from product type
+// ============================================================================
+
+/**
+ * Map a KicksDB product_type or GS category_type to catalog section + wc_category.
+ *
+ * This gives GS-enriched and GS-only products a best-effort catalog placement
+ * so they carry the same provenance metadata as catalog-discovered products.
+ *
+ * @param string $product_type Product type from KicksDB or GS adapter
+ * @return array{section: string, wc_category: string}
+ */
+function inferCatalogSection(string $product_type): array
+{
+    $lower = strtolower(trim($product_type));
+
+    if (in_array($lower, ['sneakers', 'shoes', 'footwear', ''])) {
+        return ['section' => 'sneakers', 'wc_category' => 'sneakers'];
+    }
+    if (in_array($lower, ['streetwear', 'apparel', 'clothing'])) {
+        return ['section' => 'abbigliamento', 'wc_category' => 'clothing'];
+    }
+    if (in_array($lower, ['collectibles', 'accessories'])) {
+        return ['section' => 'accessori', 'wc_category' => 'accessories'];
+    }
+
+    // Default: sneakers (most GS products are sneakers)
+    return ['section' => 'sneakers', 'wc_category' => 'sneakers'];
+}
+
+// ============================================================================
 // Step 1: Load KicksDB assortment
 // ============================================================================
 
@@ -198,6 +229,7 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
 
             if ($product !== null) {
                 $data = $product['data'] ?? $product;
+                $inferred = inferCatalogSection($data['product_type'] ?? '');
                 $kdb_products[$sku] = [
                     'sku' => $sku,
                     'name' => $data['title'] ?? $data['name'] ?? $gs_products[$sku]['name'] ?? '',
@@ -221,8 +253,8 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
                     'release_date' => $data['release_date'] ?? '',
                     'catalog_brand' => '',
                     'catalog_subcategory' => '',
-                    'catalog_section' => '',
-                    'catalog_wc_category' => null, // Will be auto-detected by WcProductBuilder
+                    'catalog_section' => $inferred['section'],
+                    'catalog_wc_category' => $inferred['wc_category'],
                     'catalog_discovery' => 'gs_enriched',
                     'gs_tracked' => true,
                     'source' => 'gs_enriched',
@@ -233,6 +265,7 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
             } else {
                 // Fallback: use GS data as-is (minimal metadata)
                 $gs_p = $gs_products[$sku];
+                $inferred_gs = inferCatalogSection($gs_p['category_type'] ?? 'sneakers');
                 $kdb_products[$sku] = [
                     'sku' => $sku,
                     'name' => $gs_p['name'] ?? '',
@@ -256,8 +289,8 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
                     'release_date' => '',
                     'catalog_brand' => '',
                     'catalog_subcategory' => '',
-                    'catalog_section' => '',
-                    'catalog_wc_category' => null,
+                    'catalog_section' => $inferred_gs['section'],
+                    'catalog_wc_category' => $inferred_gs['wc_category'],
                     'catalog_discovery' => 'gs_only',
                     'gs_tracked' => true,
                     'source' => 'gs_only',
@@ -272,6 +305,7 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
         $logger->warning("  KICKSDB_API_KEY not set, adding all new GS SKUs as GS-only");
         foreach ($gs_new_skus as $sku) {
             $gs_p = $gs_products[$sku];
+            $inferred_gs = inferCatalogSection($gs_p['category_type'] ?? 'sneakers');
             $kdb_products[$sku] = [
                 'sku' => $sku,
                 'name' => $gs_p['name'] ?? '',
@@ -295,8 +329,8 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
                 'release_date' => '',
                 'catalog_brand' => '',
                 'catalog_subcategory' => '',
-                'catalog_section' => '',
-                'catalog_wc_category' => null,
+                'catalog_section' => $inferred_gs['section'],
+                'catalog_wc_category' => $inferred_gs['wc_category'],
                 'catalog_discovery' => 'gs_only',
                 'gs_tracked' => true,
                 'source' => 'gs_only',
@@ -311,6 +345,7 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
     // --skip-enrich: add all new GS SKUs as GS-only
     foreach ($gs_new_skus as $sku) {
         $gs_p = $gs_products[$sku];
+        $inferred_gs = inferCatalogSection($gs_p['category_type'] ?? 'sneakers');
         $kdb_products[$sku] = [
             'sku' => $sku,
             'name' => $gs_p['name'] ?? '',
@@ -334,8 +369,8 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
             'release_date' => '',
             'catalog_brand' => '',
             'catalog_subcategory' => '',
-            'catalog_section' => '',
-            'catalog_wc_category' => null,
+            'catalog_section' => $inferred_gs['section'],
+            'catalog_wc_category' => $inferred_gs['wc_category'],
             'catalog_discovery' => 'gs_only',
             'gs_tracked' => true,
             'source' => 'gs_only',
@@ -346,11 +381,104 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
 }
 
 // ============================================================================
-// Step 4: Save outputs
+// Step 4: Build catalog index (reverse lookup)
 // ============================================================================
 
 $logger->info('');
-$logger->info('Step 4: Saving outputs...');
+$logger->info('Step 4: Building catalog index...');
+
+$catalog_index = [
+    'built_at' => date('c'),
+    'total' => 0,
+    'sections' => [],
+    'gs_enriched' => [],
+    'gs_only' => [],
+    'uncategorized' => [],
+];
+
+foreach ($kdb_products as $sku => $p) {
+    $section = $p['catalog_section'] ?? '';
+    $discovery = $p['catalog_discovery'] ?? '';
+    $wc_cat = $p['catalog_wc_category'] ?? '';
+    $brand = $p['catalog_brand'] ?? '';
+    $subcategory = $p['catalog_subcategory'] ?? '';
+
+    // Track GS-sourced products separately
+    if ($discovery === 'gs_enriched') {
+        $catalog_index['gs_enriched'][] = $sku;
+    } elseif ($discovery === 'gs_only') {
+        $catalog_index['gs_only'][] = $sku;
+    }
+
+    // Skip products without a catalog section
+    if (empty($section)) {
+        $catalog_index['uncategorized'][] = $sku;
+        continue;
+    }
+
+    // Initialize section if needed
+    if (!isset($catalog_index['sections'][$section])) {
+        $catalog_index['sections'][$section] = [
+            'wc_category' => $wc_cat,
+            'discovery' => $discovery === 'gs_enriched' || $discovery === 'gs_only'
+                ? 'mixed'
+                : $discovery,
+            'total' => 0,
+            'entries' => [],
+        ];
+    }
+
+    $catalog_index['sections'][$section]['total']++;
+
+    // Build the entries hierarchy based on discovery mode
+    if ($discovery === 'brand' && !empty($brand)) {
+        // Brand-mode: section → brand → subcategory → [skus]
+        if (!isset($catalog_index['sections'][$section]['entries'][$brand])) {
+            $catalog_index['sections'][$section]['entries'][$brand] = [
+                'total' => 0,
+                'queries' => [],
+            ];
+        }
+        $catalog_index['sections'][$section]['entries'][$brand]['total']++;
+
+        $query_key = $subcategory ?: '_uncategorized';
+        $catalog_index['sections'][$section]['entries'][$brand]['queries'][$query_key][] = $sku;
+    } elseif ($discovery === 'query' && !empty($subcategory)) {
+        // Query-mode: section → item_label → [skus]
+        if (!isset($catalog_index['sections'][$section]['entries'][$subcategory])) {
+            $catalog_index['sections'][$section]['entries'][$subcategory] = [
+                'total' => 0,
+                'skus' => [],
+            ];
+        }
+        $catalog_index['sections'][$section]['entries'][$subcategory]['total']++;
+        $catalog_index['sections'][$section]['entries'][$subcategory]['skus'][] = $sku;
+    } else {
+        // GS-enriched/GS-only: section → _gs → [skus]
+        if (!isset($catalog_index['sections'][$section]['entries']['_gs'])) {
+            $catalog_index['sections'][$section]['entries']['_gs'] = [
+                'total' => 0,
+                'skus' => [],
+            ];
+        }
+        $catalog_index['sections'][$section]['entries']['_gs']['total']++;
+        $catalog_index['sections'][$section]['entries']['_gs']['skus'][] = $sku;
+    }
+}
+
+$catalog_index['total'] = count($kdb_products);
+
+$logger->info("  Catalog index: " . count($catalog_index['sections']) . " sections, " .
+    count($catalog_index['gs_enriched']) . " gs_enriched, " .
+    count($catalog_index['gs_only']) . " gs_only, " .
+    count($catalog_index['uncategorized']) . " uncategorized");
+
+// ============================================================================
+// Step 5: Save outputs
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 5: Saving outputs...');
 
 $merged_products = array_values($kdb_products);
 
@@ -385,9 +513,18 @@ if (!$dry_run) {
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
     );
     $logger->info("  Saved GS tracked SKUs: {$gs_tracked_file} (" . count($gs_tracked) . " SKUs)");
+
+    // Save catalog index (reverse lookup: section → brand/item → SKUs)
+    $catalog_index_file = Config::dataDir() . '/catalog-index.json';
+    file_put_contents(
+        $catalog_index_file,
+        json_encode($catalog_index, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    );
+    $logger->info("  Saved catalog index: {$catalog_index_file}");
 } else {
     $logger->info("  [DRY RUN] Would save " . count($merged_products) . " products to merged-assortment.json");
     $logger->info("  [DRY RUN] Would save " . count($gs_tracked) . " tracked SKUs to gs-tracked-skus.json");
+    $logger->info("  [DRY RUN] Would save catalog index (" . count($catalog_index['sections']) . " sections) to catalog-index.json");
 }
 
 // ============================================================================

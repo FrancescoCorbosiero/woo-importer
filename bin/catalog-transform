@@ -264,7 +264,7 @@ try {
     $logger->info("Release ordering: {$release_ordered}/" . count($wc_products) . " products have release dates");
 
     // ========================================================================
-    // Brand enrichment (only for discovery=brand sections)
+    // Catalog provenance metadata (ALL products)
     // ========================================================================
 
     $catalog = $assortment['catalog'] ?? null;
@@ -274,7 +274,8 @@ try {
         : [];
     $brands_map = $taxonomy_map['brands'] ?? [];
 
-    $catalog_enriched = 0;
+    $catalog_indexed = 0;
+    $catalog_brand_enriched = 0;
     foreach ($wc_products as &$wc) {
         $sku = $wc['sku'] ?? '';
         if (!isset($assortment_map[$sku])) {
@@ -282,16 +283,36 @@ try {
         }
 
         $meta = $assortment_map[$sku];
+        $wc['meta_data'] = $wc['meta_data'] ?? [];
 
-        // Only enrich brands for discovery=brand sections
-        // Query-mode items (Accessori) don't have real brand hierarchies
-        if (($meta['catalog_discovery'] ?? '') !== 'brand') {
-            continue;
-        }
-
+        // --- Catalog provenance: persisted for ALL products regardless of discovery mode ---
+        $catalog_section = $meta['catalog_section'] ?? '';
+        $catalog_discovery = $meta['catalog_discovery'] ?? '';
+        $catalog_wc_category = $meta['catalog_wc_category'] ?? '';
         $catalog_brand = $meta['catalog_brand'] ?? '';
         $catalog_subcategory = $meta['catalog_subcategory'] ?? '';
-        if (empty($catalog_brand) || empty($catalog_subcategory)) {
+
+        if ($catalog_section) {
+            $wc['meta_data'][] = ['key' => '_catalog_section', 'value' => $catalog_section];
+        }
+        if ($catalog_discovery) {
+            $wc['meta_data'][] = ['key' => '_catalog_discovery', 'value' => $catalog_discovery];
+        }
+        if ($catalog_wc_category) {
+            $wc['meta_data'][] = ['key' => '_catalog_wc_category', 'value' => $catalog_wc_category];
+        }
+        if ($catalog_brand) {
+            $wc['meta_data'][] = ['key' => '_catalog_brand', 'value' => $catalog_brand];
+        }
+        if ($catalog_subcategory) {
+            $wc['meta_data'][] = ['key' => '_catalog_subcategory', 'value' => $catalog_subcategory];
+        }
+
+        $catalog_indexed++;
+
+        // --- Brand taxonomy enrichment: only for discovery=brand sections ---
+        // Query-mode items (Accessori) don't have brand hierarchies in the catalog
+        if ($catalog_discovery !== 'brand' || empty($catalog_brand) || empty($catalog_subcategory)) {
             continue;
         }
 
@@ -329,15 +350,12 @@ try {
         }
         $wc['brands'] = $existing;
 
-        $wc['meta_data'] = $wc['meta_data'] ?? [];
-        $wc['meta_data'][] = ['key' => '_catalog_brand', 'value' => $catalog_brand];
-        $wc['meta_data'][] = ['key' => '_catalog_subcategory', 'value' => $catalog_subcategory];
-
-        $catalog_enriched++;
+        $catalog_brand_enriched++;
     }
     unset($wc);
 
-    $logger->info("Catalog enrichment: {$catalog_enriched}/" . count($wc_products) . " products assigned sub-brands");
+    $logger->info("Catalog provenance: {$catalog_indexed}/" . count($wc_products) . " products indexed");
+    $logger->info("Brand enrichment: {$catalog_brand_enriched}/" . count($wc_products) . " products assigned sub-brands");
 
     // ========================================================================
     // Write output
@@ -388,7 +406,8 @@ try {
     $logger->info("  With image:           {$builder_stats['with_image']}");
     $logger->info("  With gallery:         {$builder_stats['with_gallery']}");
     $logger->info("  Without image:        {$builder_stats['without_image']}");
-    $logger->info("  Brand enriched:       {$catalog_enriched}");
+    $logger->info("  Catalog indexed:      {$catalog_indexed}");
+    $logger->info("  Brand enriched:       {$catalog_brand_enriched}");
     $logger->info("  Duration:             {$duration}s");
     $logger->info("  Output:               {$output_file}");
     $logger->info('================================');
