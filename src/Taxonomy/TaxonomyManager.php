@@ -573,41 +573,61 @@ class TaxonomyManager
 
             $this->logger->info("  {$section_name} ({$parent_slug}, {$discovery_mode} mode):");
 
-            // Collect sub-category names based on discovery mode
-            // NOTE: Brands (Nike, Jordan, Supreme) stay in pa_marca taxonomy only.
-            //       Sub-categories here are product lines/types, never brand names.
-            $subcat_names = [];
+            if (!empty($section['subcategories'])) {
+                // Explicit subcategories with keyword matching (e.g. Abbigliamento)
+                // Products are classified by keyword match against query/title, not by brand name
+                foreach ($section['subcategories'] as $subcat_def) {
+                    $subcat_name = $subcat_def['name'] ?? '';
+                    $keywords = $subcat_def['keywords'] ?? [];
+                    if (empty($subcat_name)) {
+                        continue;
+                    }
 
-            if ($discovery_mode === 'brand') {
-                // Brand-mode: each QUERY is a sub-category (product line / garment type)
-                // e.g. Sneakers > Nike Dunk, Sneakers > Jordan 1, Abbigliamento > Supreme T-Shirt
-                foreach ($section['brands'] ?? [] as $brand_entry) {
-                    foreach ($brand_entry['queries'] ?? [] as $query) {
-                        $query = trim($query);
-                        if ($query && !in_array($query, $subcat_names)) {
-                            $subcat_names[] = $query;
+                    $subcat_slug = $this->sanitizeSlug($subcat_name);
+                    $subcat_id = $this->ensureCategory($subcat_name, $subcat_slug, $parent_id);
+
+                    if ($subcat_id) {
+                        $this->map['subcategories'][$parent_slug][$subcat_slug] = [
+                            'id' => $subcat_id,
+                            'keywords' => array_map('strtolower', $keywords),
+                        ];
+                        $total_created++;
+                    }
+                }
+            } else {
+                // Auto-derived subcategories (no keyword matching needed)
+                $subcat_names = [];
+
+                if ($discovery_mode === 'brand') {
+                    // Brand-mode without explicit subcategories: queries = sub-categories
+                    // e.g. Sneakers > Nike Dunk, Sneakers > Jordan 1
+                    foreach ($section['brands'] ?? [] as $brand_entry) {
+                        foreach ($brand_entry['queries'] ?? [] as $query) {
+                            $query = trim($query);
+                            if ($query && !in_array($query, $subcat_names)) {
+                                $subcat_names[] = $query;
+                            }
+                        }
+                    }
+                } elseif ($discovery_mode === 'query') {
+                    // Query-mode: item labels = sub-categories
+                    // e.g. Accessori > Beanie, Accessori > Labubu
+                    foreach ($section['items'] ?? [] as $item) {
+                        $name = $item['label'] ?? '';
+                        if ($name && !in_array($name, $subcat_names)) {
+                            $subcat_names[] = $name;
                         }
                     }
                 }
-            } elseif ($discovery_mode === 'query') {
-                // Query-mode: each item label is a sub-category
-                // e.g. Accessori > Beanie, Accessori > Labubu
-                foreach ($section['items'] ?? [] as $item) {
-                    $name = $item['label'] ?? '';
-                    if ($name && !in_array($name, $subcat_names)) {
-                        $subcat_names[] = $name;
+
+                foreach ($subcat_names as $subcat_name) {
+                    $subcat_slug = $this->sanitizeSlug($subcat_name);
+                    $subcat_id = $this->ensureCategory($subcat_name, $subcat_slug, $parent_id);
+
+                    if ($subcat_id) {
+                        $this->map['subcategories'][$parent_slug][$subcat_slug] = $subcat_id;
+                        $total_created++;
                     }
-                }
-            }
-
-            // Create sub-categories under parent
-            foreach ($subcat_names as $subcat_name) {
-                $subcat_slug = $this->sanitizeSlug($subcat_name);
-                $subcat_id = $this->ensureCategory($subcat_name, $subcat_slug, $parent_id);
-
-                if ($subcat_id) {
-                    $this->map['subcategories'][$parent_slug][$subcat_slug] = $subcat_id;
-                    $total_created++;
                 }
             }
         }

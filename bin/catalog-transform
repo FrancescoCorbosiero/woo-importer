@@ -319,27 +319,49 @@ try {
         }
 
         // --- Sub-category assignment: add product to hierarchical WC sub-category ---
-        // Sub-category = catalog_subcategory (the discovery query label)
-        //   brand-mode: product line (e.g. "Nike Dunk" → Sneakers > Nike Dunk)
-        //   query-mode: item label   (e.g. "beanie"    → Accessori > Beanie)
+        // Two modes depending on taxonomy-map format:
+        //   1. Keyword-based (Abbigliamento): match query/title against keywords → garment type
+        //      e.g. "Supreme Hoodie" matches keyword "hoodie" → Felpe
+        //   2. Direct slug (Sneakers, Accessori): slugify catalog_subcategory → match slug
+        //      e.g. "Nike Dunk" → slug "nike-dunk" → Sneakers > Nike Dunk
         // NOTE: brand names stay in pa_marca only, never used as product categories.
         if ($catalog_wc_category) {
             $cat_config = $config['categories'][$catalog_wc_category] ?? null;
             $parent_slug = $cat_config['slug'] ?? '';
             $parent_subcats = $subcategories_map[$parent_slug] ?? [];
 
-            $subcat_name = $catalog_subcategory;
-            if ($subcat_name) {
-                $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $subcat_name));
-                $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
-                $subcat_id = $parent_subcats[$subcat_slug] ?? null;
+            $matched_subcat_id = null;
 
-                if ($subcat_id) {
-                    // Avoid duplicate category entries
-                    $existing_cat_ids = array_column($wc['categories'] ?? [], 'id');
-                    if (!in_array($subcat_id, $existing_cat_ids)) {
-                        $wc['categories'][] = ['id' => $subcat_id];
+            // Check if this parent uses keyword-based subcategories
+            // (entries are arrays with 'id' + 'keywords' instead of plain int IDs)
+            $first_entry = reset($parent_subcats);
+            $uses_keywords = is_array($first_entry) && isset($first_entry['keywords']);
+
+            if ($uses_keywords) {
+                // Keyword matching: search query label + product title for garment type keywords
+                $searchable = strtolower($catalog_subcategory . ' ' . ($wc['name'] ?? ''));
+                foreach ($parent_subcats as $slug => $entry) {
+                    foreach ($entry['keywords'] ?? [] as $kw) {
+                        if (strpos($searchable, $kw) !== false) {
+                            $matched_subcat_id = $entry['id'];
+                            break 2;
+                        }
                     }
+                }
+            } else {
+                // Direct slug matching
+                $subcat_name = $catalog_subcategory;
+                if ($subcat_name) {
+                    $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $subcat_name));
+                    $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
+                    $matched_subcat_id = $parent_subcats[$subcat_slug] ?? null;
+                }
+            }
+
+            if ($matched_subcat_id) {
+                $existing_cat_ids = array_column($wc['categories'] ?? [], 'id');
+                if (!in_array($matched_subcat_id, $existing_cat_ids)) {
+                    $wc['categories'][] = ['id' => $matched_subcat_id];
                 }
             }
         }

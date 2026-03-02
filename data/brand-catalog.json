@@ -89,6 +89,12 @@
       "wc_category": "clothing",
       "discovery": "brand",
       "product_types": ["streetwear"],
+      "subcategories": [
+        {"name": "T-Shirt", "keywords": ["t-shirt", "tee"]},
+        {"name": "Felpe", "keywords": ["hoodie", "felpa", "sweatshirt", "crewneck"]},
+        {"name": "Giacche", "keywords": ["jacket", "giacca", "coat", "puffer", "windbreaker"]},
+        {"name": "Pantaloni", "keywords": ["pants", "pantaloni", "jogger", "trousers", "cargo"]}
+      ],
       "brands": [
         {
           "name": "Supreme",
