@@ -277,6 +277,17 @@ try {
 
     $catalog_indexed = 0;
     $catalog_brand_enriched = 0;
+
+    // Build lookup of wc_category keys that have explicit subcategories (keyword-based)
+    // For those sections, catalog_subcategory is a garment type query, NOT a brand hierarchy
+    $keyword_subcat_sections = [];
+    if ($catalog && !empty($catalog['sections'])) {
+        foreach ($catalog['sections'] as $section) {
+            if (!empty($section['subcategories'])) {
+                $keyword_subcat_sections[$section['wc_category'] ?? ''] = true;
+            }
+        }
+    }
     foreach ($wc_products as &$wc) {
         $sku = $wc['sku'] ?? '';
         if (!isset($assortment_map[$sku])) {
@@ -370,30 +381,39 @@ try {
 
         // --- Brand taxonomy enrichment: only for discovery=brand sections ---
         // Query-mode items (Accessori) don't have brand hierarchies in the catalog
-        if ($catalog_discovery !== 'brand' || empty($catalog_brand) || empty($catalog_subcategory)) {
+        if ($catalog_discovery !== 'brand' || empty($catalog_brand)) {
             continue;
         }
 
         $brand_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $catalog_brand));
         $brand_slug = preg_replace('/-+/', '-', trim($brand_slug, '-'));
-        $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $catalog_subcategory));
-        $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
-
-        $subcat_brand_id = $brands_map[$subcat_slug] ?? null;
         $parent_brand_id = $brands_map[$brand_slug] ?? null;
 
         $brand_entries = [];
-        if ($subcat_brand_id) {
-            $brand_entries[] = ['id' => $subcat_brand_id];
-        } else {
-            $brand_entries[] = ['slug' => $subcat_slug, 'name' => $catalog_subcategory];
-        }
+
+        // Parent brand (always): e.g. "Nike", "Sp5der", "Supreme"
         if ($parent_brand_id) {
-            if ($parent_brand_id !== $subcat_brand_id) {
-                $brand_entries[] = ['id' => $parent_brand_id];
-            }
+            $brand_entries[] = ['id' => $parent_brand_id];
         } else {
             $brand_entries[] = ['slug' => $brand_slug, 'name' => $catalog_brand];
+        }
+
+        // Sub-brand (only for sections WITHOUT keyword subcategories):
+        // Sneakers: "Nike Dunk" is a real sub-brand under "Nike" → add it
+        // Abbigliamento: "Sp5der Pants" is brand+garment query, NOT a sub-brand → skip
+        $has_keyword_subcats = isset($keyword_subcat_sections[$catalog_wc_category]);
+        if (!$has_keyword_subcats && !empty($catalog_subcategory) && $catalog_subcategory !== $catalog_brand) {
+            $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $catalog_subcategory));
+            $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
+            $subcat_brand_id = $brands_map[$subcat_slug] ?? null;
+
+            if ($subcat_brand_id) {
+                if ($subcat_brand_id !== $parent_brand_id) {
+                    $brand_entries[] = ['id' => $subcat_brand_id];
+                }
+            } else {
+                $brand_entries[] = ['slug' => $subcat_slug, 'name' => $catalog_subcategory];
+            }
         }
 
         $existing = $wc['brands'] ?? [];
