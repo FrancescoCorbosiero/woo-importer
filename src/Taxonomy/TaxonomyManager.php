@@ -574,18 +574,24 @@ class TaxonomyManager
             $this->logger->info("  {$section_name} ({$parent_slug}, {$discovery_mode} mode):");
 
             // Collect sub-category names based on discovery mode
+            // NOTE: Brands (Nike, Jordan, Supreme) stay in pa_marca taxonomy only.
+            //       Sub-categories here are product lines/types, never brand names.
             $subcat_names = [];
 
             if ($discovery_mode === 'brand') {
-                // Brand-mode: each brand name is a sub-category
+                // Brand-mode: each QUERY is a sub-category (product line / garment type)
+                // e.g. Sneakers > Nike Dunk, Sneakers > Jordan 1, Abbigliamento > Supreme T-Shirt
                 foreach ($section['brands'] ?? [] as $brand_entry) {
-                    $name = $brand_entry['name'] ?? '';
-                    if ($name && !in_array($name, $subcat_names)) {
-                        $subcat_names[] = $name;
+                    foreach ($brand_entry['queries'] ?? [] as $query) {
+                        $query = trim($query);
+                        if ($query && !in_array($query, $subcat_names)) {
+                            $subcat_names[] = $query;
+                        }
                     }
                 }
             } elseif ($discovery_mode === 'query') {
                 // Query-mode: each item label is a sub-category
+                // e.g. Accessori > Beanie, Accessori > Labubu
                 foreach ($section['items'] ?? [] as $item) {
                     $name = $item['label'] ?? '';
                     if ($name && !in_array($name, $subcat_names)) {

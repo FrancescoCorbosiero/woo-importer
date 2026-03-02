@@ -319,15 +319,16 @@ try {
         }
 
         // --- Sub-category assignment: add product to hierarchical WC sub-category ---
-        // For brand-mode: sub-category = brand name (e.g. Sneakers > Nike)
-        // For query-mode: sub-category = item label (e.g. Accessori > Beanie)
+        // Sub-category = catalog_subcategory (the discovery query label)
+        //   brand-mode: product line (e.g. "Nike Dunk" → Sneakers > Nike Dunk)
+        //   query-mode: item label   (e.g. "beanie"    → Accessori > Beanie)
+        // NOTE: brand names stay in pa_marca only, never used as product categories.
         if ($catalog_wc_category) {
             $cat_config = $config['categories'][$catalog_wc_category] ?? null;
             $parent_slug = $cat_config['slug'] ?? '';
             $parent_subcats = $subcategories_map[$parent_slug] ?? [];
 
-            // Determine sub-category name: brand name for brand-mode, item label for query-mode
-            $subcat_name = ($catalog_discovery === 'brand') ? $catalog_brand : $catalog_subcategory;
+            $subcat_name = $catalog_subcategory;
             if ($subcat_name) {
                 $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $subcat_name));
                 $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
