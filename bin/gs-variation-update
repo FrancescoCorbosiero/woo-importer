@@ -75,6 +75,11 @@ $dry_run = in_array('--dry-run', $argv);
 $config = Config::load();
 $start_time = microtime(true);
 
+// GS sale pricing config
+$gs_sale = $config['gs_sale_pricing'] ?? [];
+$gs_sale_enabled = !empty($gs_sale['enabled']);
+$gs_sale_markup = (float) ($gs_sale['markup_percentage'] ?? 15.0);
+
 $logger = LoggerFactory::create('GsUpdate', [
     'file' => Config::projectRoot() . '/logs/gs-variation-update.log',
     'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
@@ -297,7 +302,13 @@ if (!empty($changes)) {
             $update = ['id' => $var_id_map[$size]];
 
             if (isset($change['price'])) {
-                $update['regular_price'] = (string) $change['price'];
+                $price = (float) $change['price'];
+                if ($gs_sale_enabled && $price > 0) {
+                    $update['regular_price'] = (string) ceil($price * (1 + $gs_sale_markup / 100));
+                    $update['sale_price'] = (string) $price;
+                } else {
+                    $update['regular_price'] = (string) $price;
+                }
             }
             if (isset($change['stock_quantity'])) {
                 $update['stock_quantity'] = (int) $change['stock_quantity'];

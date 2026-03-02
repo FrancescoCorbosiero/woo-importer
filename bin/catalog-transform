@@ -264,7 +264,7 @@ try {
     $logger->info("Release ordering: {$release_ordered}/" . count($wc_products) . " products have release dates");
 
     // ========================================================================
-    // Brand enrichment (only for discovery=brand sections)
+    // Catalog provenance metadata (ALL products)
     // ========================================================================
 
     $catalog = $assortment['catalog'] ?? null;
@@ -273,8 +273,10 @@ try {
         ? (json_decode(file_get_contents($taxonomy_map_file), true) ?: [])
         : [];
     $brands_map = $taxonomy_map['brands'] ?? [];
+    $subcategories_map = $taxonomy_map['subcategories'] ?? [];
 
-    $catalog_enriched = 0;
+    $catalog_indexed = 0;
+    $catalog_brand_enriched = 0;
     foreach ($wc_products as &$wc) {
         $sku = $wc['sku'] ?? '';
         if (!isset($assortment_map[$sku])) {
@@ -282,16 +284,70 @@ try {
         }
 
         $meta = $assortment_map[$sku];
+        $wc['meta_data'] = $wc['meta_data'] ?? [];
 
-        // Only enrich brands for discovery=brand sections
-        // Query-mode items (Accessori) don't have real brand hierarchies
-        if (($meta['catalog_discovery'] ?? '') !== 'brand') {
-            continue;
-        }
-
+        // --- Catalog provenance: persisted for ALL products regardless of discovery mode ---
+        $catalog_section = $meta['catalog_section'] ?? '';
+        $catalog_discovery = $meta['catalog_discovery'] ?? '';
+        $catalog_wc_category = $meta['catalog_wc_category'] ?? '';
         $catalog_brand = $meta['catalog_brand'] ?? '';
         $catalog_subcategory = $meta['catalog_subcategory'] ?? '';
-        if (empty($catalog_brand) || empty($catalog_subcategory)) {
+
+        if ($catalog_section) {
+            $wc['meta_data'][] = ['key' => '_catalog_section', 'value' => $catalog_section];
+        }
+        if ($catalog_discovery) {
+            $wc['meta_data'][] = ['key' => '_catalog_discovery', 'value' => $catalog_discovery];
+        }
+        if ($catalog_wc_category) {
+            $wc['meta_data'][] = ['key' => '_catalog_wc_category', 'value' => $catalog_wc_category];
+        }
+        if ($catalog_brand) {
+            $wc['meta_data'][] = ['key' => '_catalog_brand', 'value' => $catalog_brand];
+        }
+        if ($catalog_subcategory) {
+            $wc['meta_data'][] = ['key' => '_catalog_subcategory', 'value' => $catalog_subcategory];
+        }
+
+        // --- GS catalog tag: marks products present in the Golden Sneakers catalog ---
+        // Enables querying all GS products via WC meta, and future sale badge support
+        $is_gs = !empty($meta['gs_tracked'])
+            || $catalog_discovery === 'gs_enriched'
+            || $catalog_discovery === 'gs_only';
+        if ($is_gs) {
+            $wc['meta_data'][] = ['key' => '_gs_catalog', 'value' => '1'];
+        }
+
+        // --- Sub-category assignment: add product to hierarchical WC sub-category ---
+        // For brand-mode: sub-category = brand name (e.g. Sneakers > Nike)
+        // For query-mode: sub-category = item label (e.g. Accessori > Beanie)
+        if ($catalog_wc_category) {
+            $cat_config = $config['categories'][$catalog_wc_category] ?? null;
+            $parent_slug = $cat_config['slug'] ?? '';
+            $parent_subcats = $subcategories_map[$parent_slug] ?? [];
+
+            // Determine sub-category name: brand name for brand-mode, item label for query-mode
+            $subcat_name = ($catalog_discovery === 'brand') ? $catalog_brand : $catalog_subcategory;
+            if ($subcat_name) {
+                $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $subcat_name));
+                $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
+                $subcat_id = $parent_subcats[$subcat_slug] ?? null;
+
+                if ($subcat_id) {
+                    // Avoid duplicate category entries
+                    $existing_cat_ids = array_column($wc['categories'] ?? [], 'id');
+                    if (!in_array($subcat_id, $existing_cat_ids)) {
+                        $wc['categories'][] = ['id' => $subcat_id];
+                    }
+                }
+            }
+        }
+
+        $catalog_indexed++;
+
+        // --- Brand taxonomy enrichment: only for discovery=brand sections ---
+        // Query-mode items (Accessori) don't have brand hierarchies in the catalog
+        if ($catalog_discovery !== 'brand' || empty($catalog_brand) || empty($catalog_subcategory)) {
             continue;
         }
 
@@ -329,15 +385,12 @@ try {
         }
         $wc['brands'] = $existing;
 
-        $wc['meta_data'] = $wc['meta_data'] ?? [];
-        $wc['meta_data'][] = ['key' => '_catalog_brand', 'value' => $catalog_brand];
-        $wc['meta_data'][] = ['key' => '_catalog_subcategory', 'value' => $catalog_subcategory];
-
-        $catalog_enriched++;
+        $catalog_brand_enriched++;
     }
     unset($wc);
 
-    $logger->info("Catalog enrichment: {$catalog_enriched}/" . count($wc_products) . " products assigned sub-brands");
+    $logger->info("Catalog provenance: {$catalog_indexed}/" . count($wc_products) . " products indexed");
+    $logger->info("Brand enrichment: {$catalog_brand_enriched}/" . count($wc_products) . " products assigned sub-brands");
 
     // ========================================================================
     // Write output
@@ -388,7 +441,8 @@ try {
     $logger->info("  With image:           {$builder_stats['with_image']}");
     $logger->info("  With gallery:         {$builder_stats['with_gallery']}");
     $logger->info("  Without image:        {$builder_stats['without_image']}");
-    $logger->info("  Brand enriched:       {$catalog_enriched}");
+    $logger->info("  Catalog indexed:      {$catalog_indexed}");
+    $logger->info("  Brand enriched:       {$catalog_brand_enriched}");
     $logger->info("  Duration:             {$duration}s");
     $logger->info("  Output:               {$output_file}");
     $logger->info('================================');

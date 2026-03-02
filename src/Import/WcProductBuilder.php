@@ -28,6 +28,10 @@ class WcProductBuilder
     // Default null = use adapter-provided stock (GS: real availability, KicksDB: price-based).
     private ?int $stock_override = null;
 
+    // GS sale pricing: when enabled, GS-priced variations show sale badge
+    private bool $gs_sale_enabled = false;
+    private float $gs_sale_markup = 15.0;
+
     private array $taxonomy_map = [];
     private array $image_map = [];
 
@@ -47,6 +51,12 @@ class WcProductBuilder
     {
         $this->config = $config;
         $this->logger = $logger;
+
+        // GS sale pricing: shows "Sale" badge on GS-priced variations
+        $gs_sale = $config['gs_sale_pricing'] ?? [];
+        $this->gs_sale_enabled = !empty($gs_sale['enabled']);
+        $this->gs_sale_markup = (float) ($gs_sale['markup_percentage'] ?? 15.0);
+
         $this->loadMaps();
     }
 
@@ -58,6 +68,45 @@ class WcProductBuilder
     {
         $this->stock_override = $override;
         return $this;
+    }
+
+    /**
+     * Check if a variation has GS-sourced pricing
+     *
+     * @param array $var Normalized variation
+     * @param string $product_source Product-level _source meta value
+     * @return bool True if this variation's price comes from Golden Sneakers
+     */
+    private function isGsPriced(array $var, string $product_source): bool
+    {
+        // Variation-level: _gs_overlay flag (set by FeedMerger for merged products)
+        foreach ($var['meta_data'] ?? [] as $m) {
+            if (($m['key'] ?? '') === '_gs_overlay') {
+                return true;
+            }
+        }
+
+        // Product-level: entire product is GS-only
+        return $product_source === 'golden_sneakers';
+    }
+
+    /**
+     * Apply GS sale pricing to a price value
+     *
+     * When gs_sale_pricing is enabled, returns [regular_price, sale_price]
+     * where regular_price is marked up to show the "original" and sale_price
+     * is the actual GS price. This triggers the WooCommerce "Sale" badge.
+     *
+     * @param float $gs_price The GS passthrough price
+     * @return array{regular_price: string, sale_price: string}
+     */
+    private function applyGsSalePricing(float $gs_price): array
+    {
+        $original = ceil($gs_price * (1 + $this->gs_sale_markup / 100));
+        return [
+            'regular_price' => (string) $original,
+            'sale_price' => (string) $gs_price,
+        ];
     }
 
     // =========================================================================
@@ -90,6 +139,15 @@ class WcProductBuilder
         $gallery_urls = $product['gallery_urls'] ?? [];
         $extra_meta = $product['meta_data'] ?? [];
         $variations = $product['variations'] ?? [];
+
+        // Extract product source for GS detection
+        $product_source = '';
+        foreach ($extra_meta as $m) {
+            if (($m['key'] ?? '') === '_source') {
+                $product_source = $m['value'] ?? '';
+                break;
+            }
+        }
 
         // Template data for Italian localized strings
         $tpl = [
@@ -139,13 +197,15 @@ class WcProductBuilder
         // Build base WC product — simple for "One Size", variable otherwise
         if ($is_one_size) {
             $one_var = $variations[0] ?? [];
+            $one_price = (float) ($one_var['price'] ?? 0);
+
             $wc_product = [
                 'name' => $name,
                 'type' => 'simple',
                 'sku' => $sku,
                 'status' => 'publish',
                 'catalog_visibility' => 'visible',
-                'regular_price' => (string) ($one_var['price'] ?? 0),
+                'regular_price' => (string) $one_price,
                 'manage_stock' => true,
                 'stock_status' => 'instock',
                 'stock_quantity' => $this->stock_override ?? (int) ($one_var['stock_quantity'] ?? 90),
@@ -155,6 +215,13 @@ class WcProductBuilder
                 'categories' => [],
                 'attributes' => [],
             ];
+
+            // GS sale pricing: show sale badge on GS-sourced simple products
+            if ($this->gs_sale_enabled && $one_price > 0 && $this->isGsPriced($one_var, $product_source)) {
+                $sale = $this->applyGsSalePricing($one_price);
+                $wc_product['regular_price'] = $sale['regular_price'];
+                $wc_product['sale_price'] = $sale['sale_price'];
+            }
 
             // Merge variant meta into product meta
             if (!empty($one_var['meta_data'])) {
@@ -322,10 +389,11 @@ class WcProductBuilder
             foreach ($variations as $var) {
                 $size_eu = $var['size_eu'] ?? '';
                 $var_sku = $sku . '-' . str_replace([' ', '/'], '', $size_eu);
+                $var_price = (float) ($var['price'] ?? 0);
 
                 $wc_var = [
                     'sku' => $var_sku,
-                    'regular_price' => (string) ($var['price'] ?? 0),
+                    'regular_price' => (string) $var_price,
                     'manage_stock' => true,
                     'stock_status' => 'instock',
                     'stock_quantity' => $this->stock_override ?? (int) ($var['stock_quantity'] ?? 90),
@@ -334,6 +402,13 @@ class WcProductBuilder
                         ? [['id' => $size_attr_id, 'option' => $size_eu]]
                         : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
                 ];
+
+                // GS sale pricing: show sale badge on GS-priced variations
+                if ($this->gs_sale_enabled && $var_price > 0 && $this->isGsPriced($var, $product_source)) {
+                    $sale = $this->applyGsSalePricing($var_price);
+                    $wc_var['regular_price'] = $sale['regular_price'];
+                    $wc_var['sale_price'] = $sale['sale_price'];
+                }
 
                 if (!empty($var['meta_data'])) {
                     $wc_var['meta_data'] = $var['meta_data'];
