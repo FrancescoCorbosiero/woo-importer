@@ -273,8 +273,10 @@ class MediaUploader
         }
 
         // 360 images: pick ~6 evenly spaced frames
+        // Skip first frame — same angle as primary product image (just more padded)
         $gallery_360 = $raw['gallery_360'] ?? [];
         if (!empty($gallery_360) && is_array($gallery_360)) {
+            array_shift($gallery_360);
             $total = count($gallery_360);
             $pick_count = min(6, $total);
             $step = max(1, (int) floor($total / $pick_count));
