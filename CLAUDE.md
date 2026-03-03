@@ -23,7 +23,7 @@ WooCommerce product importer for ResellPiacenza. Architecture: **one master cata
 
 All pipelines produce WooCommerce products (variable or simple) with Italian SEO metadata, size variations (Taglia), brand attributes (Marca), and gallery images.
 
-**Product categories:** Sneakers, Abbigliamento, Accessori — determined by `wc_category` in brand-catalog.json.
+**Product categories:** Sneakers, Abbigliamento, Accessori — determined by `wc_category` in brand-catalog.json. Hierarchical sub-categories (e.g. Abbigliamento > T-Shirt, Accessori > Beanie) are auto-created from catalog structure.
 
 ## Architecture
 
@@ -62,6 +62,21 @@ All pipelines produce WooCommerce products (variable or simple) with Italian SEO
 | `KicksDb\Client` | `src/KicksDb/Client.php` | KicksDB v3 API client (search, prices, webhooks) |
 | `PriceCalculator` | `src/Pricing/PriceCalculator.php` | Tiered margin + floor price + rounding |
 
+### Catalog Provenance & Tagging
+
+Every WC product carries metadata tracing it back to its origin in the catalog:
+
+| Meta key | Value | Set by |
+|----------|-------|--------|
+| `_catalog_section` | Section slug (sneakers, abbigliamento, accessori) | `catalog-transform` |
+| `_catalog_discovery` | Discovery mode (brand, query, gs_enriched, gs_only) | `catalog-transform` |
+| `_catalog_wc_category` | Config key (sneakers, clothing, accessories) | `catalog-transform` |
+| `_catalog_brand` | Brand name from catalog (brand-mode only) | `catalog-transform` |
+| `_catalog_subcategory` | Query label / item label | `catalog-transform` |
+| `_gs_catalog` | `"1"` if product is in Golden Sneakers feed | `catalog-transform` |
+
+**Reverse lookup:** `gs-ingest` generates `data/catalog-index.json` mapping sections → brands/items → SKUs for quick provenance queries.
+
 ## File Structure
 
 ```
@@ -97,15 +112,16 @@ woo-importer/
 ├── gs-sync.sh                    # (legacy) GS-only cron pipeline
 ├── kicksdb-sync.sh               # (legacy) KicksDB-only cron pipeline
 ├── data/
-│   ├── brand-catalog.json        # Discovery catalog v2 (sections + discovery modes)
+│   ├── brand-catalog.json        # Discovery catalog v2 (sections + discovery modes + subcategories)
 │   ├── kicksdb-assortment.json   # KicksDB discovery output (generated)
 │   ├── merged-assortment.json    # KicksDB + GS merged catalog (generated)
+│   ├── catalog-index.json        # Reverse lookup: section → brand/item → SKUs (generated)
 │   ├── gs-tracked-skus.json      # GS SKU → variation snapshot (generated)
 │   ├── gs-queue.json             # New GS SKUs pending catalog-build (generated)
 │   ├── feed-wc-latest.json       # Latest WC feed (generated)
 │   ├── feed-wc.json              # Baseline WC feed for delta (generated)
-│   ├── taxonomy-map.json         # Category/brand IDs (generated)
-│   └── image-map.json            # Media IDs (generated)
+│   ├── taxonomy-map.json         # Category/subcategory/brand IDs + keywords (generated)
+│   └── image-map.json            # Media IDs + gallery IDs (generated)
 ├── docs/                         # Technical docs and model references
 ├── samples/                      # Sample API responses and test data
 ├── .env.example                  # Environment template
@@ -188,6 +204,16 @@ The KicksDB discovery pipeline uses a JSON catalog to define what to search for.
 
 Each section specifies `wc_category` (config key: `sneakers`, `clothing`, `accessories`) which directly determines the WC category — no normalization hacks needed.
 
+### Sub-categories
+
+Sections can define how products are auto-categorized into WC sub-categories:
+
+- **Explicit `subcategories`** — keyword-based matching (Abbigliamento). Products are classified by matching query/title against keywords. Sub-categories are garment types (T-Shirt, Felpe, Giacche, Pantaloni), NOT brand names.
+- **Brand-mode without `subcategories`** — queries become sub-categories directly (Sneakers > Nike Dunk, Sneakers > Jordan 1). These represent product lines, not brands.
+- **Query-mode** — item labels become sub-categories (Accessori > Beanie, Accessori > Labubu).
+
+**Brand vs Category separation:** Brand names (Nike, Supreme, Sp5der) live exclusively in `pa_marca`. They are never used as product categories. For sections with keyword subcategories, brand enrichment only adds the parent brand — query labels like "Sp5der Pants" are NOT created as sub-brands.
+
 ```json
 {
   "sections": [
@@ -199,6 +225,22 @@ Each section specifies `wc_category` (config key: `sneakers`, `clothing`, `acces
       "product_types": ["sneakers"],
       "brands": [
         { "name": "Nike", "per_label": 30, "queries": ["Nike Dunk", "Nike Air Force 1"] }
+      ]
+    },
+    {
+      "name": "Abbigliamento",
+      "slug": "abbigliamento",
+      "wc_category": "clothing",
+      "discovery": "brand",
+      "product_types": ["streetwear"],
+      "subcategories": [
+        {"name": "T-Shirt", "keywords": ["t-shirt", "tee"]},
+        {"name": "Felpe", "keywords": ["hoodie", "felpa", "sweatshirt", "crewneck"]},
+        {"name": "Giacche", "keywords": ["jacket", "giacca", "coat", "puffer", "windbreaker"]},
+        {"name": "Pantaloni", "keywords": ["pants", "pantaloni", "jogger", "trousers", "cargo"]}
+      ],
+      "brands": [
+        { "name": "Supreme", "per_label": 20, "queries": ["Supreme T-Shirt", "Supreme Hoodie"] }
       ]
     },
     {
@@ -233,7 +275,7 @@ See `docs/CURRENT_MODEL.json` for full field reference.
 - `Modello` (model) - visible, non-variation, global (`pa_modello`)
 - `Data di Rilascio` (release date) - visible, non-variation, global (`pa_data-di-rilascio`)
 
-**Images:** Prefers pre-uploaded media IDs from `image-map.json`. Falls back to `src` URL sideloading when no pre-uploaded media exists.
+**Images:** Uses pre-uploaded media IDs from `image-map.json` only. Sideloading is disabled (causes WC batch timeouts). Products without pre-uploaded images are created imageless; run `prepare-media` + follow-up sync to attach them. Gallery 360: first frame is skipped (duplicate of primary image angle), remaining ~6 frames are evenly sampled.
 
 ## Localization (Italian)
 
@@ -242,6 +284,35 @@ All user-facing content is in Italian:
 - Attribute names: Taglia, Marca, Genere, Modello, Data di Rilascio
 - Image SEO: alt text, captions, descriptions
 - Product descriptions: short + long with Italian templates
+
+## GS Sale Pricing (Optional)
+
+When enabled, GS-sourced prices display with a "Sale" badge in WooCommerce:
+- `regular_price` = GS price × (1 + markup%) — shown crossed out
+- `sale_price` = GS price — shown as the active price
+
+Configured via environment variables (disabled by default):
+```env
+GS_SALE_PRICING_ENABLED=false
+GS_SALE_PRICING_MARKUP=15
+```
+
+Applied consistently in both `catalog-transform` (full builds) and `gs-variation-update` (30-min patches).
+
+## Supported Import Sources
+
+| Source | Entry point | Format | Mode |
+|--------|-------------|--------|------|
+| KicksDB REST API | `bin/kicksdb-discover` | JSON API | Automatic per-label discovery via `brand-catalog.json` |
+| Golden Sneakers REST API | `bin/gs-ingest` | JSON API | Automatic feed fetch + KicksDB enrichment |
+| GS live price/stock | `bin/gs-variation-update` | JSON API | Lightweight WC variation patches (30-min cron) |
+| KicksDB price API | `bin/pricing-reconcile` | JSON API | Market price refresh for non-GS products |
+| Shopify CSV export | `bin/import-dir` | CSV | One-time migration from Shopify product exports |
+| Manual CSV | `bin/bulk-upload` | CSV | Generic format: `sku, name, brand, category, image_url, size, price, stock` |
+| Manual JSON | `bin/bulk-upload` | JSON | Array of product objects, same fields as CSV |
+| WC JSON feed | `bin/import-wc` | JSON | Pre-built WC REST format, direct import |
+
+Any source that produces a normalized product structure (SKU, name, brand, sizes, prices, images) can plug into the pipeline. The work is writing an adapter class; everything downstream (taxonomies, media, WC import, delta sync) is reusable.
 
 ## Environment Variables
 
@@ -258,6 +329,8 @@ GS_BEARER_TOKEN=your_jwt_token
 KICKSDB_API_KEY=your_kicksdb_api_key
 KICKSDB_BRAND_CATALOG_FILE=data/brand-catalog.json
 STORE_NAME=ResellPiacenza
+GS_SALE_PRICING_ENABLED=false           # Show GS prices with Sale badge
+GS_SALE_PRICING_MARKUP=15               # Markup % for regular_price
 ```
 
 ## Code Style
@@ -272,7 +345,10 @@ STORE_NAME=ResellPiacenza
 
 - **Variation visibility:** Parent products MUST have `manage_stock => false` and `stock_status => 'instock'`, otherwise WooCommerce hides the size dropdown.
 - **Attribute slugs:** WC accepts both `taglia` and `pa_taglia`. Resolution uses flexible matching (with/without `pa_` prefix, name fallback).
-- **Image fallback:** When `prepare-media` hasn't run, `WcProductBuilder` falls back to sideloading from the source URL. This is slower but ensures products always get images.
+- **No image sideloading:** `WcProductBuilder` only uses pre-uploaded media IDs. Products without `image-map.json` entries are created imageless. Run `prepare-media` first, then sync.
 - **image-map.json:** Delete this file to force re-upload of all images. Stale entries are auto-filtered by `prepare-media --validate`.
 - **Dry-run + images:** Never persist fake media IDs during `--dry-run`. Gallery upload returns `[]` in dry-run mode.
 - **KicksDB API filters:** Non-sneaker queries (clothing, accessories, collectibles) require the `filters=product_type=...` parameter. This is set automatically from `product_types` in the brand catalog.
+- **Sub-category keyword matching:** Keyword search is case-insensitive and matches against both the query label and product title. Order matters — first matching keyword wins. Keep keywords specific to avoid false positives.
+- **Brand vs category leakage:** For sections with keyword `subcategories`, brand enrichment only adds the parent brand. Query labels (e.g. "Sp5der Pants") are NOT created as sub-brands in `pa_marca`.
+- **taxonomy-map.json format:** Subcategory entries can be either plain int IDs (direct slug match) or `{"id": int, "keywords": [...]}` objects (keyword match). `catalog-transform` auto-detects the format.
