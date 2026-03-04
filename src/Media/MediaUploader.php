@@ -5,6 +5,7 @@ namespace ResellPiacenza\Media;
 use Monolog\Logger;
 use ResellPiacenza\Support\Config;
 use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Support\Storage;
 
 /**
  * Media Uploader (Source-Agnostic)
@@ -33,6 +34,9 @@ class MediaUploader
     private $image_source = null; // 'gs', 'file', or null
     private $urls_file = null;
 
+    /** @var Storage|null SQLite storage for media map */
+    private ?Storage $storage = null;
+
     private $stats = [
         'total' => 0,
         'uploaded' => 0,
@@ -45,8 +49,9 @@ class MediaUploader
     /**
      * @param array $config Configuration from config.php
      * @param array $options CLI options
+     * @param Storage|null $storage SQLite storage (replaces image-map.json when available)
      */
-    public function __construct(array $config, array $options = [])
+    public function __construct(array $config, array $options = [], ?Storage $storage = null)
     {
         $this->config = $config;
         $this->dry_run = $options['dry_run'] ?? false;
@@ -56,6 +61,7 @@ class MediaUploader
         $this->update_metadata = $options['update_metadata'] ?? false;
         $this->image_source = $options['image_source'] ?? null;
         $this->urls_file = $options['urls_file'] ?? null;
+        $this->storage = $storage;
 
         $this->setupLogger();
         $this->loadExistingMap();
@@ -82,15 +88,27 @@ class MediaUploader
     }
 
     /**
-     * Save image map to file
+     * Save image map to file (and to SQLite Storage when available)
      */
     private function saveImageMap(): void
     {
+        // Always save JSON file for backward compatibility
         $map_file = Config::imageMapFile();
         file_put_contents(
             $map_file,
             json_encode($this->image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
+
+        // Also persist to SQLite Storage
+        if ($this->storage !== null) {
+            foreach ($this->image_map as $sku => $entry) {
+                $url = $entry['url'] ?? '';
+                $mediaId = $entry['media_id'] ?? 0;
+                if ($url && $mediaId) {
+                    $this->storage->setMediaMapping($url, $mediaId, $url);
+                }
+            }
+        }
     }
 
     /**

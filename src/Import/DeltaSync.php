@@ -5,6 +5,7 @@ namespace ResellPiacenza\Import;
 use Monolog\Logger;
 use ResellPiacenza\Support\Config;
 use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Support\Storage;
 
 /**
  * WooCommerce Delta Sync
@@ -47,10 +48,17 @@ class DeltaSync
     // Diff products
     private $diff_products = [];
 
+    /** @var Storage|null SQLite storage for sync logging */
+    private ?Storage $storage = null;
+
     /**
      * Constructor
+     *
+     * @param array $config Configuration from config.php
+     * @param array $options CLI options
+     * @param Storage|null $storage SQLite storage for sync logging and signature storage
      */
-    public function __construct(array $config, array $options = [])
+    public function __construct(array $config, array $options = [], ?Storage $storage = null)
     {
         $this->config = $config;
         $this->dry_run = $options['dry_run'] ?? false;
@@ -58,6 +66,7 @@ class DeltaSync
         $this->force_full = $options['force_full'] ?? false;
         $this->verbose = $options['verbose'] ?? false;
         $this->feed_file_input = $options['feed_file'] ?? null;
+        $this->storage = $storage;
 
         $this->data_dir = Config::dataDir();
         $this->feed_file = $options['baseline_file'] ?? $this->data_dir . '/feed-wc.json';
@@ -423,6 +432,25 @@ class DeltaSync
                 $this->logger->info('');
 
                 $success = $this->triggerImport();
+
+                // Log sync actions to Storage
+                if ($this->storage !== null) {
+                    foreach ($this->diff_products as $product) {
+                        $sku = $product['sku'] ?? '';
+                        $action = $product['_sync_action'] ?? 'unknown';
+                        if ($sku) {
+                            $this->storage->logSync($sku, $action, [
+                                'success' => $success,
+                                'variations' => count($product['_variations'] ?? []),
+                            ]);
+                            if ($success) {
+                                $signature = $this->getProductSignature($product);
+                                $this->storage->setWcPayload($sku, $product, $signature);
+                                $this->storage->markSynced($sku);
+                            }
+                        }
+                    }
+                }
 
                 $duration = round(microtime(true) - $start_time, 1);
                 $this->logger->info('');

@@ -3,15 +3,19 @@
 /**
  * CLI wrapper for WooCommerce Direct Importer
  *
- * Accepts WooCommerce REST API formatted JSON and pushes directly to WooCommerce.
- * NO transformation - expects data already in WC format.
+ * Accepts WooCommerce REST API formatted JSON and pushes to WooCommerce
+ * via CatalogPipeline (skip-build mode, products already in WC format).
  *
  * @package ResellPiacenza\Import
  */
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use Monolog\Logger;
 use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Import\WcJsonAdapter;
+use ResellPiacenza\Import\CatalogPipeline;
 use ResellPiacenza\Import\WooCommerceImporter;
 
 // ============================================================================
@@ -32,6 +36,9 @@ Options:
   --feed=FILE       JSON file with WC-formatted products
   --dry-run         Preview without making changes
   --limit=N         Limit to N products
+  --force-full      Force full import (ignore delta)
+  --verbose, -v     Detailed output
+  --env=FILE        Use alternate .env file
   --help, -h        Show this help
 
 Expected JSON format:
@@ -62,47 +69,70 @@ HELP;
 }
 
 // Parse options
-$options = [
-    'dry_run' => in_array('--dry-run', $argv),
-    'limit' => null,
-];
-
+$dry_run = in_array('--dry-run', $argv);
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$force_full = in_array('--force-full', $argv);
+$limit = null;
 $feed_file = null;
 
 foreach ($argv as $arg) {
     if (strpos($arg, '--limit=') === 0) {
-        $options['limit'] = (int) str_replace('--limit=', '', $arg);
+        $limit = (int) str_replace('--limit=', '', $arg);
     }
     if (strpos($arg, '--feed=') === 0) {
         $feed_file = str_replace('--feed=', '', $arg);
     }
 }
 
-// Load data from file or stdin
-$wc_products = null;
-
-if ($feed_file) {
-    if (!file_exists($feed_file)) {
-        fwrite(STDERR, "Error: File not found: {$feed_file}\n");
-        exit(1);
-    }
-    $wc_products = json_decode(file_get_contents($feed_file), true);
-} elseif (!posix_isatty(STDIN)) {
-    // Read from stdin
+// Handle stdin input: write to temp file for WcJsonAdapter
+if (!$feed_file && !posix_isatty(STDIN)) {
     $input = stream_get_contents(STDIN);
-    $wc_products = json_decode($input, true);
-} else {
+    $tmp_file = Config::dataDir() . '/import-wc-stdin.json';
+    file_put_contents($tmp_file, $input);
+    $feed_file = $tmp_file;
+}
+
+if (!$feed_file) {
     fwrite(STDERR, "Error: No input. Use --feed=FILE or pipe JSON to stdin.\n");
     fwrite(STDERR, "Run with --help for usage.\n");
     exit(1);
 }
 
-if ($wc_products === null || json_last_error() !== JSON_ERROR_NONE) {
+if (!file_exists($feed_file)) {
+    fwrite(STDERR, "Error: File not found: {$feed_file}\n");
+    exit(1);
+}
+
+// Validate JSON
+$data = json_decode(file_get_contents($feed_file), true);
+if ($data === null || json_last_error() !== JSON_ERROR_NONE) {
     fwrite(STDERR, "Error: Invalid JSON - " . json_last_error_msg() . "\n");
     exit(1);
 }
 
-// Run importer
+// ============================================================================
+// Run via CatalogPipeline (skip-build mode)
+// ============================================================================
+
 $config = Config::load();
-$importer = new WooCommerceImporter($config, $options);
-exit($importer->import($wc_products) ? 0 : 1);
+
+$logger = LoggerFactory::create('ImportWc', [
+    'file' => Config::projectRoot() . '/logs/import-wc.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$adapter = new WcJsonAdapter($feed_file, $limit);
+
+$pipeline = new CatalogPipeline($config, $logger, [
+    'dry_run' => $dry_run,
+    'verbose' => $verbose,
+    'skip_taxonomies' => true,
+    'skip_media' => true,
+    'skip_build' => true,
+    'force_full' => $force_full,
+    'limit' => $limit,
+]);
+
+$result = $pipeline->run($adapter);
+
+exit($result->isSuccess() ? 0 : 1);

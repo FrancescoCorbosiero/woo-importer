@@ -4,18 +4,20 @@
  * CLI wrapper for Shopify CSV Directory Import
  *
  * Scans a directory for Shopify product export CSV files, parses them,
- * and imports products into WooCommerce via the BulkUploader pipeline.
+ * and imports products into WooCommerce via CatalogPipeline.
  *
- * Handles the full pipeline: CSV parsing → taxonomy creation → image upload → WC import.
+ * Pipeline: ShopifyCsvParser → BulkUploadAdapter → CatalogPipeline
  *
  * @package ResellPiacenza\Import
  */
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use Monolog\Logger;
 use ResellPiacenza\Support\Config;
-use ResellPiacenza\Import\ShopifyCsvParser;
-use ResellPiacenza\Import\BulkUploader;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Import\BulkUploadAdapter;
+use ResellPiacenza\Import\CatalogPipeline;
 
 // ============================================================================
 // CLI
@@ -33,8 +35,11 @@ Options:
   --dir=DIR             Directory containing Shopify CSV exports - required
   --dry-run             Preview without importing (no API calls)
   --skip-media          Don't upload images (use URLs directly via sideload)
+  --skip-taxonomies     Skip taxonomy preparation step
   --verbose, -v         Detailed output
+  --force-full          Force full import (ignore delta)
   --limit=N             Import only the first N products
+  --env=FILE            Use alternate .env file
   --help, -h            Show help
 
 Example:
@@ -47,8 +52,8 @@ The script will:
   2. Parse each as a Shopify product export
   3. Extract brands from Tags, SKUs from descriptions
   4. Auto-detect categories (sneakers vs clothing) from size format
-  5. Upload images to WordPress media library
-  6. Import products to WooCommerce with Italian SEO metadata
+  5. Build WooCommerce product payloads
+  6. Delta sync to WooCommerce
 
 HELP;
     exit(0);
@@ -58,6 +63,8 @@ HELP;
 $dry_run = in_array('--dry-run', $argv);
 $verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
 $skip_media = in_array('--skip-media', $argv);
+$skip_taxonomies = in_array('--skip-taxonomies', $argv);
+$force_full = in_array('--force-full', $argv);
 $dir = null;
 $limit = null;
 
@@ -86,74 +93,28 @@ if (!is_dir($dir)) {
 }
 
 // ============================================================================
-// Parse
+// Run via CatalogPipeline
 // ============================================================================
 
-echo "\n";
-echo "================================\n";
-echo "  Shopify CSV Directory Import\n";
-echo "================================\n";
-echo "  Directory: {$dir}\n";
-
-if ($dry_run) {
-    echo "  Mode: DRY RUN\n";
-}
-if ($skip_media) {
-    echo "  Media: SKIP (sideload via URL)\n";
-}
-if ($limit) {
-    echo "  Limit: {$limit} products\n";
-}
-
-echo "\n";
-
-// Step 1: Parse Shopify CSVs
-echo "Step 1: Parsing Shopify CSV files...\n";
-
-$parser = new ShopifyCsvParser(['verbose' => $verbose]);
-$products = $parser->parseDirectory($dir);
-
-$stats = $parser->getStats();
-
-echo "  Files parsed:  {$stats['files_parsed']}\n";
-echo "  Rows read:     {$stats['rows_read']}\n";
-echo "  Products:      {$stats['products_parsed']} parsed, {$stats['products_skipped']} skipped\n";
-echo "  SKU sources:   {$stats['skus_from_description']} from description, " .
-     "{$stats['skus_from_variant']} from variant, {$stats['skus_generated']} generated\n";
-echo "  Brands found:  " . implode(', ', $stats['brands_detected']) . "\n";
-
-if (empty($products)) {
-    echo "\nNo products found. Nothing to import.\n";
-    exit(0);
-}
-
-// Apply limit
-if ($limit && $limit < count($products)) {
-    $products = array_slice($products, 0, $limit);
-    echo "\n  Limited to first {$limit} products\n";
-}
-
-// Step 2: Write intermediate JSON for BulkUploader
-$feed_file = Config::dataDir() . '/shopify-import-feed.json';
-file_put_contents(
-    $feed_file,
-    json_encode($products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-);
-
-echo "\n  Wrote: {$feed_file}\n";
-
-// Step 3: Run BulkUploader pipeline
-echo "\nStep 2: Running BulkUploader pipeline...\n\n";
-
 $config = Config::load();
-$uploader = new BulkUploader($config, [
+
+$logger = LoggerFactory::create('ShopifyImport', [
+    'file' => Config::projectRoot() . '/logs/shopify-import.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$adapter = new BulkUploadAdapter($dir, 'shopify-dir', $logger, $limit, $verbose);
+
+$pipeline = new CatalogPipeline($config, $logger, [
     'dry_run' => $dry_run,
     'verbose' => $verbose,
     'skip_media' => $skip_media,
-    'skip_existing' => true,
-    'file' => $feed_file,
+    'skip_taxonomies' => $skip_taxonomies,
+    'force_full' => $force_full,
+    'limit' => $limit,
+    'feed_output_path' => Config::dataDir() . '/shopify-import-feed-wc.json',
 ]);
 
-$success = $uploader->run();
+$result = $pipeline->run($adapter);
 
-exit($success ? 0 : 1);
+exit($result->isSuccess() ? 0 : 1);

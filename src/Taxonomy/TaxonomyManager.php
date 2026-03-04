@@ -6,6 +6,7 @@ use Automattic\WooCommerce\Client;
 use Monolog\Logger;
 use ResellPiacenza\Support\Config;
 use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Support\Storage;
 
 /**
  * Taxonomy Manager (Source-Agnostic)
@@ -33,6 +34,9 @@ class TaxonomyManager
     private $brands_file = null;
     private $brands_list = [];
 
+    /** @var Storage|null SQLite storage for taxonomy map */
+    private ?Storage $storage = null;
+
     private $map = [
         'categories' => [],
         'subcategories' => [],
@@ -52,8 +56,9 @@ class TaxonomyManager
     /**
      * @param array $config Configuration from config.php
      * @param array $options CLI options
+     * @param Storage|null $storage SQLite storage for taxonomy map persistence
      */
-    public function __construct(array $config, array $options = [])
+    public function __construct(array $config, array $options = [], ?Storage $storage = null)
     {
         $this->config = $config;
         $this->dry_run = $options['dry_run'] ?? false;
@@ -61,6 +66,7 @@ class TaxonomyManager
         $this->brand_source = $options['brand_source'] ?? null;
         $this->brands_file = $options['brands_file'] ?? null;
         $this->brands_list = $options['brands_list'] ?? [];
+        $this->storage = $storage;
 
         $this->setupLogger();
         $this->setupWooCommerceClient();
@@ -790,10 +796,33 @@ class TaxonomyManager
             // Save taxonomy map
             $this->map['updated_at'] = date('Y-m-d H:i:s');
 
+            // Always save JSON file for backward compatibility
             file_put_contents(
                 $map_file,
                 json_encode($this->map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
             );
+
+            // Also persist to SQLite Storage
+            if ($this->storage !== null) {
+                foreach ($this->map['categories'] as $slug => $termId) {
+                    $this->storage->setTaxonomyMapping($slug, 'product_cat', $termId, $slug);
+                }
+                foreach ($this->map['attributes'] as $slug => $termId) {
+                    $this->storage->setTaxonomyMapping($slug, 'product_attribute', $termId, $slug);
+                }
+                foreach ($this->map['brands'] as $slug => $termId) {
+                    $this->storage->setTaxonomyMapping($slug, 'pa_marca', $termId, $slug);
+                }
+                foreach ($this->map['subcategories'] as $parentSlug => $subcats) {
+                    foreach ($subcats as $slug => $entry) {
+                        $termId = is_array($entry) ? ($entry['id'] ?? 0) : $entry;
+                        $this->storage->setTaxonomyMapping(
+                            $slug, 'product_cat_sub', $termId, $slug,
+                            $this->map['categories'][$parentSlug] ?? null
+                        );
+                    }
+                }
+            }
 
             // Summary
             $duration = round(microtime(true) - $start_time, 1);
