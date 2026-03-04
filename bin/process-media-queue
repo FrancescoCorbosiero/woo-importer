@@ -1,0 +1,181 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Media Queue Worker
+ *
+ * Processes queued media uploads in the background with parallel downloads
+ * and uploads. Products are created imageless during pipeline runs; this
+ * worker uploads images asynchronously and updates image-map.json.
+ *
+ * Run after catalog-build with --async-media, or on a cron schedule.
+ *
+ * @package ResellPiacenza\Media
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\Storage;
+use ResellPiacenza\Media\MediaUploader;
+use ResellPiacenza\Media\MediaQueue;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Media Queue Worker
+Processes queued media uploads with parallel curl_multi.
+
+Usage:
+  bin/process-media-queue [options]
+
+Options:
+  --concurrency=N    Concurrent uploads (default: 6)
+  --batch-size=N     Items per processing batch (default: 10)
+  --limit=N          Max total items to process (default: all)
+  --dry-run          Show queue status without processing
+  --verbose, -v      Detailed output
+  --status           Show queue statistics and exit
+  --reset-stuck      Reset stuck "processing" items and exit
+  --env=NAME         Environment name (default: from .env)
+  --help, -h         Show help
+
+Examples:
+  bin/process-media-queue                          # Process all pending
+  bin/process-media-queue --concurrency=10         # 10 parallel uploads
+  bin/process-media-queue --limit=50 --verbose     # First 50, verbose
+  bin/process-media-queue --status                 # Queue stats
+  bin/process-media-queue --reset-stuck            # Fix crashed worker
+
+HELP;
+    exit(0);
+}
+
+// Parse CLI options
+$concurrency = 6;
+$batchSize = 10;
+$limit = null;
+$dryRun = in_array('--dry-run', $argv);
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$statusOnly = in_array('--status', $argv);
+$resetStuck = in_array('--reset-stuck', $argv);
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--concurrency=') === 0) {
+        $concurrency = max(1, (int) str_replace('--concurrency=', '', $arg));
+    }
+    if (strpos($arg, '--batch-size=') === 0) {
+        $batchSize = max(1, (int) str_replace('--batch-size=', '', $arg));
+    }
+    if (strpos($arg, '--limit=') === 0) {
+        $limit = (int) str_replace('--limit=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$dbPath = Config::databasePath();
+
+try {
+    $storage = Storage::getInstance($dbPath);
+} catch (\Exception $e) {
+    fwrite(STDERR, "Error: Cannot open database at {$dbPath}: " . $e->getMessage() . "\n");
+    exit(1);
+}
+
+$queue = new MediaQueue($storage);
+
+// ============================================================================
+// Status mode
+// ============================================================================
+
+if ($statusOnly) {
+    $stats = $queue->getStats();
+    echo "Media Queue Status\n";
+    echo "==================\n";
+    echo "  Pending:    {$stats['pending']}\n";
+    echo "  Processing: {$stats['processing']}\n";
+    echo "  Completed:  {$stats['completed']}\n";
+    echo "  Failed:     {$stats['failed']}\n";
+    echo "  Total:      {$stats['total']}\n";
+    echo "  Database:   {$dbPath}\n";
+    exit(0);
+}
+
+// ============================================================================
+// Reset stuck mode
+// ============================================================================
+
+if ($resetStuck) {
+    $reset = $queue->resetStuck(10);
+    echo "Reset {$reset} stuck items back to pending\n";
+    exit(0);
+}
+
+// ============================================================================
+// Dry run mode
+// ============================================================================
+
+if ($dryRun) {
+    $stats = $queue->getStats();
+    echo "Media Queue (DRY RUN)\n";
+    echo "=====================\n";
+    echo "  Would process: {$stats['pending']} pending items\n";
+    echo "  Concurrency:   {$concurrency}\n";
+    echo "  Batch size:    {$batchSize}\n";
+    if ($limit) {
+        echo "  Limit:         {$limit}\n";
+    }
+    exit(0);
+}
+
+// ============================================================================
+// Process queue
+// ============================================================================
+
+$startTime = microtime(true);
+
+echo "Media Queue Worker\n";
+echo "==================\n";
+echo "  Concurrency: {$concurrency}\n";
+echo "  Batch size:  {$batchSize}\n";
+if ($limit) {
+    echo "  Limit:       {$limit}\n";
+}
+echo "\n";
+
+$uploader = new MediaUploader($config, [
+    'verbose' => $verbose,
+    'concurrency' => $concurrency,
+    'async_queue' => true,
+], $storage);
+
+$stats = $uploader->processQueue($batchSize, $limit);
+
+$duration = round(microtime(true) - $startTime, 1);
+
+echo "\n";
+echo "==================\n";
+echo "  QUEUE WORKER SUMMARY\n";
+echo "==================\n";
+echo "  Processed:    {$stats['processed']}\n";
+echo "  Uploaded:     {$stats['uploaded']}\n";
+echo "  Failed:       {$stats['failed']}\n";
+echo "  SKUs updated: {$stats['skus_updated']}\n";
+echo "  Duration:     {$duration}s\n";
+echo "==================\n";
+
+$queueStats = $queue->getStats();
+if ($queueStats['pending'] > 0) {
+    echo "\n  {$queueStats['pending']} items still pending. Run again to continue.\n";
+}
+if ($queueStats['failed'] > 0) {
+    echo "  {$queueStats['failed']} items failed (max retries reached).\n";
+}
+
+exit($stats['failed'] > 0 ? 1 : 0);
