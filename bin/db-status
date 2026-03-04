@@ -1,0 +1,174 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Database Status Utility
+ *
+ * Prints a summary of the SQLite storage: product counts by source,
+ * cache freshness, last sync times, stale products, and database size.
+ *
+ * Useful for ops monitoring and debugging.
+ *
+ * @package ResellPiacenza\Support
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\Storage;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Database Status Utility
+Shows a summary of the SQLite storage for the current environment.
+
+Usage:
+  bin/db-status [options]
+
+Options:
+  --env=FILE    Use alternate .env file (determines which database to inspect)
+  --json        Output as JSON (for scripting)
+  --help, -h    Show this help
+
+Examples:
+  bin/db-status                               # Default environment
+  bin/db-status --env=environment/clientA.env  # Client-specific database
+  bin/db-status --json                        # Machine-readable output
+
+HELP;
+    exit(0);
+}
+
+$json_output = in_array('--json', $argv);
+
+// ============================================================================
+// Load Storage
+// ============================================================================
+
+Config::load();
+
+$dbPath = Config::databasePath();
+$envName = Config::envName();
+
+if (!file_exists($dbPath)) {
+    if ($json_output) {
+        echo json_encode(['error' => 'Database not found', 'path' => $dbPath]) . "\n";
+    } else {
+        echo "Database not found: {$dbPath}\n";
+        echo "The database is created automatically on first pipeline run.\n";
+    }
+    exit(1);
+}
+
+$storage = new Storage($dbPath);
+
+// ============================================================================
+// Gather stats
+// ============================================================================
+
+$data = [
+    'environment' => $envName,
+    'database' => $dbPath,
+    'size_bytes' => $storage->getDatabaseSize(),
+    'size_human' => formatBytes($storage->getDatabaseSize()),
+    'products' => [
+        'total' => $storage->getTotalProductCount(),
+        'by_source' => $storage->getProductCountBySource(),
+        'unsynced' => $storage->getUnsyncedCount(),
+        'needing_sync' => count($storage->getProductsNeedingSync()),
+    ],
+    'variations' => [
+        'total' => $storage->getTotalVariationCount(),
+    ],
+    'cache' => $storage->getCacheStats(),
+    'media' => [
+        'total' => $storage->getMediaCount(),
+    ],
+    'taxonomy' => [
+        'total' => $storage->getTaxonomyCount(),
+    ],
+    'sync_log' => $storage->getLastSyncInfo(),
+];
+
+// ============================================================================
+// Output
+// ============================================================================
+
+if ($json_output) {
+    echo json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n";
+    exit(0);
+}
+
+echo "\n";
+echo "================================\n";
+echo "  Database Status\n";
+echo "================================\n";
+echo "  Environment:  {$data['environment']}\n";
+echo "  Database:     {$data['database']}\n";
+echo "  Size:         {$data['size_human']}\n";
+echo "\n";
+
+// Products
+echo "Products:\n";
+echo "  Total:        {$data['products']['total']}\n";
+foreach ($data['products']['by_source'] as $row) {
+    echo "  {$row['source']}:  {$row['count']}\n";
+}
+echo "  Unsynced:     {$data['products']['unsynced']}\n";
+echo "  Need sync:    {$data['products']['needing_sync']}\n";
+echo "\n";
+
+// Variations
+echo "Variations:\n";
+echo "  Total:        {$data['variations']['total']}\n";
+echo "\n";
+
+// API Cache
+echo "API Cache:\n";
+if (empty($data['cache'])) {
+    echo "  (empty)\n";
+} else {
+    foreach ($data['cache'] as $row) {
+        echo "  {$row['source']}: {$row['count']} entries";
+        if ($row['oldest']) {
+            echo " (oldest: {$row['oldest']}, newest: {$row['newest']})";
+        }
+        echo "\n";
+    }
+}
+echo "\n";
+
+// Media + Taxonomy
+echo "Media Map:      {$data['media']['total']} entries\n";
+echo "Taxonomy Map:   {$data['taxonomy']['total']} entries\n";
+echo "\n";
+
+// Sync Log
+echo "Sync Log:\n";
+if (empty($data['sync_log'])) {
+    echo "  (no syncs recorded)\n";
+} else {
+    foreach ($data['sync_log'] as $row) {
+        echo "  {$row['action']}: {$row['count']} products, last: {$row['last_sync']}\n";
+    }
+}
+
+echo "\n";
+echo "================================\n";
+
+/**
+ * Format bytes to human-readable string
+ */
+function formatBytes(int $bytes): string
+{
+    if ($bytes < 1024) {
+        return $bytes . ' B';
+    }
+    if ($bytes < 1048576) {
+        return round($bytes / 1024, 1) . ' KB';
+    }
+    return round($bytes / 1048576, 1) . ' MB';
+}

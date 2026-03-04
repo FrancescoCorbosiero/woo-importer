@@ -1,0 +1,496 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Catalog Build Pipeline — Full catalog refresh via CatalogPipeline
+ *
+ * Replaces catalog-build.sh with a single PHP entry point.
+ * Uses CatalogPipeline orchestrator for the canonical pipeline flow:
+ *   kicksdb-discover → gs-ingest → taxonomies → media → build → sync
+ *
+ * Discovery (kicksdb-discover, gs-ingest) still runs as subprocess steps
+ * since they produce the assortment files consumed by the adapters.
+ * Everything from taxonomy onward flows through CatalogPipeline.
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Import\KicksDbAdapter;
+use ResellPiacenza\Import\GoldenSneakersAdapter;
+use ResellPiacenza\Import\CatalogPipeline;
+use ResellPiacenza\Taxonomy\TaxonomyManager;
+use ResellPiacenza\Media\MediaUploader;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Catalog Build Pipeline
+Full catalog refresh: KicksDB discovery + GS feed → WooCommerce.
+
+Usage:
+  bin/catalog-build [options]
+
+Options:
+  --dry-run               Preview all changes without writing
+  --skip-media            Skip image upload step
+  --skip-taxonomies       Skip taxonomy preparation step
+  --skip-discover         Skip KicksDB discovery (use cached assortment)
+  --skip-gs               Skip GS feed ingestion
+  --force-full            Force full import (ignore delta)
+  --no-cache              Force fresh KicksDB API fetch (bypass product cache)
+  --limit=N               Limit assortment size
+  --verbose, -v           Detailed output from all steps
+  --env=FILE              Use alternate .env file
+  --help, -h              Show this help
+
+Examples:
+  bin/catalog-build                           # Full build
+  bin/catalog-build --dry-run --verbose        # Preview
+  bin/catalog-build --skip-media               # Skip image upload
+  bin/catalog-build --skip-discover            # Use cached KicksDB assortment
+  bin/catalog-build --skip-gs                  # Skip GS ingestion
+  bin/catalog-build --force-full               # Force full import (ignore delta)
+  bin/catalog-build --limit=100                # Limit assortment size
+
+HELP;
+    exit(0);
+}
+
+// Parse CLI options
+$dry_run = in_array('--dry-run', $argv);
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$skip_media = in_array('--skip-media', $argv);
+$skip_taxonomies = in_array('--skip-taxonomies', $argv);
+$skip_discover = in_array('--skip-discover', $argv);
+$skip_gs = in_array('--skip-gs', $argv);
+$force_full = in_array('--force-full', $argv);
+$no_cache = in_array('--no-cache', $argv);
+$limit = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--limit=') === 0) {
+        $limit = (int) str_replace('--limit=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('CatalogBuild', [
+    'file' => Config::projectRoot() . '/logs/catalog-build.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Catalog Build Pipeline');
+$logger->info('  KicksDB + GS → WooCommerce');
+$logger->info('  ' . date('Y-m-d H:i:s'));
+$logger->info('========================================');
+$logger->info('');
+
+// Build env/verbose fragments for subprocess calls
+$env_arg = Config::envArgFragment();
+$dry_run_flag = $dry_run ? '--dry-run' : '';
+$verbose_flag = $verbose ? '--verbose' : '';
+$limit_flag = $limit ? "--limit={$limit}" : '';
+
+// ============================================================================
+// Step 1: Discover KicksDB assortment (subprocess)
+// ============================================================================
+
+if (!$skip_discover) {
+    $logger->info('[Step 1/6] Discovering KicksDB assortment...');
+    $cmd = implode(' ', array_filter([
+        'php', escapeshellarg(Config::projectRoot() . '/bin/kicksdb-discover'),
+        '--skip-dedup', $verbose_flag, $limit_flag, $dry_run_flag, $env_arg,
+    ]));
+    $logger->debug("  CMD: {$cmd}");
+    passthru($cmd, $exit_code);
+    if ($exit_code !== 0) {
+        $logger->error('KicksDB discovery failed');
+        exit(1);
+    }
+    $logger->info('');
+} else {
+    $logger->info('[Step 1/6] Skipping discovery (--skip-discover)');
+    $logger->info('');
+}
+
+// ============================================================================
+// Step 2: Ingest GS feed (subprocess)
+// ============================================================================
+
+if (!$skip_gs) {
+    $logger->info('[Step 2/6] Ingesting GS feed...');
+    $cmd = implode(' ', array_filter([
+        'php', escapeshellarg(Config::projectRoot() . '/bin/gs-ingest'),
+        $verbose_flag, $dry_run_flag, $env_arg,
+    ]));
+    $logger->debug("  CMD: {$cmd}");
+    passthru($cmd, $exit_code);
+    if ($exit_code !== 0) {
+        $logger->error('GS ingestion failed');
+        exit(1);
+    }
+    $logger->info('');
+} else {
+    $logger->info('[Step 2/6] Skipping GS ingestion (--skip-gs)');
+    $logger->info('');
+}
+
+// ============================================================================
+// Load assortment (merged preferred, KicksDB fallback)
+// ============================================================================
+
+$merged_file = Config::dataDir() . '/merged-assortment.json';
+$kdb_file = Config::dataDir() . '/kicksdb-assortment.json';
+
+$assortment = null;
+$assortment_source = '';
+
+if (file_exists($merged_file)) {
+    $assortment = json_decode(file_get_contents($merged_file), true);
+    $assortment_source = 'merged-assortment.json';
+} elseif (file_exists($kdb_file)) {
+    $assortment = json_decode(file_get_contents($kdb_file), true);
+    $assortment_source = 'kicksdb-assortment.json (fallback)';
+}
+
+if (!is_array($assortment) || empty($assortment['products'])) {
+    $logger->error('No assortment file found. Run bin/kicksdb-discover and/or bin/gs-ingest first.');
+    exit(1);
+}
+
+$products = $assortment['products'];
+$logger->info("Loaded assortment: " . count($products) . " products from {$assortment_source}");
+
+// Build SKU list and assortment lookup
+$skus = array_values(array_filter(array_column($products, 'sku')));
+if ($limit && count($skus) > $limit) {
+    $skus = array_slice($skus, 0, $limit);
+    $logger->info("  Limited to first {$limit}");
+}
+
+$assortment_map = [];
+foreach ($products as $p) {
+    $sku = $p['sku'] ?? '';
+    if ($sku) {
+        $assortment_map[$sku] = $p;
+    }
+}
+
+// ============================================================================
+// Set up KicksDB adapter
+// ============================================================================
+
+if ($no_cache) {
+    $config['import']['kicksdb_cache_ttl'] = 0;
+    $logger->info('  KicksDB cache: disabled (--no-cache)');
+}
+
+$kdbAdapter = new KicksDbAdapter($config, $skus, $logger);
+$kdbAdapter->preloadFromAssortment($assortment_map);
+
+// Wrap KicksDB adapter to apply category override from catalog
+$kdbAdapterWrapped = new class($kdbAdapter, $assortment_map) implements \ResellPiacenza\Import\FeedAdapter {
+    private KicksDbAdapter $inner;
+    private array $assortment_map;
+
+    public function __construct(KicksDbAdapter $inner, array $assortment_map) {
+        $this->inner = $inner;
+        $this->assortment_map = $assortment_map;
+    }
+
+    public function getSourceName(): string { return $this->inner->getSourceName(); }
+    public function getStats(): array { return $this->inner->getStats(); }
+
+    public function fetchProducts(): iterable {
+        foreach ($this->inner->fetchProducts() as $p) {
+            $sku = $p['sku'] ?? '';
+            if (isset($this->assortment_map[$sku]['catalog_wc_category'])) {
+                $wc_cat = $this->assortment_map[$sku]['catalog_wc_category'];
+                if ($wc_cat) {
+                    $p['category_type'] = $wc_cat;
+                }
+            }
+            yield $p;
+        }
+    }
+};
+
+// ============================================================================
+// Set up GS adapter (optional)
+// ============================================================================
+
+$adapters = [$kdbAdapterWrapped];
+
+if (!$skip_gs) {
+    $gsAdapter = new GoldenSneakersAdapter($config, $logger);
+    $adapters[] = $gsAdapter;
+}
+
+// ============================================================================
+// Set up taxonomy manager
+// ============================================================================
+
+$taxonomyManager = null;
+if (!$skip_taxonomies) {
+    $taxonomyManager = new TaxonomyManager($config, [
+        'dry_run' => $dry_run,
+        'verbose' => $verbose,
+        'brand_source' => 'catalog',
+    ]);
+}
+
+// ============================================================================
+// Set up media uploader
+// ============================================================================
+
+$mediaUploader = null;
+if (!$skip_media) {
+    $mediaUploader = new MediaUploader($config, [
+        'dry_run' => $dry_run,
+        'verbose' => $verbose,
+        'image_source' => 'kicksdb',
+    ]);
+}
+
+// ============================================================================
+// Post-build callback: catalog provenance + brand enrichment + sorting
+// ============================================================================
+
+$catalog = $assortment['catalog'] ?? null;
+
+$postBuild = function (array $wcProducts) use ($config, $assortment_map, $catalog, $logger) {
+    // --- Load taxonomy map for brand/subcategory enrichment ---
+    $taxonomy_map_file = Config::dataDir() . '/taxonomy-map.json';
+    $taxonomy_map = file_exists($taxonomy_map_file)
+        ? (json_decode(file_get_contents($taxonomy_map_file), true) ?: [])
+        : [];
+    $brands_map = $taxonomy_map['brands'] ?? [];
+    $subcategories_map = $taxonomy_map['subcategories'] ?? [];
+
+    // Build lookup of wc_category keys that have explicit subcategories (keyword-based)
+    $keyword_subcat_sections = [];
+    if ($catalog && !empty($catalog['sections'])) {
+        foreach ($catalog['sections'] as $section) {
+            if (!empty($section['subcategories'])) {
+                $keyword_subcat_sections[$section['wc_category'] ?? ''] = true;
+            }
+        }
+    }
+
+    $catalog_indexed = 0;
+    $catalog_brand_enriched = 0;
+
+    foreach ($wcProducts as &$wc) {
+        $sku = $wc['sku'] ?? '';
+        if (!isset($assortment_map[$sku])) {
+            continue;
+        }
+
+        $meta = $assortment_map[$sku];
+        $wc['meta_data'] = $wc['meta_data'] ?? [];
+
+        // --- Catalog provenance metadata ---
+        $catalog_section = $meta['catalog_section'] ?? '';
+        $catalog_discovery = $meta['catalog_discovery'] ?? '';
+        $catalog_wc_category = $meta['catalog_wc_category'] ?? '';
+        $catalog_brand = $meta['catalog_brand'] ?? '';
+        $catalog_subcategory = $meta['catalog_subcategory'] ?? '';
+
+        if ($catalog_section) {
+            $wc['meta_data'][] = ['key' => '_catalog_section', 'value' => $catalog_section];
+        }
+        if ($catalog_discovery) {
+            $wc['meta_data'][] = ['key' => '_catalog_discovery', 'value' => $catalog_discovery];
+        }
+        if ($catalog_wc_category) {
+            $wc['meta_data'][] = ['key' => '_catalog_wc_category', 'value' => $catalog_wc_category];
+        }
+        if ($catalog_brand) {
+            $wc['meta_data'][] = ['key' => '_catalog_brand', 'value' => $catalog_brand];
+        }
+        if ($catalog_subcategory) {
+            $wc['meta_data'][] = ['key' => '_catalog_subcategory', 'value' => $catalog_subcategory];
+        }
+
+        // --- GS catalog tag ---
+        $is_gs = !empty($meta['gs_tracked'])
+            || $catalog_discovery === 'gs_enriched'
+            || $catalog_discovery === 'gs_only';
+        if ($is_gs) {
+            $wc['meta_data'][] = ['key' => '_gs_catalog', 'value' => '1'];
+        }
+
+        // --- Sub-category assignment ---
+        if ($catalog_wc_category) {
+            $cat_config = $config['categories'][$catalog_wc_category] ?? null;
+            $parent_slug = $cat_config['slug'] ?? '';
+            $parent_subcats = $subcategories_map[$parent_slug] ?? [];
+
+            $matched_subcat_id = null;
+            $first_entry = reset($parent_subcats);
+            $uses_keywords = is_array($first_entry) && isset($first_entry['keywords']);
+
+            if ($uses_keywords) {
+                $searchable = strtolower($catalog_subcategory . ' ' . ($wc['name'] ?? ''));
+                foreach ($parent_subcats as $slug => $entry) {
+                    foreach ($entry['keywords'] ?? [] as $kw) {
+                        if (strpos($searchable, $kw) !== false) {
+                            $matched_subcat_id = $entry['id'];
+                            break 2;
+                        }
+                    }
+                }
+            } else {
+                $subcat_name = $catalog_subcategory;
+                if ($subcat_name) {
+                    $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $subcat_name));
+                    $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
+                    $matched_subcat_id = $parent_subcats[$subcat_slug] ?? null;
+                }
+            }
+
+            if ($matched_subcat_id) {
+                $existing_cat_ids = array_column($wc['categories'] ?? [], 'id');
+                if (!in_array($matched_subcat_id, $existing_cat_ids)) {
+                    $wc['categories'][] = ['id' => $matched_subcat_id];
+                }
+            }
+        }
+
+        $catalog_indexed++;
+
+        // --- Brand taxonomy enrichment ---
+        if ($catalog_discovery !== 'brand' || empty($catalog_brand)) {
+            continue;
+        }
+
+        $brand_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $catalog_brand));
+        $brand_slug = preg_replace('/-+/', '-', trim($brand_slug, '-'));
+        $parent_brand_id = $brands_map[$brand_slug] ?? null;
+
+        $brand_entries = [];
+
+        if ($parent_brand_id) {
+            $brand_entries[] = ['id' => $parent_brand_id];
+        } else {
+            $brand_entries[] = ['slug' => $brand_slug, 'name' => $catalog_brand];
+        }
+
+        $has_keyword_subcats = isset($keyword_subcat_sections[$catalog_wc_category]);
+        if (!$has_keyword_subcats && !empty($catalog_subcategory) && $catalog_subcategory !== $catalog_brand) {
+            $subcat_slug = strtolower(preg_replace('/[^a-z0-9-]/i', '-', $catalog_subcategory));
+            $subcat_slug = preg_replace('/-+/', '-', trim($subcat_slug, '-'));
+            $subcat_brand_id = $brands_map[$subcat_slug] ?? null;
+
+            if ($subcat_brand_id) {
+                if ($subcat_brand_id !== $parent_brand_id) {
+                    $brand_entries[] = ['id' => $subcat_brand_id];
+                }
+            } else {
+                $brand_entries[] = ['slug' => $subcat_slug, 'name' => $catalog_subcategory];
+            }
+        }
+
+        $existing = $wc['brands'] ?? [];
+        $existing_ids = array_filter(array_column($existing, 'id'));
+        $existing_slugs = array_filter(array_column($existing, 'slug'));
+        foreach ($brand_entries as $b) {
+            if (!empty($b['id']) && !in_array($b['id'], $existing_ids)) {
+                $existing[] = $b;
+            } elseif (!empty($b['slug']) && !in_array($b['slug'], $existing_slugs)) {
+                $existing[] = $b;
+            }
+        }
+        $wc['brands'] = $existing;
+
+        $catalog_brand_enriched++;
+    }
+    unset($wc);
+
+    $logger->info("Catalog provenance: {$catalog_indexed}/" . count($wcProducts) . " products indexed");
+    $logger->info("Brand enrichment: {$catalog_brand_enriched}/" . count($wcProducts) . " products assigned sub-brands");
+
+    // --- Release date sorting + menu_order ---
+    usort($wcProducts, function ($a, $b) {
+        $date_a = 0;
+        $date_b = 0;
+        foreach ($a['meta_data'] ?? [] as $m) {
+            if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                $date_a = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                break;
+            }
+        }
+        foreach ($b['meta_data'] ?? [] as $m) {
+            if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                $date_b = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                break;
+            }
+        }
+        return $date_b - $date_a;
+    });
+
+    foreach ($wcProducts as $idx => &$wc_tmp) {
+        $wc_tmp['menu_order'] = $idx;
+    }
+    unset($wc_tmp);
+
+    // --- Cache unified SKUs ---
+    $unified_skus = array_values(array_filter(array_map(fn($p) => $p['sku'] ?? null, $wcProducts)));
+    file_put_contents(Config::dataDir() . '/unified-sku-cache.json', json_encode($unified_skus, JSON_PRETTY_PRINT));
+    $logger->info("Cached " . count($unified_skus) . " SKUs to unified-sku-cache.json");
+
+    return $wcProducts;
+};
+
+// ============================================================================
+// Run CatalogPipeline
+// ============================================================================
+
+$logger->info('');
+$logger->info('[Steps 3-6] Running CatalogPipeline...');
+$logger->info('');
+
+$pipeline = new CatalogPipeline($config, $logger, [
+    'dry_run' => $dry_run,
+    'verbose' => $verbose,
+    'skip_taxonomies' => $skip_taxonomies,
+    'skip_media' => $skip_media,
+    'force_full' => $force_full,
+    'limit' => $limit,
+    'taxonomy_manager' => $taxonomyManager,
+    'media_uploader' => $mediaUploader,
+    'post_build' => $postBuild,
+]);
+
+$result = $pipeline->run(...$adapters);
+
+// ============================================================================
+// Final summary
+// ============================================================================
+
+$total_duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Catalog Build Complete');
+$logger->info("  Duration: {$total_duration}s");
+$logger->info("  Success:  " . ($result->isSuccess() ? 'YES' : 'NO'));
+$logger->info('  ' . date('Y-m-d H:i:s'));
+$logger->info('========================================');
+
+exit($result->isSuccess() ? 0 : 1);

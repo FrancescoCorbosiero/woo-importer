@@ -3,16 +3,20 @@
 /**
  * CLI wrapper for Bulk Upload Utility
  *
- * Self-contained tool for importing your own products from JSON or CSV files.
- * Handles the full pipeline: taxonomy creation, image upload, WC import.
+ * Imports products from JSON or CSV files into WooCommerce via CatalogPipeline.
+ *
+ * Pipeline: BulkUploadAdapter → CatalogPipeline
  *
  * @package ResellPiacenza\Import
  */
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use Monolog\Logger;
 use ResellPiacenza\Support\Config;
-use ResellPiacenza\Import\BulkUploader;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Import\BulkUploadAdapter;
+use ResellPiacenza\Import\CatalogPipeline;
 
 // ============================================================================
 // CLI
@@ -30,7 +34,11 @@ Options:
   --file=FILE           Input file (JSON or CSV) - required
   --dry-run             Preview without importing
   --skip-media          Don't upload images (use URLs directly)
+  --skip-taxonomies     Skip taxonomy preparation step
   --verbose, -v         Detailed output
+  --force-full          Force full import (ignore delta)
+  --limit=N             Import only first N products
+  --env=FILE            Use alternate .env file
   --help, -h            Show help
 
 JSON format:
@@ -59,24 +67,61 @@ HELP;
     exit(0);
 }
 
-$options = [
-    'dry_run' => in_array('--dry-run', $argv),
-    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
-    'skip_media' => in_array('--skip-media', $argv),
-    'file' => null,
-];
+$dry_run = in_array('--dry-run', $argv);
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$skip_media = in_array('--skip-media', $argv);
+$skip_taxonomies = in_array('--skip-taxonomies', $argv);
+$force_full = in_array('--force-full', $argv);
+$file = null;
+$limit = null;
 
 foreach ($argv as $arg) {
     if (strpos($arg, '--file=') === 0) {
-        $options['file'] = str_replace('--file=', '', $arg);
+        $file = str_replace('--file=', '', $arg);
+    }
+    if (strpos($arg, '--limit=') === 0) {
+        $limit = (int) str_replace('--limit=', '', $arg);
     }
 }
 
-if (!$options['file']) {
+if (!$file) {
     echo "Error: --file=FILE is required. Use --help for usage.\n";
     exit(1);
 }
 
+// Resolve relative paths
+if ($file[0] !== '/') {
+    $file = Config::projectRoot() . '/' . $file;
+}
+
+if (!file_exists($file)) {
+    echo "Error: File not found: {$file}\n";
+    exit(1);
+}
+
+// ============================================================================
+// Run via CatalogPipeline
+// ============================================================================
+
 $config = Config::load();
-$uploader = new BulkUploader($config, $options);
-exit($uploader->run() ? 0 : 1);
+
+$logger = LoggerFactory::create('BulkUpload', [
+    'file' => Config::projectRoot() . '/logs/bulk-upload.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$adapter = new BulkUploadAdapter($file, 'auto', $logger, $limit, $verbose);
+
+$pipeline = new CatalogPipeline($config, $logger, [
+    'dry_run' => $dry_run,
+    'verbose' => $verbose,
+    'skip_media' => $skip_media,
+    'skip_taxonomies' => $skip_taxonomies,
+    'force_full' => $force_full,
+    'limit' => $limit,
+    'feed_output_path' => Config::dataDir() . '/bulk-upload-feed-wc.json',
+]);
+
+$result = $pipeline->run($adapter);
+
+exit($result->isSuccess() ? 0 : 1);

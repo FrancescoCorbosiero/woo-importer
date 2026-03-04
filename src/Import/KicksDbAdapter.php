@@ -4,6 +4,7 @@ namespace ResellPiacenza\Import;
 
 use ResellPiacenza\KicksDb\Client as KicksDbClient;
 use ResellPiacenza\Pricing\PriceCalculator;
+use ResellPiacenza\Support\Storage;
 
 /**
  * KicksDB Feed Adapter
@@ -41,6 +42,9 @@ class KicksDbAdapter implements FeedAdapter
     /** @var int Cache TTL in seconds (default 24h) */
     private int $cache_ttl;
 
+    /** @var Storage|null SQLite storage (replaces JSON cache when available) */
+    private ?Storage $storage;
+
     private array $stats = [
         'total_skus' => 0,
         'products_found' => 0,
@@ -58,12 +62,14 @@ class KicksDbAdapter implements FeedAdapter
      * @param array $config Full config from config.php
      * @param array $skus List of SKUs/style codes to fetch
      * @param object|null $logger PSR-3 compatible logger
+     * @param Storage|null $storage SQLite storage (replaces JSON cache when available)
      */
-    public function __construct(array $config, array $skus, $logger = null)
+    public function __construct(array $config, array $skus, $logger = null, ?Storage $storage = null)
     {
         $this->config = $config;
         $this->skus = $skus;
         $this->logger = $logger;
+        $this->storage = $storage;
 
         $pricing = $config['pricing'] ?? [];
 
@@ -200,13 +206,22 @@ class KicksDbAdapter implements FeedAdapter
     // =========================================================================
 
     /**
-     * Load product cache from disk
+     * Load product cache from disk (JSON fallback when Storage not available)
      *
      * Cache file stores raw KicksDB API responses keyed by SKU with timestamps.
      * This avoids re-fetching ~800 products on every catalog-transform run.
+     *
+     * When Storage is available, the JSON cache is skipped — Storage::getCached()
+     * and Storage::setCache() handle caching directly in SQLite.
      */
     private function loadProductCache(): void
     {
+        // When Storage is available, skip JSON cache entirely
+        if ($this->storage !== null) {
+            $this->log('debug', '  Using SQLite cache (Storage)');
+            return;
+        }
+
         // Resolve cache file path: data/kicksdb-product-cache.json
         $data_dir = dirname(__DIR__, 2) . '/data';
         if (is_dir($data_dir)) {
@@ -230,6 +245,16 @@ class KicksDbAdapter implements FeedAdapter
      */
     private function getCachedProduct(string $sku): ?array
     {
+        // SQLite storage path
+        if ($this->storage !== null) {
+            $cached = $this->storage->getCached("kicksdb:{$sku}", $this->cache_ttl);
+            if ($cached !== null && !empty($cached['variants'])) {
+                return $cached;
+            }
+            return null;
+        }
+
+        // JSON file fallback
         if (!isset($this->product_cache[$sku])) {
             return null;
         }
@@ -259,6 +284,13 @@ class KicksDbAdapter implements FeedAdapter
      */
     private function setCachedProduct(string $sku, array $product_data): void
     {
+        // SQLite storage path
+        if ($this->storage !== null) {
+            $this->storage->setCache("kicksdb:{$sku}", $product_data, 'kicksdb');
+            return;
+        }
+
+        // JSON file fallback
         $this->product_cache[$sku] = [
             '_cached_at' => time(),
             'product' => $product_data,
@@ -266,10 +298,16 @@ class KicksDbAdapter implements FeedAdapter
     }
 
     /**
-     * Persist product cache to disk
+     * Persist product cache to disk (JSON fallback only)
      */
     private function saveProductCache(): void
     {
+        // SQLite storage handles persistence automatically — no explicit save needed
+        if ($this->storage !== null) {
+            $this->log('info', '  Product cache: persisted in SQLite');
+            return;
+        }
+
         if ($this->cache_file === null) {
             return;
         }

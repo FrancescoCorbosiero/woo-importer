@@ -136,6 +136,64 @@ class Config
     }
 
     /**
+     * Get a sanitized environment name derived from the loaded .env file
+     *
+     * Used for per-environment SQLite database isolation:
+     *   --env=environment/clientA.env → 'clientA'
+     *   --env=/path/to/resellpiacenza.env → 'resellpiacenza'
+     *   (no --env) → 'default'
+     *
+     * @return string Sanitized identifier safe for filenames
+     */
+    public static function envName(): string
+    {
+        // Check --env= CLI argument
+        foreach ($_SERVER['argv'] ?? [] as $arg) {
+            if (strpos($arg, '--env=') === 0) {
+                $envFile = str_replace('--env=', '', $arg);
+                return self::sanitizeEnvName($envFile);
+            }
+        }
+
+        // Check ENV_FILE environment variable
+        $envFile = $_ENV['ENV_FILE'] ?? getenv('ENV_FILE') ?: null;
+        if ($envFile) {
+            return self::sanitizeEnvName($envFile);
+        }
+
+        return 'default';
+    }
+
+    /**
+     * Get the path to the SQLite database file for the current environment
+     *
+     * @return string Absolute path to the database file
+     */
+    public static function databasePath(): string
+    {
+        return self::dataDir() . '/' . self::envName() . '.sqlite';
+    }
+
+    /**
+     * Sanitize an env file path into a safe identifier
+     */
+    private static function sanitizeEnvName(string $envFile): string
+    {
+        // Extract filename without extension
+        $name = pathinfo(basename($envFile), PATHINFO_FILENAME);
+
+        // Remove .env suffix if the file is like "clientA.env"
+        $name = preg_replace('/\.env$/i', '', $name);
+
+        // Sanitize: lowercase, only alphanumeric + hyphens
+        $name = strtolower($name);
+        $name = preg_replace('/[^a-z0-9-]/', '-', $name);
+        $name = preg_replace('/-+/', '-', trim($name, '-'));
+
+        return $name ?: 'default';
+    }
+
+    /**
      * Reset cached config (useful for testing)
      */
     public static function reset(): void
