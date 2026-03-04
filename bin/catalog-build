@@ -22,6 +22,7 @@ use ResellPiacenza\Support\LoggerFactory;
 use ResellPiacenza\Import\KicksDbAdapter;
 use ResellPiacenza\Import\GoldenSneakersAdapter;
 use ResellPiacenza\Import\CatalogPipeline;
+use ResellPiacenza\Support\Storage;
 use ResellPiacenza\Taxonomy\TaxonomyManager;
 use ResellPiacenza\Media\MediaUploader;
 
@@ -45,6 +46,8 @@ Options:
   --skip-gs               Skip GS feed ingestion
   --force-full            Force full import (ignore delta)
   --no-cache              Force fresh KicksDB API fetch (bypass product cache)
+  --concurrency=N         Parallel media downloads/uploads (default: 6)
+  --async-media           Queue images for background upload (use bin/process-media-queue)
   --limit=N               Limit assortment size
   --verbose, -v           Detailed output from all steps
   --env=FILE              Use alternate .env file
@@ -72,11 +75,16 @@ $skip_discover = in_array('--skip-discover', $argv);
 $skip_gs = in_array('--skip-gs', $argv);
 $force_full = in_array('--force-full', $argv);
 $no_cache = in_array('--no-cache', $argv);
+$async_media = in_array('--async-media', $argv);
+$concurrency = 6;
 $limit = null;
 
 foreach ($argv as $arg) {
     if (strpos($arg, '--limit=') === 0) {
         $limit = (int) str_replace('--limit=', '', $arg);
+    }
+    if (strpos($arg, '--concurrency=') === 0) {
+        $concurrency = max(1, (int) str_replace('--concurrency=', '', $arg));
     }
 }
 
@@ -260,11 +268,22 @@ if (!$skip_taxonomies) {
 
 $mediaUploader = null;
 if (!$skip_media) {
+    $mediaStorage = null;
+    if ($async_media) {
+        try {
+            $mediaStorage = Storage::getInstance(Config::databasePath());
+        } catch (\Exception $e) {
+            $logger->warning('Cannot init Storage for async media: ' . $e->getMessage());
+        }
+    }
+
     $mediaUploader = new MediaUploader($config, [
         'dry_run' => $dry_run,
         'verbose' => $verbose,
         'image_source' => 'kicksdb',
-    ]);
+        'concurrency' => $concurrency,
+        'async_queue' => $async_media,
+    ], $mediaStorage);
 }
 
 // ============================================================================

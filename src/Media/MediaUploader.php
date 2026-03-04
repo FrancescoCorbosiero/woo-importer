@@ -37,6 +37,15 @@ class MediaUploader
     /** @var Storage|null SQLite storage for media map */
     private ?Storage $storage = null;
 
+    /** @var int Number of concurrent downloads/uploads (curl_multi) */
+    private int $concurrency = 6;
+
+    /** @var bool Queue images for async processing instead of uploading now */
+    private bool $asyncQueue = false;
+
+    /** @var MediaQueue|null Queue instance (when async mode enabled) */
+    private ?MediaQueue $mediaQueue = null;
+
     private $stats = [
         'total' => 0,
         'uploaded' => 0,
@@ -61,7 +70,14 @@ class MediaUploader
         $this->update_metadata = $options['update_metadata'] ?? false;
         $this->image_source = $options['image_source'] ?? null;
         $this->urls_file = $options['urls_file'] ?? null;
+        $this->concurrency = $options['concurrency'] ?? 6;
+        $this->asyncQueue = $options['async_queue'] ?? false;
         $this->storage = $storage;
+
+        // Initialize async queue if enabled
+        if ($this->asyncQueue && $this->storage !== null) {
+            $this->mediaQueue = new MediaQueue($this->storage);
+        }
 
         $this->setupLogger();
         $this->loadExistingMap();
@@ -546,7 +562,357 @@ class MediaUploader
     }
 
     /**
-     * Process a single image entry (primary + gallery)
+     * Download multiple URLs concurrently using curl_multi
+     *
+     * @param array $urls Array of URLs to download
+     * @param int $concurrency Max concurrent connections
+     * @return array Associative array: url => ['content' => string, 'http_code' => int, 'error' => string|null]
+     */
+    private function downloadBatch(array $urls, int $concurrency): array
+    {
+        $results = [];
+        $queue = $urls;
+        $active = [];
+
+        $mh = curl_multi_init();
+
+        // Process in batches
+        while (!empty($queue) || !empty($active)) {
+            // Fill up to concurrency limit
+            while (count($active) < $concurrency && !empty($queue)) {
+                $url = array_shift($queue);
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $url,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_TIMEOUT => 30,
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_USERAGENT => 'Mozilla/5.0',
+                ]);
+                curl_multi_add_handle($mh, $ch);
+                $active[(int) $ch] = ['url' => $url, 'handle' => $ch];
+            }
+
+            // Execute
+            $status = curl_multi_exec($mh, $running);
+            if ($running) {
+                curl_multi_select($mh, 1.0);
+            }
+
+            // Check for completed handles
+            while ($info = curl_multi_info_read($mh)) {
+                $ch = $info['handle'];
+                $key = (int) $ch;
+
+                if (isset($active[$key])) {
+                    $url = $active[$key]['url'];
+                    $content = curl_multi_getcontent($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    $error = curl_error($ch);
+
+                    $results[$url] = [
+                        'content' => $content,
+                        'http_code' => $httpCode,
+                        'error' => $error ?: null,
+                    ];
+
+                    curl_multi_remove_handle($mh, $ch);
+                    curl_close($ch);
+                    unset($active[$key]);
+                }
+            }
+        }
+
+        curl_multi_close($mh);
+        return $results;
+    }
+
+    /**
+     * Upload multiple images to WordPress concurrently using curl_multi
+     *
+     * @param array $uploadJobs Array of upload jobs: [{file, sku, ext, mime, template_data}, ...]
+     * @return array Results: [{sku => media_id}] or [{sku => error_string}]
+     */
+    private function uploadBatchToWordPress(array $uploadJobs): array
+    {
+        $wpUrl = rtrim($this->config['woocommerce']['url'], '/') . '/wp-json/wp/v2/media';
+        $auth = base64_encode(
+            $this->config['wordpress']['username'] . ':' .
+            $this->config['wordpress']['app_password']
+        );
+
+        $results = [];
+        $mh = curl_multi_init();
+        $active = [];
+
+        foreach ($uploadJobs as $idx => $job) {
+            $filename = preg_replace('/[^a-zA-Z0-9._-]/', '', $job['sku']) . '.' . $job['ext'];
+            $templateData = $job['template_data'];
+
+            $title = $templateData['product_name'];
+            $altText = $this->parseTemplate($this->config['templates']['image_alt'], $templateData);
+            $caption = $this->parseTemplate($this->config['templates']['image_caption'], $templateData);
+            $description = $this->parseTemplate($this->config['templates']['image_description'], $templateData);
+
+            $boundary = 'WooImageUpload' . time() . rand(1000, 9999) . $idx;
+            $fileContent = file_get_contents($job['file']);
+
+            $body = "--{$boundary}\r\n";
+            $body .= "Content-Disposition: form-data; name=\"file\"; filename=\"{$filename}\"\r\n";
+            $body .= "Content-Type: {$job['mime']}\r\n\r\n";
+            $body .= $fileContent . "\r\n";
+
+            foreach (['title' => $title, 'alt_text' => $altText, 'caption' => $caption, 'description' => $description] as $field => $value) {
+                $body .= "--{$boundary}\r\n";
+                $body .= "Content-Disposition: form-data; name=\"{$field}\"\r\n\r\n";
+                $body .= $value . "\r\n";
+            }
+
+            $body .= "--{$boundary}--\r\n";
+
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $wpUrl,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $body,
+                CURLOPT_HTTPHEADER => [
+                    "Authorization: Basic {$auth}",
+                    "Content-Type: multipart/form-data; boundary={$boundary}",
+                ],
+                CURLOPT_TIMEOUT => 120,
+            ]);
+
+            curl_multi_add_handle($mh, $ch);
+            $active[(int) $ch] = ['handle' => $ch, 'sku' => $job['sku'], 'file' => $job['file']];
+        }
+
+        // Execute all uploads
+        do {
+            $status = curl_multi_exec($mh, $running);
+            if ($running) {
+                curl_multi_select($mh, 1.0);
+            }
+        } while ($running > 0);
+
+        // Collect results
+        foreach ($active as $key => $info) {
+            $ch = $info['handle'];
+            $response = curl_multi_getcontent($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $sku = $info['sku'];
+
+            if ($httpCode === 201) {
+                $data = json_decode($response, true);
+                $results[$sku] = ['media_id' => $data['id']];
+            } else {
+                $error = json_decode($response, true);
+                $results[$sku] = ['error' => $error['message'] ?? "HTTP {$httpCode}"];
+            }
+
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+
+        curl_multi_close($mh);
+        return $results;
+    }
+
+    /**
+     * Process a batch of images in parallel (download → validate → upload)
+     *
+     * @param array $batch Array of image_data entries
+     */
+    private function processBatch(array $batch): void
+    {
+        // Step 1: Filter out already-uploaded and collect URLs to download
+        $toDownload = [];
+        $skuMeta = [];
+
+        foreach ($batch as $imageData) {
+            $sku = $imageData['sku'];
+            $url = $imageData['url'];
+            $galleryUrls = $imageData['gallery_urls'] ?? [];
+
+            $templateData = [
+                'product_name' => $imageData['product_name'],
+                'brand_name' => $imageData['brand_name'],
+                'sku' => $sku,
+            ];
+
+            $exists = isset($this->image_map[$sku]);
+            $existingId = $exists ? ($this->image_map[$sku]['media_id'] ?? null) : null;
+            $existingGallery = $exists ? ($this->image_map[$sku]['gallery_ids'] ?? []) : [];
+
+            $galleryComplete = !empty($existingGallery) || empty($galleryUrls);
+            if ($exists && $existingId && $galleryComplete && !$this->force && !$this->update_metadata) {
+                $this->stats['skipped']++;
+                continue;
+            }
+
+            if ($this->update_metadata && $exists && $existingId) {
+                if (!$this->dry_run) {
+                    $this->updateMediaMetadata($existingId, $templateData);
+                }
+                $this->stats['updated']++;
+                continue;
+            }
+
+            if ($this->dry_run) {
+                $this->stats[$exists ? 'updated' : 'uploaded']++;
+                continue;
+            }
+
+            $skuMeta[$sku] = [
+                'template_data' => $templateData,
+                'exists' => $exists,
+                'existing_id' => $existingId,
+                'existing_gallery' => $existingGallery,
+                'gallery_urls' => $galleryUrls,
+            ];
+
+            // Queue primary image for download
+            if (!$existingId || $this->force) {
+                $toDownload[$url] = $sku;
+            }
+
+            // Queue gallery images for download
+            if (!empty($galleryUrls) && (empty($existingGallery) || $this->force)) {
+                foreach ($galleryUrls as $galIdx => $galUrl) {
+                    $galSku = $sku . '-gallery-' . ($galIdx + 1);
+                    $toDownload[$galUrl] = $galSku;
+                }
+            }
+        }
+
+        if (empty($toDownload)) {
+            return;
+        }
+
+        // Step 2: Download all images in parallel
+        $downloadResults = $this->downloadBatch(array_keys($toDownload), $this->concurrency);
+
+        // Step 3: Validate downloads and prepare upload jobs
+        $uploadJobs = [];
+        $tempFiles = [];
+
+        foreach ($downloadResults as $url => $result) {
+            $sku = $toDownload[$url];
+            $isGallery = str_contains($sku, '-gallery-');
+            $baseSku = $isGallery ? preg_replace('/-gallery-\d+$/', '', $sku) : $sku;
+
+            if ($result['error'] || $result['http_code'] !== 200 || empty($result['content'])) {
+                $this->logger->warning("  Download failed {$sku}: " . ($result['error'] ?? "HTTP {$result['http_code']}"));
+                if (!$isGallery) {
+                    $this->stats['failed']++;
+                }
+                continue;
+            }
+
+            // Validate image
+            $tempFile = tempnam(sys_get_temp_dir(), 'woo_img_');
+            file_put_contents($tempFile, $result['content']);
+            $tempFiles[] = $tempFile;
+
+            $info = @getimagesize($tempFile);
+            if ($info === false) {
+                @unlink($tempFile);
+                $this->logger->warning("  Invalid image format: {$sku}");
+                if (!$isGallery) {
+                    $this->stats['failed']++;
+                }
+                continue;
+            }
+
+            $mime = $info['mime'];
+            $ext = image_type_to_extension($info[2], false);
+
+            if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
+                @unlink($tempFile);
+                $this->logger->warning("  Unsupported type {$mime}: {$sku}");
+                if (!$isGallery) {
+                    $this->stats['failed']++;
+                }
+                continue;
+            }
+
+            // Determine template data from base SKU
+            $templateData = $skuMeta[$baseSku]['template_data'] ?? [
+                'product_name' => '', 'brand_name' => '', 'sku' => $baseSku,
+            ];
+
+            $uploadJobs[] = [
+                'file' => $tempFile,
+                'sku' => $sku,
+                'base_sku' => $baseSku,
+                'ext' => $ext,
+                'mime' => $mime,
+                'template_data' => $templateData,
+                'url' => $url,
+                'is_gallery' => $isGallery,
+            ];
+        }
+
+        if (empty($uploadJobs)) {
+            return;
+        }
+
+        // Step 4: Upload all in parallel (within concurrency limit, batch by chunks)
+        $uploadChunks = array_chunk($uploadJobs, $this->concurrency);
+
+        foreach ($uploadChunks as $chunk) {
+            $uploadResults = $this->uploadBatchToWordPress($chunk);
+
+            // Step 5: Process results and update image_map
+            foreach ($chunk as $job) {
+                $sku = $job['sku'];
+                $baseSku = $job['base_sku'];
+                $result = $uploadResults[$sku] ?? null;
+
+                // Clean up temp file
+                @unlink($job['file']);
+
+                if (!$result || isset($result['error'])) {
+                    $errorMsg = $result['error'] ?? 'Unknown upload error';
+                    $this->logger->error("  Upload failed {$sku}: {$errorMsg}");
+                    if (!$job['is_gallery']) {
+                        $this->stats['failed']++;
+                    }
+                    continue;
+                }
+
+                $mediaId = $result['media_id'];
+
+                if ($job['is_gallery']) {
+                    // Gallery image
+                    if (!isset($this->image_map[$baseSku]['gallery_ids'])) {
+                        $this->image_map[$baseSku]['gallery_ids'] = [];
+                    }
+                    $this->image_map[$baseSku]['gallery_ids'][] = $mediaId;
+                    $this->stats['gallery_uploaded']++;
+                } else {
+                    // Primary image - delete old if force mode
+                    $meta = $skuMeta[$baseSku] ?? [];
+                    if ($this->force && !empty($meta['existing_id'])) {
+                        $this->deleteMedia($meta['existing_id']);
+                    }
+
+                    $this->image_map[$baseSku] = [
+                        'media_id' => $mediaId,
+                        'url' => $job['url'],
+                        'gallery_ids' => $meta['existing_gallery'] ?? [],
+                        'uploaded_at' => date('Y-m-d H:i:s'),
+                    ];
+
+                    $this->stats[$meta['exists'] ? 'updated' : 'uploaded']++;
+                }
+            }
+        }
+    }
+
+    /**
+     * Process a single image entry (primary + gallery) — sequential fallback
      *
      * @param array $image_data Image data (sku, url, gallery_urls, product_name, brand_name)
      */
@@ -681,19 +1047,47 @@ class MediaUploader
                 $this->logger->info("Limited to first {$this->limit}");
             }
 
+            // Async queue mode: enqueue all images and return immediately
+            if ($this->asyncQueue && $this->mediaQueue !== null) {
+                return $this->runAsyncEnqueue($images, $start_time);
+            }
+
+            $this->logger->info("  Concurrency: {$this->concurrency}");
             $this->logger->info('');
 
             $count = count($images);
-            foreach ($images as $index => $image_data) {
-                $progress = $index + 1;
-                $pct = round(($progress / $count) * 100);
-                echo "\r  Progress: {$progress}/{$count} ({$pct}%) - {$image_data['sku']}                    ";
 
-                $this->processImage($image_data);
+            // Parallel batch processing (curl_multi)
+            if ($this->concurrency > 1) {
+                $batchSize = $this->concurrency * 2; // Process larger batches to keep pipeline full
+                $batches = array_chunk($images, $batchSize);
+                $processed = 0;
 
-                // Save periodically
-                if ($progress % 50 === 0) {
-                    $this->saveImageMap();
+                foreach ($batches as $batchIdx => $batch) {
+                    $processed += count($batch);
+                    $pct = round(($processed / $count) * 100);
+                    $firstSku = $batch[0]['sku'] ?? '?';
+                    echo "\r  Batch " . ($batchIdx + 1) . "/" . count($batches) . " ({$pct}%) - {$firstSku}...                    ";
+
+                    $this->processBatch($batch);
+
+                    // Save periodically
+                    if ($processed % 50 < $batchSize) {
+                        $this->saveImageMap();
+                    }
+                }
+            } else {
+                // Sequential fallback (concurrency=1)
+                foreach ($images as $index => $image_data) {
+                    $progress = $index + 1;
+                    $pct = round(($progress / $count) * 100);
+                    echo "\r  Progress: {$progress}/{$count} ({$pct}%) - {$image_data['sku']}                    ";
+
+                    $this->processImage($image_data);
+
+                    if ($progress % 50 === 0) {
+                        $this->saveImageMap();
+                    }
                 }
             }
 
@@ -708,14 +1102,15 @@ class MediaUploader
             $this->logger->info('================================');
             $this->logger->info('  MEDIA SUMMARY');
             $this->logger->info('================================');
-            $this->logger->info("  Total:     {$this->stats['total']}");
-            $this->logger->info("  Uploaded:  {$this->stats['uploaded']}");
-            $this->logger->info("  Gallery:   {$this->stats['gallery_uploaded']}");
-            $this->logger->info("  Updated:   {$this->stats['updated']}");
-            $this->logger->info("  Skipped:   {$this->stats['skipped']}");
-            $this->logger->info("  Failed:    {$this->stats['failed']}");
-            $this->logger->info("  Duration:  {$duration}s");
-            $this->logger->info("  Saved to:  image-map.json");
+            $this->logger->info("  Total:       {$this->stats['total']}");
+            $this->logger->info("  Uploaded:    {$this->stats['uploaded']}");
+            $this->logger->info("  Gallery:     {$this->stats['gallery_uploaded']}");
+            $this->logger->info("  Updated:     {$this->stats['updated']}");
+            $this->logger->info("  Skipped:     {$this->stats['skipped']}");
+            $this->logger->info("  Failed:      {$this->stats['failed']}");
+            $this->logger->info("  Concurrency: {$this->concurrency}");
+            $this->logger->info("  Duration:    {$duration}s");
+            $this->logger->info("  Saved to:    image-map.json");
             $this->logger->info('================================');
 
             return true;
@@ -724,6 +1119,243 @@ class MediaUploader
             $this->logger->error('Error: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Enqueue all images for async processing (non-blocking)
+     *
+     * @param array $images Resolved image list
+     * @param float $startTime Start time for duration
+     * @return bool Success
+     */
+    private function runAsyncEnqueue(array $images, float $startTime): bool
+    {
+        $this->logger->info('  Mode: ASYNC QUEUE (enqueue only, no upload)');
+        $this->logger->info('');
+
+        $enqueued = 0;
+        $skipped = 0;
+
+        foreach ($images as $imageData) {
+            $sku = $imageData['sku'];
+            $exists = isset($this->image_map[$sku]);
+            $existingId = $exists ? ($this->image_map[$sku]['media_id'] ?? null) : null;
+            $existingGallery = $exists ? ($this->image_map[$sku]['gallery_ids'] ?? []) : [];
+            $galleryComplete = !empty($existingGallery) || empty($imageData['gallery_urls'] ?? []);
+
+            if ($exists && $existingId && $galleryComplete && !$this->force) {
+                $skipped++;
+                continue;
+            }
+
+            $count = $this->mediaQueue->enqueueProduct($imageData);
+            $enqueued += $count;
+        }
+
+        $duration = round(microtime(true) - $startTime, 1);
+        $queueStats = $this->mediaQueue->getStats();
+
+        $this->logger->info('================================');
+        $this->logger->info('  ASYNC QUEUE SUMMARY');
+        $this->logger->info('================================');
+        $this->logger->info("  Enqueued:     {$enqueued}");
+        $this->logger->info("  Skipped:      {$skipped} (already uploaded)");
+        $this->logger->info("  Queue total:  {$queueStats['total']}");
+        $this->logger->info("  Queue pending:{$queueStats['pending']}");
+        $this->logger->info("  Duration:     {$duration}s");
+        $this->logger->info('');
+        $this->logger->info('  Run bin/process-media-queue to upload in background');
+        $this->logger->info('================================');
+
+        return true;
+    }
+
+    /**
+     * Process queued media uploads (called by bin/process-media-queue)
+     *
+     * Dequeues batches, downloads and uploads in parallel, updates image-map.
+     *
+     * @param int $batchSize Items per batch
+     * @param int|null $maxItems Max total items to process (null = all pending)
+     * @return array Processing stats
+     */
+    public function processQueue(int $batchSize = 10, ?int $maxItems = null): array
+    {
+        if ($this->mediaQueue === null) {
+            throw new \Exception('Async queue not available (requires Storage)');
+        }
+
+        // Reset any stuck processing items
+        $reset = $this->mediaQueue->resetStuck(10);
+        if ($reset > 0) {
+            $this->logger->info("  Reset {$reset} stuck queue items");
+        }
+
+        $stats = ['processed' => 0, 'uploaded' => 0, 'failed' => 0, 'skus_updated' => 0];
+        $processed = 0;
+
+        while (true) {
+            if ($maxItems !== null && $processed >= $maxItems) {
+                break;
+            }
+
+            $effectiveBatch = $batchSize;
+            if ($maxItems !== null) {
+                $effectiveBatch = min($batchSize, $maxItems - $processed);
+            }
+
+            $items = $this->mediaQueue->dequeue($effectiveBatch);
+            if (empty($items)) {
+                break;
+            }
+
+            $this->logger->info("  Processing batch of " . count($items) . " items...");
+
+            // Collect URLs for parallel download
+            $urls = array_column($items, 'source_url');
+            $downloadResults = $this->downloadBatch($urls, $this->concurrency);
+
+            // Prepare upload jobs
+            $uploadJobs = [];
+            $jobToQueueId = [];
+
+            foreach ($items as $item) {
+                $url = $item['source_url'];
+                $result = $downloadResults[$url] ?? null;
+
+                if (!$result || $result['error'] || $result['http_code'] !== 200 || empty($result['content'])) {
+                    $error = $result['error'] ?? "HTTP " . ($result['http_code'] ?? 0);
+                    $this->mediaQueue->markFailed((int) $item['id'], "Download: {$error}");
+                    $stats['failed']++;
+                    $processed++;
+                    continue;
+                }
+
+                // Validate
+                $tempFile = tempnam(sys_get_temp_dir(), 'woo_img_');
+                file_put_contents($tempFile, $result['content']);
+
+                $info = @getimagesize($tempFile);
+                if ($info === false) {
+                    @unlink($tempFile);
+                    $this->mediaQueue->markFailed((int) $item['id'], 'Invalid image format');
+                    $stats['failed']++;
+                    $processed++;
+                    continue;
+                }
+
+                $mime = $info['mime'];
+                $ext = image_type_to_extension($info[2], false);
+
+                if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
+                    @unlink($tempFile);
+                    $this->mediaQueue->markFailed((int) $item['id'], "Unsupported: {$mime}");
+                    $stats['failed']++;
+                    $processed++;
+                    continue;
+                }
+
+                $uploadSku = $item['type'] === 'gallery'
+                    ? $item['sku'] . '-gallery-' . $item['gallery_index']
+                    : $item['sku'];
+
+                $uploadJobs[] = [
+                    'file' => $tempFile,
+                    'sku' => $uploadSku,
+                    'ext' => $ext,
+                    'mime' => $mime,
+                    'template_data' => [
+                        'product_name' => $item['product_name'],
+                        'brand_name' => $item['brand_name'],
+                        'sku' => $item['sku'],
+                    ],
+                    'queue_id' => (int) $item['id'],
+                    'base_sku' => $item['sku'],
+                    'type' => $item['type'],
+                ];
+                $jobToQueueId[$uploadSku] = (int) $item['id'];
+            }
+
+            // Parallel upload
+            if (!empty($uploadJobs)) {
+                $uploadChunks = array_chunk($uploadJobs, $this->concurrency);
+                foreach ($uploadChunks as $chunk) {
+                    $uploadResults = $this->uploadBatchToWordPress($chunk);
+
+                    foreach ($chunk as $job) {
+                        $uploadSku = $job['sku'];
+                        $queueId = $job['queue_id'];
+                        $baseSku = $job['base_sku'];
+                        $result = $uploadResults[$uploadSku] ?? null;
+
+                        @unlink($job['file']);
+
+                        if (!$result || isset($result['error'])) {
+                            $error = $result['error'] ?? 'Upload failed';
+                            $this->mediaQueue->markFailed($queueId, $error);
+                            $stats['failed']++;
+                        } else {
+                            $mediaId = $result['media_id'];
+                            $this->mediaQueue->markCompleted($queueId, $mediaId);
+                            $stats['uploaded']++;
+
+                            // Update image-map immediately
+                            if ($job['type'] === 'primary') {
+                                $this->image_map[$baseSku] = [
+                                    'media_id' => $mediaId,
+                                    'url' => $items[array_search($queueId, array_column($items, 'id', 'id'))] ['source_url'] ?? '',
+                                    'gallery_ids' => $this->image_map[$baseSku]['gallery_ids'] ?? [],
+                                    'uploaded_at' => date('Y-m-d H:i:s'),
+                                ];
+                            } else {
+                                if (!isset($this->image_map[$baseSku]['gallery_ids'])) {
+                                    $this->image_map[$baseSku]['gallery_ids'] = [];
+                                }
+                                $this->image_map[$baseSku]['gallery_ids'][] = $mediaId;
+                            }
+                        }
+
+                        $processed++;
+                    }
+                }
+            }
+
+            // Save image map after each batch
+            $this->saveImageMap();
+            $stats['processed'] = $processed;
+
+            $this->logger->info("  Batch done: {$stats['uploaded']} uploaded, {$stats['failed']} failed");
+        }
+
+        // Sync completed queue items to image-map and purge
+        $completedSkus = $this->mediaQueue->getSkusWithCompletedUploads();
+        foreach ($completedSkus as $sku) {
+            $completed = $this->mediaQueue->getCompletedForSku($sku);
+            if ($completed['primary']) {
+                $this->image_map[$sku] = array_merge(
+                    $this->image_map[$sku] ?? [],
+                    ['media_id' => $completed['primary'], 'uploaded_at' => date('Y-m-d H:i:s')]
+                );
+            }
+            if (!empty($completed['gallery'])) {
+                $this->image_map[$sku]['gallery_ids'] = $completed['gallery'];
+            }
+            $this->mediaQueue->purgeCompleted($sku);
+            $stats['skus_updated']++;
+        }
+
+        $this->saveImageMap();
+        return $stats;
+    }
+
+    /**
+     * Get the MediaQueue instance (for external status checks)
+     *
+     * @return MediaQueue|null
+     */
+    public function getMediaQueue(): ?MediaQueue
+    {
+        return $this->mediaQueue;
     }
 
     /**

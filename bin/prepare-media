@@ -15,6 +15,7 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\Storage;
 use ResellPiacenza\Media\MediaUploader;
 
 // ============================================================================
@@ -39,7 +40,10 @@ Options:
   --limit=N               Process first N images only
   --force                 Re-upload all images (replaces existing)
   --update-metadata       Update SEO metadata only (no re-upload)
+  --concurrency=N         Parallel downloads/uploads (default: 6)
+  --async-queue           Queue images for background processing (use with bin/process-media-queue)
   --verbose, -v           Detailed output
+  --env=NAME              Environment name
   --help, -h              Show help
 
 Output:
@@ -75,6 +79,8 @@ $options = [
     'image_source' => null,
     'urls_file' => null,
     'limit' => null,
+    'concurrency' => 6,
+    'async_queue' => in_array('--async-queue', $argv),
 ];
 
 if (in_array('--from-gs', $argv)) {
@@ -92,8 +98,23 @@ foreach ($argv as $arg) {
         $options['image_source'] = 'file';
         $options['urls_file'] = str_replace('--urls-file=', '', $arg);
     }
+    if (strpos($arg, '--concurrency=') === 0) {
+        $options['concurrency'] = max(1, (int) str_replace('--concurrency=', '', $arg));
+    }
 }
 
 $config = Config::load();
-$preparer = new MediaUploader($config, $options);
+
+// Initialize Storage for async queue mode
+$storage = null;
+if ($options['async_queue']) {
+    try {
+        $storage = Storage::getInstance(Config::databasePath());
+    } catch (\Exception $e) {
+        fwrite(STDERR, "Error: async-queue requires SQLite storage: " . $e->getMessage() . "\n");
+        exit(1);
+    }
+}
+
+$preparer = new MediaUploader($config, $options, $storage);
 exit($preparer->run() ? 0 : 1);
