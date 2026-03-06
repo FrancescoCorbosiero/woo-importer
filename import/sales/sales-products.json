@@ -1,0 +1,403 @@
+[
+  {
+    "$comment": "Sales batch import — ResellPiacenza. sold_individually=true (Limit 1). regular_price=was price (crossed out), sale_price=active price. Fallback: when no original_price, regular_price = sale_price × 1.15 rounded up.",
+    "$generated": "2026-03-06",
+    "$source": "manual_sales"
+  },
+  {
+    "name": "Corteiz No Time 4 Luv Tee",
+    "type": "variable",
+    "sku": "SS25",
+    "status": "publish",
+    "catalog_visibility": "visible",
+    "sold_individually": true,
+    "short_description": "<p>T-shirt originale <strong>Corteiz</strong>. Prodotto autentico al 100%. Spedizione veloce in Italia.</p>",
+    "description": "\n<p>Scopri la <strong>Corteiz No Time 4 Luv Tee</strong>, t-shirt streetwear originale Corteiz disponibile su ResellPiacenza. Edizione limitata dalla collezione SS25.</p>\n\n<h3>Garanzia di Autenticità</h3>\n<p>Tutti i prodotti venduti su ResellPiacenza sono <strong>100% originali e autentici</strong>. Ogni articolo viene accuratamente verificato prima della spedizione.</p>\n\n<h3>Spedizione e Resi</h3>\n<ul>\n    <li>✓ Spedizione rapida in tutta Italia</li>\n    <li>✓ Imballaggio sicuro e discreto</li>\n    <li>✓ Reso facile entro 14 giorni</li>\n</ul>\n\n<h3>Perché Scegliere ResellPiacenza</h3>\n<p>Siamo specialisti in sneakers e streetwear di alta qualità. La nostra missione è offrire prodotti autentici ai migliori prezzi, con un servizio clienti impeccabile.</p>\n",
+    "categories": [{"id": 0, "$ref": "abbigliamento"}, {"id": 0, "$ref": "t-shirt"}],
+    "attributes": [
+      {
+        "name": "Marca",
+        "position": 0,
+        "visible": true,
+        "variation": false,
+        "options": ["Corteiz"]
+      },
+      {
+        "name": "Taglia",
+        "position": 1,
+        "visible": true,
+        "variation": true,
+        "options": ["M"]
+      }
+    ],
+    "meta_data": [
+      {"key": "_source", "value": "manual_sales"},
+      {"key": "_catalog_section", "value": "abbigliamento"},
+      {"key": "_catalog_wc_category", "value": "clothing"},
+      {"key": "_catalog_brand", "value": "Corteiz"},
+      {"key": "_catalog_subcategory", "value": "T-Shirt"}
+    ],
+    "_variations": [
+      {
+        "sku": "SS25-M",
+        "regular_price": "149",
+        "sale_price": "129",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "M"}]
+      }
+    ]
+  },
+  {
+    "name": "Corteiz C-Star Denim Trucker Jacket",
+    "type": "variable",
+    "sku": "CRTZ-CSTAR-TRUCK",
+    "status": "publish",
+    "catalog_visibility": "visible",
+    "sold_individually": true,
+    "short_description": "<p>Giacca denim originale <strong>Corteiz</strong>. Prodotto autentico al 100%. Spedizione veloce in Italia.</p>",
+    "description": "\n<p>Scopri la <strong>Corteiz C-Star Denim Trucker Jacket</strong>, giacca denim trucker originale Corteiz con dettaglio C-Star, disponibile su ResellPiacenza. Un capo iconico dello streetwear britannico.</p>\n\n<h3>Garanzia di Autenticità</h3>\n<p>Tutti i prodotti venduti su ResellPiacenza sono <strong>100% originali e autentici</strong>. Ogni articolo viene accuratamente verificato prima della spedizione.</p>\n\n<h3>Spedizione e Resi</h3>\n<ul>\n    <li>✓ Spedizione rapida in tutta Italia</li>\n    <li>✓ Imballaggio sicuro e discreto</li>\n    <li>✓ Reso facile entro 14 giorni</li>\n</ul>\n\n<h3>Perché Scegliere ResellPiacenza</h3>\n<p>Siamo specialisti in sneakers e streetwear di alta qualità. La nostra missione è offrire prodotti autentici ai migliori prezzi, con un servizio clienti impeccabile.</p>\n",
+    "categories": [{"id": 0, "$ref": "abbigliamento"}, {"id": 0, "$ref": "giacche"}],
+    "attributes": [
+      {
+        "name": "Marca",
+        "position": 0,
+        "visible": true,
+        "variation": false,
+        "options": ["Corteiz"]
+      },
+      {
+        "name": "Taglia",
+        "position": 1,
+        "visible": true,
+        "variation": true,
+        "options": ["S", "M", "L"]
+      }
+    ],
+    "meta_data": [
+      {"key": "_source", "value": "manual_sales"},
+      {"key": "_catalog_section", "value": "abbigliamento"},
+      {"key": "_catalog_wc_category", "value": "clothing"},
+      {"key": "_catalog_brand", "value": "Corteiz"},
+      {"key": "_catalog_subcategory", "value": "Giacche"}
+    ],
+    "_variations": [
+      {
+        "sku": "CRTZ-CSTAR-TRUCK-S",
+        "regular_price": "439",
+        "sale_price": "379",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "S"}]
+      },
+      {
+        "sku": "CRTZ-CSTAR-TRUCK-M",
+        "regular_price": "439",
+        "sale_price": "379",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "M"}]
+      },
+      {
+        "sku": "CRTZ-CSTAR-TRUCK-L",
+        "regular_price": "439",
+        "sale_price": "379",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "L"}]
+      }
+    ]
+  },
+  {
+    "name": "Corteiz C-Star Denim Stitch-Down Jacket",
+    "type": "variable",
+    "sku": "CRTZ-CSTAR-STITCH",
+    "status": "publish",
+    "catalog_visibility": "visible",
+    "sold_individually": true,
+    "short_description": "<p>Giacca denim originale <strong>Corteiz</strong>. Prodotto autentico al 100%. Spedizione veloce in Italia.</p>",
+    "description": "\n<p>Scopri la <strong>Corteiz C-Star Denim Stitch-Down Jacket</strong>, giacca denim con cucitura decorativa e dettaglio C-Star originale Corteiz, disponibile su ResellPiacenza. Pezzo esclusivo dello streetwear londinese.</p>\n\n<h3>Garanzia di Autenticità</h3>\n<p>Tutti i prodotti venduti su ResellPiacenza sono <strong>100% originali e autentici</strong>. Ogni articolo viene accuratamente verificato prima della spedizione.</p>\n\n<h3>Spedizione e Resi</h3>\n<ul>\n    <li>✓ Spedizione rapida in tutta Italia</li>\n    <li>✓ Imballaggio sicuro e discreto</li>\n    <li>✓ Reso facile entro 14 giorni</li>\n</ul>\n\n<h3>Perché Scegliere ResellPiacenza</h3>\n<p>Siamo specialisti in sneakers e streetwear di alta qualità. La nostra missione è offrire prodotti autentici ai migliori prezzi, con un servizio clienti impeccabile.</p>\n",
+    "categories": [{"id": 0, "$ref": "abbigliamento"}, {"id": 0, "$ref": "giacche"}],
+    "attributes": [
+      {
+        "name": "Marca",
+        "position": 0,
+        "visible": true,
+        "variation": false,
+        "options": ["Corteiz"]
+      },
+      {
+        "name": "Taglia",
+        "position": 1,
+        "visible": true,
+        "variation": true,
+        "options": ["S", "M", "L"]
+      }
+    ],
+    "meta_data": [
+      {"key": "_source", "value": "manual_sales"},
+      {"key": "_catalog_section", "value": "abbigliamento"},
+      {"key": "_catalog_wc_category", "value": "clothing"},
+      {"key": "_catalog_brand", "value": "Corteiz"},
+      {"key": "_catalog_subcategory", "value": "Giacche"}
+    ],
+    "_variations": [
+      {
+        "sku": "CRTZ-CSTAR-STITCH-S",
+        "regular_price": "439",
+        "sale_price": "379",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "S"}]
+      },
+      {
+        "sku": "CRTZ-CSTAR-STITCH-M",
+        "regular_price": "439",
+        "sale_price": "379",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "M"}]
+      },
+      {
+        "sku": "CRTZ-CSTAR-STITCH-L",
+        "regular_price": "439",
+        "sale_price": "379",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "L"}]
+      }
+    ]
+  },
+  {
+    "name": "Travis Scott Utopia Circus Maximus 2023 Tour III Tee",
+    "type": "variable",
+    "sku": "BDFBA95A",
+    "status": "publish",
+    "catalog_visibility": "visible",
+    "sold_individually": true,
+    "short_description": "<p>T-shirt originale <strong>Travis Scott</strong>. Prodotto autentico al 100%. Spedizione veloce in Italia.</p>",
+    "description": "\n<p>Scopri la <strong>Travis Scott Utopia Circus Maximus 2023 Tour III Tee</strong>, t-shirt ufficiale del tour Circus Maximus 2023 di Travis Scott, disponibile su ResellPiacenza. Merchandise esclusivo dal tour mondiale Utopia.</p>\n\n<h3>Garanzia di Autenticità</h3>\n<p>Tutti i prodotti venduti su ResellPiacenza sono <strong>100% originali e autentici</strong>. Ogni articolo viene accuratamente verificato prima della spedizione.</p>\n\n<h3>Spedizione e Resi</h3>\n<ul>\n    <li>✓ Spedizione rapida in tutta Italia</li>\n    <li>✓ Imballaggio sicuro e discreto</li>\n    <li>✓ Reso facile entro 14 giorni</li>\n</ul>\n\n<h3>Perché Scegliere ResellPiacenza</h3>\n<p>Siamo specialisti in sneakers e streetwear di alta qualità. La nostra missione è offrire prodotti autentici ai migliori prezzi, con un servizio clienti impeccabile.</p>\n",
+    "categories": [{"id": 0, "$ref": "abbigliamento"}, {"id": 0, "$ref": "t-shirt"}],
+    "attributes": [
+      {
+        "name": "Marca",
+        "position": 0,
+        "visible": true,
+        "variation": false,
+        "options": ["Travis Scott"]
+      },
+      {
+        "name": "Taglia",
+        "position": 1,
+        "visible": true,
+        "variation": true,
+        "options": ["M"]
+      }
+    ],
+    "meta_data": [
+      {"key": "_source", "value": "manual_sales"},
+      {"key": "_catalog_section", "value": "abbigliamento"},
+      {"key": "_catalog_wc_category", "value": "clothing"},
+      {"key": "_catalog_brand", "value": "Travis Scott"},
+      {"key": "_catalog_subcategory", "value": "T-Shirt"}
+    ],
+    "_variations": [
+      {
+        "sku": "BDFBA95A-M",
+        "regular_price": "120",
+        "sale_price": "69",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "M"}]
+      }
+    ]
+  },
+  {
+    "name": "Travis Scott Utopia Tour Skitzo Circus Maximus Tee",
+    "type": "variable",
+    "sku": "TS-UTOPIA-SKITZO",
+    "status": "publish",
+    "catalog_visibility": "visible",
+    "sold_individually": true,
+    "short_description": "<p>T-shirt originale <strong>Travis Scott</strong>. Prodotto autentico al 100%. Spedizione veloce in Italia.</p>",
+    "description": "\n<p>Scopri la <strong>Travis Scott Utopia Tour Skitzo Circus Maximus Tee</strong>, t-shirt ufficiale della serie Skitzo dal tour Circus Maximus di Travis Scott, disponibile su ResellPiacenza. Grafica esclusiva dal tour mondiale Utopia.</p>\n\n<h3>Garanzia di Autenticità</h3>\n<p>Tutti i prodotti venduti su ResellPiacenza sono <strong>100% originali e autentici</strong>. Ogni articolo viene accuratamente verificato prima della spedizione.</p>\n\n<h3>Spedizione e Resi</h3>\n<ul>\n    <li>✓ Spedizione rapida in tutta Italia</li>\n    <li>✓ Imballaggio sicuro e discreto</li>\n    <li>✓ Reso facile entro 14 giorni</li>\n</ul>\n\n<h3>Perché Scegliere ResellPiacenza</h3>\n<p>Siamo specialisti in sneakers e streetwear di alta qualità. La nostra missione è offrire prodotti autentici ai migliori prezzi, con un servizio clienti impeccabile.</p>\n",
+    "categories": [{"id": 0, "$ref": "abbigliamento"}, {"id": 0, "$ref": "t-shirt"}],
+    "attributes": [
+      {
+        "name": "Marca",
+        "position": 0,
+        "visible": true,
+        "variation": false,
+        "options": ["Travis Scott"]
+      },
+      {
+        "name": "Taglia",
+        "position": 1,
+        "visible": true,
+        "variation": true,
+        "options": ["M"]
+      }
+    ],
+    "meta_data": [
+      {"key": "_source", "value": "manual_sales"},
+      {"key": "_catalog_section", "value": "abbigliamento"},
+      {"key": "_catalog_wc_category", "value": "clothing"},
+      {"key": "_catalog_brand", "value": "Travis Scott"},
+      {"key": "_catalog_subcategory", "value": "T-Shirt"}
+    ],
+    "_variations": [
+      {
+        "sku": "TS-UTOPIA-SKITZO-M",
+        "regular_price": "120",
+        "sale_price": "69",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "M"}]
+      }
+    ]
+  },
+  {
+    "name": "BAPE College Tee",
+    "type": "variable",
+    "sku": "4580793975533",
+    "status": "publish",
+    "catalog_visibility": "visible",
+    "sold_individually": true,
+    "short_description": "<p>T-shirt originale <strong>BAPE</strong>. Prodotto autentico al 100%. Spedizione veloce in Italia.</p>",
+    "description": "\n<p>Scopri la <strong>BAPE College Tee</strong>, t-shirt iconica con logo College originale A Bathing Ape, disponibile su ResellPiacenza. Un classico intramontabile dello streetwear giapponese.</p>\n\n<h3>Garanzia di Autenticità</h3>\n<p>Tutti i prodotti venduti su ResellPiacenza sono <strong>100% originali e autentici</strong>. Ogni articolo viene accuratamente verificato prima della spedizione.</p>\n\n<h3>Spedizione e Resi</h3>\n<ul>\n    <li>✓ Spedizione rapida in tutta Italia</li>\n    <li>✓ Imballaggio sicuro e discreto</li>\n    <li>✓ Reso facile entro 14 giorni</li>\n</ul>\n\n<h3>Perché Scegliere ResellPiacenza</h3>\n<p>Siamo specialisti in sneakers e streetwear di alta qualità. La nostra missione è offrire prodotti autentici ai migliori prezzi, con un servizio clienti impeccabile.</p>\n",
+    "categories": [{"id": 0, "$ref": "abbigliamento"}, {"id": 0, "$ref": "t-shirt"}],
+    "attributes": [
+      {
+        "name": "Marca",
+        "position": 0,
+        "visible": true,
+        "variation": false,
+        "options": ["Bape"]
+      },
+      {
+        "name": "Taglia",
+        "position": 1,
+        "visible": true,
+        "variation": true,
+        "options": ["S"]
+      }
+    ],
+    "meta_data": [
+      {"key": "_source", "value": "manual_sales"},
+      {"key": "_catalog_section", "value": "abbigliamento"},
+      {"key": "_catalog_wc_category", "value": "clothing"},
+      {"key": "_catalog_brand", "value": "Bape"},
+      {"key": "_catalog_subcategory", "value": "T-Shirt"}
+    ],
+    "_variations": [
+      {
+        "sku": "4580793975533-S",
+        "regular_price": "150",
+        "sale_price": "89",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "S"}]
+      }
+    ]
+  },
+  {
+    "name": "C.P. Company Hooded Zip Shirt",
+    "type": "variable",
+    "sku": "SH156A-0064060402",
+    "status": "publish",
+    "catalog_visibility": "visible",
+    "sold_individually": true,
+    "short_description": "<p>Camicia con cappuccio originale <strong>C.P. Company</strong>. Prodotto autentico al 100%. Spedizione veloce in Italia.</p>",
+    "description": "\n<p>Scopri la <strong>C.P. Company Hooded Zip Shirt</strong>, camicia con cappuccio e zip integrale originale C.P. Company, disponibile su ResellPiacenza. Design tecnico italiano con la qualità che contraddistingue il marchio.</p>\n\n<h3>Garanzia di Autenticità</h3>\n<p>Tutti i prodotti venduti su ResellPiacenza sono <strong>100% originali e autentici</strong>. Ogni articolo viene accuratamente verificato prima della spedizione.</p>\n\n<h3>Spedizione e Resi</h3>\n<ul>\n    <li>✓ Spedizione rapida in tutta Italia</li>\n    <li>✓ Imballaggio sicuro e discreto</li>\n    <li>✓ Reso facile entro 14 giorni</li>\n</ul>\n\n<h3>Perché Scegliere ResellPiacenza</h3>\n<p>Siamo specialisti in sneakers e streetwear di alta qualità. La nostra missione è offrire prodotti autentici ai migliori prezzi, con un servizio clienti impeccabile.</p>\n",
+    "categories": [{"id": 0, "$ref": "abbigliamento"}, {"id": 0, "$ref": "felpe"}],
+    "attributes": [
+      {
+        "name": "Marca",
+        "position": 0,
+        "visible": true,
+        "variation": false,
+        "options": ["C.P. Company"]
+      },
+      {
+        "name": "Taglia",
+        "position": 1,
+        "visible": true,
+        "variation": true,
+        "options": ["L"]
+      }
+    ],
+    "meta_data": [
+      {"key": "_source", "value": "manual_sales"},
+      {"key": "_catalog_section", "value": "abbigliamento"},
+      {"key": "_catalog_wc_category", "value": "clothing"},
+      {"key": "_catalog_brand", "value": "C.P. Company"},
+      {"key": "_catalog_subcategory", "value": "Felpe"}
+    ],
+    "_variations": [
+      {
+        "sku": "SH156A-0064060402-L",
+        "regular_price": "570",
+        "sale_price": "185",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "L"}]
+      }
+    ]
+  },
+  {
+    "name": "Hellstar Heaven On Earth T-Shirt",
+    "type": "variable",
+    "sku": "Hel-Hea-Ear-Tee",
+    "status": "publish",
+    "catalog_visibility": "visible",
+    "sold_individually": true,
+    "short_description": "<p>T-shirt originale <strong>Hellstar</strong>. Prodotto autentico al 100%. Spedizione veloce in Italia.</p>",
+    "description": "\n<p>Scopri la <strong>Hellstar Heaven On Earth T-Shirt</strong>, t-shirt streetwear originale Hellstar dalla collezione Heaven On Earth, disponibile su ResellPiacenza. Grafica audace e unica nel panorama streetwear contemporaneo.</p>\n\n<h3>Garanzia di Autenticità</h3>\n<p>Tutti i prodotti venduti su ResellPiacenza sono <strong>100% originali e autentici</strong>. Ogni articolo viene accuratamente verificato prima della spedizione.</p>\n\n<h3>Spedizione e Resi</h3>\n<ul>\n    <li>✓ Spedizione rapida in tutta Italia</li>\n    <li>✓ Imballaggio sicuro e discreto</li>\n    <li>✓ Reso facile entro 14 giorni</li>\n</ul>\n\n<h3>Perché Scegliere ResellPiacenza</h3>\n<p>Siamo specialisti in sneakers e streetwear di alta qualità. La nostra missione è offrire prodotti autentici ai migliori prezzi, con un servizio clienti impeccabile.</p>\n",
+    "categories": [{"id": 0, "$ref": "abbigliamento"}, {"id": 0, "$ref": "t-shirt"}],
+    "attributes": [
+      {
+        "name": "Marca",
+        "position": 0,
+        "visible": true,
+        "variation": false,
+        "options": ["Hellstar"]
+      },
+      {
+        "name": "Taglia",
+        "position": 1,
+        "visible": true,
+        "variation": true,
+        "options": ["S"]
+      }
+    ],
+    "meta_data": [
+      {"key": "_source", "value": "manual_sales"},
+      {"key": "_catalog_section", "value": "abbigliamento"},
+      {"key": "_catalog_wc_category", "value": "clothing"},
+      {"key": "_catalog_brand", "value": "Hellstar"},
+      {"key": "_catalog_subcategory", "value": "T-Shirt"}
+    ],
+    "_variations": [
+      {
+        "sku": "Hel-Hea-Ear-Tee-S",
+        "regular_price": "380",
+        "sale_price": "239",
+        "manage_stock": true,
+        "stock_quantity": 1,
+        "stock_status": "instock",
+        "attributes": [{"name": "Taglia", "option": "S"}]
+      }
+    ]
+  }
+]
