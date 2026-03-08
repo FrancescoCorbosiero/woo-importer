@@ -89,10 +89,16 @@ class CatalogPipeline
             $this->storage = $options['storage'];
         } else {
             try {
-                $this->storage = Storage::getInstance(Config::databasePath());
+                $dbPath = Config::databasePath();
+                $this->storage = Storage::getInstance($dbPath);
             } catch (\Throwable $e) {
-                // SQLite not available — continue without storage
+                // SQLite not available — continue without storage, but log the reason
                 $this->storage = null;
+                if ($logger) {
+                    $logger->warning('SQLite storage unavailable: ' . $e->getMessage());
+                } else {
+                    error_log('[CatalogPipeline] SQLite storage unavailable: ' . $e->getMessage());
+                }
             }
         }
 

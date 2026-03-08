@@ -53,17 +53,23 @@ Config::load();
 $dbPath = Config::databasePath();
 $envName = Config::envName();
 
-if (!file_exists($dbPath)) {
+$isNew = !file_exists($dbPath);
+
+try {
+    $storage = Storage::getInstance($dbPath);
+} catch (\Throwable $e) {
     if ($json_output) {
-        echo json_encode(['error' => 'Database not found', 'path' => $dbPath]) . "\n";
+        echo json_encode(['error' => 'Cannot open database: ' . $e->getMessage(), 'path' => $dbPath]) . "\n";
     } else {
-        echo "Database not found: {$dbPath}\n";
-        echo "The database is created automatically on first pipeline run.\n";
+        echo "Cannot open database: {$dbPath}\n";
+        echo "Error: " . $e->getMessage() . "\n";
     }
     exit(1);
 }
 
-$storage = new Storage($dbPath);
+if ($isNew) {
+    echo "Created new database: {$dbPath}\n\n";
+}
 
 // ============================================================================
 // Gather stats
