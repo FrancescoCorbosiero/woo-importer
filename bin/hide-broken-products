@@ -1,0 +1,286 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Hide Broken Products — Set draft status on products with missing/broken data
+ *
+ * Fetches all published WooCommerce products and hides (sets to draft) those that:
+ *   - Have no images
+ *   - Have a price of 0 or empty
+ *   - Have no variations (for variable products)
+ *   - Have empty/missing name
+ *
+ * Usage:
+ *   bin/hide-broken-products                    # Dry run
+ *   bin/hide-broken-products --confirm          # Apply changes
+ *   bin/hide-broken-products --confirm --verbose
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use Automattic\WooCommerce\Client;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Hide Broken Products
+Sets draft status on products with missing or broken data.
+
+Checks for:
+  - No images
+  - Price is 0 or empty
+  - Variable products with no variations
+  - Empty/missing product name
+
+Usage:
+  bin/hide-broken-products [options]
+
+Options:
+  --confirm              Apply changes (without this, it's a dry run)
+  --verbose, -v          Detailed output
+  --check-variations     Also fetch and check variations (slower)
+  --help, -h             Show help
+
+Examples:
+  bin/hide-broken-products                    # Dry run
+  bin/hide-broken-products --confirm          # Apply
+  bin/hide-broken-products --confirm --verbose --check-variations
+
+HELP;
+    exit(0);
+}
+
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$dry_run = !in_array('--confirm', $argv);
+$check_variations = in_array('--check-variations', $argv);
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('HideBroken', [
+    'file' => Config::projectRoot() . '/logs/hide-broken-products.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Hide Broken Products');
+$logger->info('  Draft products with missing data');
+$logger->info('========================================');
+if ($dry_run) {
+    $logger->warning('  DRY RUN — use --confirm to apply');
+}
+$logger->info('');
+
+$wc_url = rtrim(trim($config['woocommerce']['url'] ?? ''), ':');
+if (empty($wc_url)) {
+    $logger->error('WC_URL not configured');
+    exit(1);
+}
+
+$wc_client = new Client(
+    $wc_url,
+    $config['woocommerce']['consumer_key'],
+    $config['woocommerce']['consumer_secret'],
+    ['version' => $config['woocommerce']['version'] ?? 'wc/v3', 'timeout' => 120]
+);
+
+// ============================================================================
+// Step 1: Fetch all published products
+// ============================================================================
+
+$logger->info('Step 1: Fetching published products...');
+
+$all_products = [];
+$page = 1;
+
+while (true) {
+    try {
+        $products = $wc_client->get('products', [
+            'per_page' => 100,
+            'page' => $page,
+            'status' => 'publish',
+        ]);
+    } catch (\Exception $e) {
+        $logger->error("  Failed to fetch page {$page}: " . $e->getMessage());
+        break;
+    }
+
+    if (empty($products)) {
+        break;
+    }
+
+    foreach ($products as $p) {
+        $all_products[] = $p;
+    }
+
+    $logger->debug("  Fetched page {$page}: " . count($products) . " products");
+    $page++;
+}
+
+$logger->info("  Total published products: " . count($all_products));
+
+// ============================================================================
+// Step 2: Check each product for broken data
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 2: Checking products for issues...');
+
+$to_hide = []; // product_id → reasons[]
+$issue_counts = [
+    'no_image' => 0,
+    'zero_price' => 0,
+    'no_variations' => 0,
+    'empty_name' => 0,
+];
+
+foreach ($all_products as $product) {
+    $reasons = [];
+    $sku = $product->sku ?? '?';
+
+    // Check: no images
+    if (empty($product->images)) {
+        $reasons[] = 'no_image';
+        $issue_counts['no_image']++;
+    }
+
+    // Check: price is 0 or empty
+    $price = $product->price ?? '';
+    if ($price === '' || (float) $price <= 0) {
+        // For variable products, WC sets price to the lowest variation price
+        // If it's 0 or empty, all variations likely have no price
+        $reasons[] = 'zero_price';
+        $issue_counts['zero_price']++;
+    }
+
+    // Check: empty/missing name
+    $name = trim($product->name ?? '');
+    if (empty($name)) {
+        $reasons[] = 'empty_name';
+        $issue_counts['empty_name']++;
+    }
+
+    // Check: variable product with no variations
+    if ($product->type === 'variable' && $check_variations) {
+        try {
+            $variations = $wc_client->get("products/{$product->id}/variations", ['per_page' => 1]);
+            if (empty($variations)) {
+                $reasons[] = 'no_variations';
+                $issue_counts['no_variations']++;
+            }
+        } catch (\Exception $e) {
+            $logger->debug("  [{$sku}] Failed to check variations: " . $e->getMessage());
+        }
+    }
+
+    if (!empty($reasons)) {
+        $to_hide[$product->id] = [
+            'sku' => $sku,
+            'name' => $product->name ?? '',
+            'reasons' => $reasons,
+        ];
+
+        if ($verbose) {
+            $logger->debug("  [{$sku}] {$product->name} → " . implode(', ', $reasons));
+        }
+    }
+}
+
+$logger->info("  Products to hide: " . count($to_hide));
+$logger->info("  Breakdown:");
+foreach ($issue_counts as $issue => $count) {
+    if ($count > 0) {
+        $logger->info("    {$issue}: {$count}");
+    }
+}
+
+if (empty($to_hide)) {
+    $logger->info('');
+    $logger->info('No broken products found.');
+    exit(0);
+}
+
+// ============================================================================
+// Step 3: Batch update — set to draft
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 3: Setting broken products to draft...');
+
+$batch_size = 25;
+$updated = 0;
+$errors = 0;
+
+$update_list = [];
+foreach ($to_hide as $product_id => $info) {
+    $update_list[] = [
+        'id' => $product_id,
+        'status' => 'draft',
+    ];
+}
+
+$chunks = array_chunk($update_list, $batch_size);
+
+foreach ($chunks as $ci => $chunk) {
+    if ($dry_run) {
+        $updated += count($chunk);
+        $logger->info("  [DRY RUN] Batch " . ($ci + 1) . "/" . count($chunks) . ": would hide " . count($chunk) . " products");
+        continue;
+    }
+
+    try {
+        $result = $wc_client->post('products/batch', ['update' => $chunk]);
+
+        foreach ($result->update ?? [] as $item) {
+            if (isset($item->error)) {
+                $errors++;
+                $logger->error("  Product {$item->id}: " . ($item->error->message ?? 'Unknown error'));
+            } else {
+                $updated++;
+            }
+        }
+
+        $logger->info("  Batch " . ($ci + 1) . "/" . count($chunks) . ": hid " . count($chunk) . " products");
+    } catch (\Exception $e) {
+        $errors += count($chunk);
+        $logger->error("  Batch " . ($ci + 1) . " failed: " . $e->getMessage());
+    }
+
+    usleep(200000); // 200ms between batches
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  HIDE BROKEN PRODUCTS SUMMARY');
+$logger->info('========================================');
+$logger->info("  Total published:    " . count($all_products));
+$logger->info("  Products hidden:    {$updated}");
+$logger->info("  Errors:             {$errors}");
+$logger->info("  Issues found:");
+foreach ($issue_counts as $issue => $count) {
+    if ($count > 0) {
+        $logger->info("    {$issue}: {$count}");
+    }
+}
+$logger->info("  Duration:           {$duration}s");
+$logger->info('========================================');
+
+exit($errors > 0 ? 1 : 0);

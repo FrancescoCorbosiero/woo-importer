@@ -1,0 +1,228 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Set Sold Individually — Limit all products to max 1 per order
+ *
+ * Fetches all WooCommerce products and sets the "sold_individually" flag
+ * to true, limiting each product to a maximum of 1 per order.
+ *
+ * Usage:
+ *   bin/set-sold-individually                    # Dry run
+ *   bin/set-sold-individually --confirm          # Apply changes
+ *   bin/set-sold-individually --confirm --limit=50  # First 50 products
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use Automattic\WooCommerce\Client;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Set Sold Individually
+Limits all WooCommerce products to max 1 per order.
+
+Usage:
+  bin/set-sold-individually [options]
+
+Options:
+  --confirm              Apply changes (without this, it's a dry run)
+  --limit=N              Only process first N products
+  --verbose, -v          Detailed output
+  --help, -h             Show help
+
+Examples:
+  bin/set-sold-individually                    # Dry run
+  bin/set-sold-individually --confirm          # Apply to all products
+  bin/set-sold-individually --confirm --limit=50  # First 50
+
+HELP;
+    exit(0);
+}
+
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$dry_run = !in_array('--confirm', $argv);
+$limit = 0;
+foreach ($argv as $arg) {
+    if (preg_match('/^--limit=(\d+)$/', $arg, $m)) {
+        $limit = (int) $m[1];
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('SoldIndividually', [
+    'file' => Config::projectRoot() . '/logs/set-sold-individually.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Set Sold Individually');
+$logger->info('  Limit all products to 1 per order');
+$logger->info('========================================');
+if ($dry_run) {
+    $logger->warning('  DRY RUN — use --confirm to apply');
+}
+$logger->info('');
+
+$wc_url = rtrim(trim($config['woocommerce']['url'] ?? ''), ':');
+if (empty($wc_url)) {
+    $logger->error('WC_URL not configured');
+    exit(1);
+}
+
+$wc_client = new Client(
+    $wc_url,
+    $config['woocommerce']['consumer_key'],
+    $config['woocommerce']['consumer_secret'],
+    ['version' => $config['woocommerce']['version'] ?? 'wc/v3', 'timeout' => 120]
+);
+
+// ============================================================================
+// Step 1: Fetch all products
+// ============================================================================
+
+$logger->info('Step 1: Fetching products...');
+
+$all_products = [];
+$page = 1;
+$per_page = 100;
+
+while (true) {
+    try {
+        $products = $wc_client->get('products', [
+            'per_page' => $per_page,
+            'page' => $page,
+            'status' => 'any',
+        ]);
+    } catch (\Exception $e) {
+        $logger->error("  Failed to fetch page {$page}: " . $e->getMessage());
+        break;
+    }
+
+    if (empty($products)) {
+        break;
+    }
+
+    foreach ($products as $p) {
+        $all_products[] = $p;
+    }
+
+    $logger->debug("  Fetched page {$page}: " . count($products) . " products");
+    $page++;
+
+    if ($limit > 0 && count($all_products) >= $limit) {
+        $all_products = array_slice($all_products, 0, $limit);
+        break;
+    }
+}
+
+$logger->info("  Total products: " . count($all_products));
+
+// ============================================================================
+// Step 2: Filter products that need updating
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 2: Checking sold_individually status...');
+
+$to_update = [];
+$already_set = 0;
+
+foreach ($all_products as $product) {
+    if (!empty($product->sold_individually)) {
+        $already_set++;
+        continue;
+    }
+    $to_update[] = $product;
+}
+
+$logger->info("  Already set: {$already_set}");
+$logger->info("  Need update: " . count($to_update));
+
+if (empty($to_update)) {
+    $logger->info('');
+    $logger->info('All products already have sold_individually set.');
+    exit(0);
+}
+
+// ============================================================================
+// Step 3: Batch update
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 3: Updating products...');
+
+$batch_size = 25;
+$updated = 0;
+$errors = 0;
+$chunks = array_chunk($to_update, $batch_size);
+
+foreach ($chunks as $ci => $chunk) {
+    $batch_payload = [];
+    foreach ($chunk as $product) {
+        $batch_payload[] = [
+            'id' => $product->id,
+            'sold_individually' => true,
+        ];
+    }
+
+    if ($dry_run) {
+        $updated += count($batch_payload);
+        $logger->info("  [DRY RUN] Batch " . ($ci + 1) . "/" . count($chunks) . ": would update " . count($batch_payload) . " products");
+        continue;
+    }
+
+    try {
+        $result = $wc_client->post('products/batch', ['update' => $batch_payload]);
+
+        foreach ($result->update ?? [] as $item) {
+            if (isset($item->error)) {
+                $errors++;
+                $logger->error("  Product {$item->id}: " . ($item->error->message ?? 'Unknown error'));
+            } else {
+                $updated++;
+            }
+        }
+
+        $logger->info("  Batch " . ($ci + 1) . "/" . count($chunks) . ": updated " . count($batch_payload) . " products");
+    } catch (\Exception $e) {
+        $errors += count($batch_payload);
+        $logger->error("  Batch " . ($ci + 1) . " failed: " . $e->getMessage());
+    }
+
+    usleep(200000); // 200ms between batches
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  SOLD INDIVIDUALLY SUMMARY');
+$logger->info('========================================');
+$logger->info("  Total products:     " . count($all_products));
+$logger->info("  Already set:        {$already_set}");
+$logger->info("  Updated:            {$updated}");
+$logger->info("  Errors:             {$errors}");
+$logger->info("  Duration:           {$duration}s");
+$logger->info('========================================');
+
+exit($errors > 0 ? 1 : 0);
