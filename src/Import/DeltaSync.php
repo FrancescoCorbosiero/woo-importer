@@ -324,20 +324,19 @@ class DeltaSync
     }
 
     /**
-     * Trigger import
+     * Trigger import via WooCommerceImporter directly
+     *
+     * Previously shelled out to bin/import-wc which ran CatalogPipeline
+     * with another DeltaSync — causing a double-delta-sync bug where the
+     * second DeltaSync saw 0 changes (baseline already saved).
      */
     private function triggerImport(): bool
     {
-        $cmd = 'php ' . escapeshellarg(Config::projectRoot() . '/bin/import-wc') .
-               ' --feed=' . escapeshellarg($this->diff_file) .
-               Config::envArgFragment();
+        $importer = new WooCommerceImporter($this->config, [
+            'dry_run' => $this->dry_run,
+        ]);
 
-        $this->logger->info("Executing: {$cmd}");
-        $this->logger->info('');
-
-        passthru($cmd, $exit_code);
-
-        return $exit_code === 0;
+        return $importer->import($this->diff_products);
     }
 
     /**
@@ -424,7 +423,6 @@ class DeltaSync
 
             // Import
             if (!$this->check_only && !$this->dry_run) {
-                $this->saveFeed($current_feed);
                 $this->saveDiff();
 
                 $this->logger->info('');
@@ -432,6 +430,12 @@ class DeltaSync
                 $this->logger->info('');
 
                 $success = $this->triggerImport();
+
+                // Save baseline AFTER successful import
+                // (prevents corrupted baseline if import fails)
+                if ($success) {
+                    $this->saveFeed($current_feed);
+                }
 
                 // Log sync actions to Storage
                 if ($this->storage !== null) {
