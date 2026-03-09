@@ -1,0 +1,420 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Auto-Categorize — Populate smart WC categories based on product attributes
+ *
+ * Creates and populates these WooCommerce categories:
+ *   - "Sneakers in Offerta"       → sneakers with a sale_price set
+ *   - "Abbigliamento in Offerta"  → clothing with a sale_price set
+ *   - "Sneakers sotto i 100"      → sneakers with regular_price < 100 EUR
+ *   - "Abbigliamento sotto i 100" → clothing with regular_price < 100 EUR
+ *
+ * Products are identified by their existing parent category (Sneakers or Abbigliamento).
+ * The script adds the smart category WITHOUT removing existing categories.
+ *
+ * Usage:
+ *   bin/auto-categorize                    # Dry run
+ *   bin/auto-categorize --confirm          # Apply changes
+ *   bin/auto-categorize --confirm --verbose
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use Automattic\WooCommerce\Client;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Auto-Categorize
+Populate smart WC categories based on product attributes.
+
+Categories created:
+  - Sneakers in Offerta         (sneakers on sale)
+  - Abbigliamento in Offerta    (clothing on sale)
+  - Sneakers sotto i 100        (sneakers under 100 EUR)
+  - Abbigliamento sotto i 100   (clothing under 100 EUR)
+
+Usage:
+  bin/auto-categorize [options]
+
+Options:
+  --confirm              Apply changes (without this, it's a dry run)
+  --verbose, -v          Detailed output
+  --price-threshold=N    Price threshold in EUR (default: 100)
+  --help, -h             Show help
+
+Examples:
+  bin/auto-categorize                         # Dry run
+  bin/auto-categorize --confirm               # Apply
+  bin/auto-categorize --confirm --verbose     # Apply with details
+
+HELP;
+    exit(0);
+}
+
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$dry_run = !in_array('--confirm', $argv);
+$price_threshold = 100;
+foreach ($argv as $arg) {
+    if (preg_match('/^--price-threshold=(\d+)$/', $arg, $m)) {
+        $price_threshold = (int) $m[1];
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('AutoCategorize', [
+    'file' => Config::projectRoot() . '/logs/auto-categorize.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Auto-Categorize');
+$logger->info("  Price threshold: {$price_threshold} EUR");
+$logger->info('========================================');
+if ($dry_run) {
+    $logger->warning('  DRY RUN — use --confirm to apply');
+}
+$logger->info('');
+
+$wc_url = rtrim(trim($config['woocommerce']['url'] ?? ''), ':');
+if (empty($wc_url)) {
+    $logger->error('WC_URL not configured');
+    exit(1);
+}
+
+$wc_client = new Client(
+    $wc_url,
+    $config['woocommerce']['consumer_key'],
+    $config['woocommerce']['consumer_secret'],
+    ['version' => $config['woocommerce']['version'] ?? 'wc/v3', 'timeout' => 120]
+);
+
+// ============================================================================
+// Smart category definitions
+// ============================================================================
+
+$smart_categories = [
+    'sneakers-in-offerta' => [
+        'name' => 'Sneakers in Offerta',
+        'slug' => 'sneakers-in-offerta',
+        'parent_slugs' => ['sneakers'],
+        'condition' => 'on_sale',
+    ],
+    'abbigliamento-in-offerta' => [
+        'name' => 'Abbigliamento in Offerta',
+        'slug' => 'abbigliamento-in-offerta',
+        'parent_slugs' => ['abbigliamento'],
+        'condition' => 'on_sale',
+    ],
+    'sneakers-sotto-i-100' => [
+        'name' => 'Sneakers sotto i 100',
+        'slug' => 'sneakers-sotto-i-100',
+        'parent_slugs' => ['sneakers'],
+        'condition' => 'under_price',
+    ],
+    'abbigliamento-sotto-i-100' => [
+        'name' => 'Abbigliamento sotto i 100',
+        'slug' => 'abbigliamento-sotto-i-100',
+        'parent_slugs' => ['abbigliamento'],
+        'condition' => 'under_price',
+    ],
+];
+
+// ============================================================================
+// Step 1: Ensure smart categories exist
+// ============================================================================
+
+$logger->info('Step 1: Ensuring smart categories exist...');
+
+$category_ids = []; // slug → id
+
+foreach ($smart_categories as $key => $def) {
+    try {
+        $existing = $wc_client->get('products/categories', ['slug' => $def['slug'], 'per_page' => 1]);
+        if (!empty($existing)) {
+            $category_ids[$key] = $existing[0]->id;
+            $logger->info("  Found: {$def['name']} (ID {$existing[0]->id})");
+            continue;
+        }
+    } catch (\Exception $e) {
+        // Category not found, create it
+    }
+
+    if ($dry_run) {
+        $logger->info("  [DRY RUN] Would create category: {$def['name']}");
+        $category_ids[$key] = 0; // placeholder
+        continue;
+    }
+
+    try {
+        $created = $wc_client->post('products/categories', [
+            'name' => $def['name'],
+            'slug' => $def['slug'],
+        ]);
+        $category_ids[$key] = $created->id;
+        $logger->info("  Created: {$def['name']} (ID {$created->id})");
+    } catch (\Exception $e) {
+        $logger->error("  Failed to create {$def['name']}: " . $e->getMessage());
+        $category_ids[$key] = 0;
+    }
+}
+
+// ============================================================================
+// Step 2: Build parent category slug → ID map
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 2: Loading existing categories...');
+
+$parent_cat_ids = []; // slug → id
+
+$needed_slugs = [];
+foreach ($smart_categories as $def) {
+    foreach ($def['parent_slugs'] as $slug) {
+        $needed_slugs[$slug] = true;
+    }
+}
+
+foreach (array_keys($needed_slugs) as $slug) {
+    try {
+        $cats = $wc_client->get('products/categories', ['slug' => $slug, 'per_page' => 1]);
+        if (!empty($cats)) {
+            $parent_cat_ids[$slug] = $cats[0]->id;
+            $logger->info("  Parent category: {$slug} → ID {$cats[0]->id}");
+        }
+    } catch (\Exception $e) {
+        $logger->warning("  Could not resolve parent category '{$slug}': " . $e->getMessage());
+    }
+}
+
+// ============================================================================
+// Step 3: Fetch all products
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 3: Fetching products...');
+
+$all_products = [];
+$page = 1;
+
+while (true) {
+    try {
+        $products = $wc_client->get('products', [
+            'per_page' => 100,
+            'page' => $page,
+            'status' => 'publish',
+        ]);
+    } catch (\Exception $e) {
+        $logger->error("  Failed to fetch page {$page}: " . $e->getMessage());
+        break;
+    }
+
+    if (empty($products)) {
+        break;
+    }
+
+    foreach ($products as $p) {
+        $all_products[] = $p;
+    }
+
+    $logger->debug("  Fetched page {$page}: " . count($products) . " products");
+    $page++;
+}
+
+$logger->info("  Total products: " . count($all_products));
+
+// ============================================================================
+// Step 4: Classify products
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 4: Classifying products...');
+
+// product_id → [smart_category_keys]
+$assignments = [];
+$stats = array_fill_keys(array_keys($smart_categories), 0);
+
+foreach ($all_products as $product) {
+    // Determine product's parent category type
+    $product_cat_slugs = [];
+    foreach ($product->categories ?? [] as $cat) {
+        $product_cat_slugs[] = $cat->slug;
+    }
+
+    // Determine the effective price: use sale_price if set, otherwise regular_price
+    // For variable products, check variations' prices
+    $has_sale_price = false;
+    $min_price = PHP_FLOAT_MAX;
+
+    if ($product->type === 'simple') {
+        $sale = $product->sale_price ?? '';
+        $regular = $product->regular_price ?? '0';
+        $effective_price = (float) ($sale !== '' ? $sale : $regular);
+        $has_sale_price = ($sale !== '' && (float) $sale > 0);
+        $min_price = $effective_price;
+    } else {
+        // Variable product: use price (WC sets this to the lowest variation price)
+        $min_price = (float) ($product->price ?? 0);
+        // Check if any sale_price is set
+        $has_sale_price = !empty($product->sale_price) && (float) $product->sale_price > 0;
+    }
+
+    // Existing category IDs on this product
+    $existing_cat_ids = array_map(fn($c) => $c->id, $product->categories ?? []);
+
+    foreach ($smart_categories as $key => $def) {
+        // Check if product belongs to the parent category
+        $in_parent = false;
+        foreach ($def['parent_slugs'] as $parent_slug) {
+            if (in_array($parent_slug, $product_cat_slugs)) {
+                $in_parent = true;
+                break;
+            }
+        }
+
+        if (!$in_parent) {
+            continue;
+        }
+
+        // Check condition
+        $matches = false;
+        if ($def['condition'] === 'on_sale' && $has_sale_price) {
+            $matches = true;
+        } elseif ($def['condition'] === 'under_price' && $min_price > 0 && $min_price < $price_threshold) {
+            $matches = true;
+        }
+
+        if (!$matches) {
+            continue;
+        }
+
+        // Skip if already in this smart category
+        $smart_cat_id = $category_ids[$key] ?? 0;
+        if ($smart_cat_id > 0 && in_array($smart_cat_id, $existing_cat_ids)) {
+            continue;
+        }
+
+        if (!isset($assignments[$product->id])) {
+            $assignments[$product->id] = [
+                'existing_cats' => $existing_cat_ids,
+                'add_cats' => [],
+                'sku' => $product->sku ?? '',
+                'name' => $product->name ?? '',
+            ];
+        }
+        $assignments[$product->id]['add_cats'][$key] = $smart_cat_id;
+        $stats[$key]++;
+    }
+}
+
+$logger->info("  Products to update: " . count($assignments));
+foreach ($stats as $key => $count) {
+    $logger->info("    {$smart_categories[$key]['name']}: {$count} products");
+}
+
+if (empty($assignments)) {
+    $logger->info('');
+    $logger->info('No products need category updates.');
+    exit(0);
+}
+
+// ============================================================================
+// Step 5: Batch update products
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 5: Updating product categories...');
+
+$batch_size = 25;
+$updated = 0;
+$errors = 0;
+
+$update_list = [];
+foreach ($assignments as $product_id => $info) {
+    $all_cat_ids = $info['existing_cats'];
+    foreach ($info['add_cats'] as $key => $cat_id) {
+        if ($cat_id > 0) {
+            $all_cat_ids[] = $cat_id;
+        }
+    }
+    $all_cat_ids = array_unique($all_cat_ids);
+
+    $update_list[] = [
+        'id' => $product_id,
+        'categories' => array_map(fn($id) => ['id' => $id], $all_cat_ids),
+    ];
+
+    if ($verbose) {
+        $added_names = [];
+        foreach ($info['add_cats'] as $key => $cat_id) {
+            $added_names[] = $smart_categories[$key]['name'];
+        }
+        $logger->debug("  [{$info['sku']}] {$info['name']} → +" . implode(', +', $added_names));
+    }
+}
+
+$chunks = array_chunk($update_list, $batch_size);
+
+foreach ($chunks as $ci => $chunk) {
+    if ($dry_run) {
+        $updated += count($chunk);
+        $logger->info("  [DRY RUN] Batch " . ($ci + 1) . "/" . count($chunks) . ": would update " . count($chunk) . " products");
+        continue;
+    }
+
+    try {
+        $result = $wc_client->post('products/batch', ['update' => $chunk]);
+
+        foreach ($result->update ?? [] as $item) {
+            if (isset($item->error)) {
+                $errors++;
+                $logger->error("  Product {$item->id}: " . ($item->error->message ?? 'Unknown error'));
+            } else {
+                $updated++;
+            }
+        }
+
+        $logger->info("  Batch " . ($ci + 1) . "/" . count($chunks) . ": updated " . count($chunk) . " products");
+    } catch (\Exception $e) {
+        $errors += count($chunk);
+        $logger->error("  Batch " . ($ci + 1) . " failed: " . $e->getMessage());
+    }
+
+    usleep(200000); // 200ms between batches
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  AUTO-CATEGORIZE SUMMARY');
+$logger->info('========================================');
+$logger->info("  Total products:     " . count($all_products));
+$logger->info("  Products updated:   {$updated}");
+$logger->info("  Errors:             {$errors}");
+foreach ($stats as $key => $count) {
+    $logger->info("  {$smart_categories[$key]['name']}: {$count}");
+}
+$logger->info("  Duration:           {$duration}s");
+$logger->info('========================================');
+
+exit($errors > 0 ? 1 : 0);

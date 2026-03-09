@@ -190,14 +190,25 @@ class WcProductBuilder
         // "One Size" products → create as simple product (no size dropdown)
         $is_one_size = count($unique_sizes) === 1 && strtolower($unique_sizes[0]) === 'one size';
 
-        // Build description: use API description when available, enriched with Italian sections
-        $description = $this->buildDescription($tpl, $api_description, $colorway, $release_date, $retail_price, $gender);
+        // Build description: always use Italian template (API descriptions are StockX English, not suitable)
+        $description = $this->buildDescription($tpl, '', $colorway, $release_date, $retail_price, $gender);
         $short_description = $this->buildShortDescription($tpl, $colorway);
 
         // Build base WC product — simple for "One Size", variable otherwise
         if ($is_one_size) {
             $one_var = $variations[0] ?? [];
             $one_price = (float) ($one_var['price'] ?? 0);
+
+            $one_stock_qty = $this->stock_override ?? (int) ($one_var['stock_quantity'] ?? 90);
+            $one_stock_status = $one_var['stock_status'] ?? ($one_stock_qty > 0 ? 'instock' : 'outofstock');
+            $one_is_gs = $this->isGsPriced($one_var, $product_source);
+
+            // GS simple products with zero availability: fall back to KicksDB stock
+            if ($one_is_gs && $one_stock_qty <= 0 && $this->stock_override === null) {
+                $one_stock_qty = 90;
+                $one_stock_status = 'instock';
+                $one_is_gs = false;
+            }
 
             $wc_product = [
                 'name' => $name,
@@ -207,8 +218,8 @@ class WcProductBuilder
                 'catalog_visibility' => 'visible',
                 'regular_price' => (string) $one_price,
                 'manage_stock' => true,
-                'stock_status' => 'instock',
-                'stock_quantity' => $this->stock_override ?? (int) ($one_var['stock_quantity'] ?? 90),
+                'stock_status' => $one_stock_status,
+                'stock_quantity' => $one_stock_qty,
                 'backorders' => 'yes',
                 'short_description' => $short_description,
                 'description' => $description,
@@ -216,8 +227,8 @@ class WcProductBuilder
                 'attributes' => [],
             ];
 
-            // GS sale pricing: show sale badge on GS-sourced simple products
-            if ($this->gs_sale_enabled && $one_price > 0 && $this->isGsPriced($one_var, $product_source)) {
+            // GS sale pricing: show sale badge on GS-sourced simple products (only when GS has stock)
+            if ($this->gs_sale_enabled && $one_price > 0 && $one_is_gs) {
                 $sale = $this->applyGsSalePricing($one_price);
                 $wc_product['regular_price'] = $sale['regular_price'];
                 $wc_product['sale_price'] = $sale['sale_price'];
@@ -391,20 +402,34 @@ class WcProductBuilder
                 $var_sku = $sku . '-' . str_replace([' ', '/'], '', $size_eu);
                 $var_price = (float) ($var['price'] ?? 0);
 
+                $var_stock_qty = $this->stock_override ?? (int) ($var['stock_quantity'] ?? 90);
+                $var_stock_status = $var['stock_status'] ?? ($var_stock_qty > 0 ? 'instock' : 'outofstock');
+                $is_gs_priced = $this->isGsPriced($var, $product_source);
+
+                // GS variants with zero availability: use KicksDB stock instead of GS zero
+                // This prevents showing GS sale prices on variants GS doesn't actually have
+                if ($is_gs_priced && $var_stock_qty <= 0 && $this->stock_override === null) {
+                    // Fall back to KicksDB synthetic stock (default 90)
+                    $var_stock_qty = 90;
+                    $var_stock_status = 'instock';
+                    // Don't treat as GS-priced since GS doesn't have this variant available
+                    $is_gs_priced = false;
+                }
+
                 $wc_var = [
                     'sku' => $var_sku,
                     'regular_price' => (string) $var_price,
                     'manage_stock' => true,
-                    'stock_status' => 'instock',
-                    'stock_quantity' => $this->stock_override ?? (int) ($var['stock_quantity'] ?? 90),
+                    'stock_status' => $var_stock_status,
+                    'stock_quantity' => $var_stock_qty,
                     'backorders' => 'yes',
                     'attributes' => $size_attr_id
                         ? [['id' => $size_attr_id, 'option' => $size_eu]]
                         : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
                 ];
 
-                // GS sale pricing: show sale badge on GS-priced variations
-                if ($this->gs_sale_enabled && $var_price > 0 && $this->isGsPriced($var, $product_source)) {
+                // GS sale pricing: show sale badge on GS-priced variations (only when GS has stock)
+                if ($this->gs_sale_enabled && $var_price > 0 && $is_gs_priced) {
                     $sale = $this->applyGsSalePricing($var_price);
                     $wc_var['regular_price'] = $sale['regular_price'];
                     $wc_var['sale_price'] = $sale['sale_price'];
