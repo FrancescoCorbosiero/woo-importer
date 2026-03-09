@@ -1,0 +1,143 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Rebuild image-map.json from existing WooCommerce products
+ *
+ * Pulls product image IDs and gallery IDs from WooCommerce REST API,
+ * reconstructs image-map.json without re-downloading any media.
+ *
+ * Use this after accidentally deleting data/ files when images are
+ * still present in WordPress.
+ *
+ * @package ResellPiacenza\Media
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Rebuild Image Map from WooCommerce
+Reconstructs image-map.json from existing WC product images.
+
+Usage:
+  bin/rebuild-image-map [options]
+
+Options:
+  --dry-run       Preview without writing
+  --verbose, -v   Show details
+  --env=FILE      Environment file
+  --help, -h      Show help
+
+HELP;
+    exit(0);
+}
+
+$dry_run = in_array('--dry-run', $argv);
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+
+$config = Config::load();
+
+$wc_url = rtrim($config['woocommerce']['url'], '/') . '/wp-json/wc/v3/products';
+$ck = $config['woocommerce']['consumer_key'];
+$cs = $config['woocommerce']['consumer_secret'];
+
+echo "Rebuilding image-map.json from WooCommerce...\n\n";
+
+$image_map = [];
+$page = 1;
+$per_page = 100;
+$total_products = 0;
+$total_with_images = 0;
+
+while (true) {
+    $url = "{$wc_url}?consumer_key={$ck}&consumer_secret={$cs}&per_page={$per_page}&page={$page}&_fields=id,sku,images";
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 60,
+    ]);
+
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($http_code !== 200) {
+        fwrite(STDERR, "API error: HTTP {$http_code}\n");
+        exit(1);
+    }
+
+    $products = json_decode($response, true);
+    if (empty($products)) {
+        break;
+    }
+
+    foreach ($products as $product) {
+        $sku = $product['sku'] ?? '';
+        $images = $product['images'] ?? [];
+
+        if (!$sku || empty($images)) {
+            $total_products++;
+            continue;
+        }
+
+        $primary = $images[0] ?? null;
+        $gallery = array_slice($images, 1);
+
+        if ($primary && !empty($primary['id'])) {
+            $entry = [
+                'media_id' => (int) $primary['id'],
+                'url' => $primary['src'] ?? '',
+                'gallery_ids' => array_map(fn($img) => (int) $img['id'], $gallery),
+                'uploaded_at' => date('Y-m-d H:i:s'),
+                'recovered' => true,
+            ];
+
+            $image_map[$sku] = $entry;
+            $total_with_images++;
+
+            if ($verbose) {
+                $gal_count = count($entry['gallery_ids']);
+                echo "  {$sku}: media_id={$primary['id']}" . ($gal_count ? " + {$gal_count} gallery" : "") . "\n";
+            }
+        }
+
+        $total_products++;
+    }
+
+    echo "  Page {$page}: " . count($products) . " products\n";
+    $page++;
+}
+
+echo "\n";
+echo "Results:\n";
+echo "  Products scanned: {$total_products}\n";
+echo "  With images:      {$total_with_images}\n";
+echo "  Image map entries: " . count($image_map) . "\n";
+echo "\n";
+
+if ($dry_run) {
+    echo "DRY RUN — not writing image-map.json\n";
+    exit(0);
+}
+
+if (empty($image_map)) {
+    echo "No images found — nothing to write.\n";
+    exit(0);
+}
+
+$map_file = Config::imageMapFile();
+$dir = dirname($map_file);
+if (!is_dir($dir)) {
+    mkdir($dir, 0755, true);
+}
+
+file_put_contents(
+    $map_file,
+    json_encode($image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+);
+
+echo "Saved to: {$map_file}\n";
