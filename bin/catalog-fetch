@@ -1,0 +1,533 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Catalog Fetch — Fetch explicit product SKUs from KicksDB
+ *
+ * Reads a curated catalog file (data/catalog.json) that defines exactly which
+ * products to import, organized by section/brand/subcategory. For each SKU,
+ * fetches rich product data from KicksDB and tags it with catalog metadata.
+ *
+ * This replaces kicksdb-discover for curated catalog workflows where you want
+ * granular control over which products appear in your store and in what order.
+ *
+ * Outputs: data/kicksdb-assortment.json (same format as kicksdb-discover)
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\KicksDb\Client;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Catalog Fetch — Fetch explicit SKUs from KicksDB
+Reads a curated catalog file and fetches product data for each listed SKU.
+
+Usage:
+  bin/catalog-fetch [options]
+
+Options:
+  --catalog=FILE          Catalog JSON file (default: data/catalog.json)
+  --limit=N               Fetch first N SKUs only
+  --no-cache              Bypass product cache (force fresh API fetch)
+  --skip-dedup            Don't exclude SKUs already in the GS feed
+  --dry-run               Preview without saving
+  --verbose, -v           Detailed output
+  --help, -h              Show help
+
+Output:
+  data/kicksdb-assortment.json - Product assortment (same format as kicksdb-discover)
+
+How it works:
+  Reads a catalog JSON file that lists product SKUs organized by section,
+  brand, and subcategory. For each SKU, fetches rich product data from KicksDB
+  (variants, traits, identifiers, gallery). Products are tagged with catalog
+  metadata and ordered exactly as they appear in the catalog file.
+
+  Unlike kicksdb-discover (query-based), this script fetches specific products
+  you have curated, giving you full control over your store's assortment.
+
+  Catalog JSON format:
+  {
+    "sections": [
+      {
+        "name": "Sneakers",
+        "slug": "sneakers",
+        "wc_category": "sneakers",
+        "brands": [
+          {
+            "name": "Nike",
+            "subcategories": [
+              {
+                "name": "Nike Dunk",
+                "products": ["DD1391-100", "FQ6965-700"]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+
+Examples:
+  bin/catalog-fetch                                    # Fetch all catalog SKUs
+  bin/catalog-fetch --catalog=data/catalog.json        # Explicit catalog file
+  bin/catalog-fetch --limit=10 --verbose               # First 10 SKUs, detailed
+  bin/catalog-fetch --dry-run                          # Preview without saving
+
+HELP;
+    exit(0);
+}
+
+$opt_verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$opt_dry_run = in_array('--dry-run', $argv);
+$opt_no_cache = in_array('--no-cache', $argv);
+$opt_skip_dedup = in_array('--skip-dedup', $argv);
+$opt_limit = null;
+$opt_catalog = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--limit=') === 0) {
+        $opt_limit = (int) str_replace('--limit=', '', $arg);
+    }
+    if (strpos($arg, '--catalog=') === 0) {
+        $opt_catalog = str_replace('--catalog=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('CatalogFetch', [
+    'file' => Config::projectRoot() . '/logs/catalog-fetch.log',
+    'console_level' => $opt_verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+// Resolve catalog file
+$catalog_file = $opt_catalog ?? Config::dataDir() . '/catalog.json';
+if ($catalog_file && !preg_match('#^/#', $catalog_file)) {
+    $catalog_file = Config::projectRoot() . '/' . $catalog_file;
+}
+
+if (empty($catalog_file) || !file_exists($catalog_file)) {
+    $logger->error('Catalog file not found: ' . ($catalog_file ?: '(not configured)'));
+    $logger->error('Create data/catalog.json or use --catalog=FILE');
+    exit(1);
+}
+
+$catalog = json_decode(file_get_contents($catalog_file), true);
+if (!is_array($catalog) || empty($catalog['sections'])) {
+    $logger->error("Invalid catalog file (must have 'sections' array): {$catalog_file}");
+    exit(1);
+}
+
+$market = $config['pricing']['kicksdb_market'] ?? 'IT';
+
+// ============================================================================
+// Step 1: Walk catalog tree, collect SKU list with metadata
+// ============================================================================
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Catalog Fetch');
+$logger->info('  Curated SKUs → KicksDB');
+$logger->info('========================================');
+$logger->info("  Catalog:    {$catalog_file}");
+
+$sku_entries = []; // Ordered list of [sku, catalog_brand, catalog_subcategory, catalog_section, catalog_wc_category, catalog_discovery]
+$position = 0;
+
+foreach ($catalog['sections'] as $section) {
+    $section_name = $section['name'] ?? 'Unknown';
+    $section_slug = $section['slug'] ?? strtolower($section_name);
+    $section_wc_category = $section['wc_category'] ?? null;
+
+    // Determine discovery mode from section structure
+    if (!empty($section['brands'])) {
+        // Brand-based sections (Sneakers, Abbigliamento)
+        foreach ($section['brands'] as $brand) {
+            $brand_name = $brand['name'] ?? '';
+
+            if (!empty($brand['subcategories'])) {
+                // Sneakers-style: brands[].subcategories[].products[]
+                foreach ($brand['subcategories'] as $subcat) {
+                    $subcat_name = $subcat['name'] ?? '';
+                    foreach ($subcat['products'] ?? [] as $sku) {
+                        $sku_entries[] = [
+                            'sku' => $sku,
+                            'catalog_brand' => $brand_name,
+                            'catalog_subcategory' => $subcat_name,
+                            'catalog_section' => $section_slug,
+                            'catalog_wc_category' => $section_wc_category,
+                            'catalog_discovery' => 'curated',
+                            '_catalog_position' => $position++,
+                        ];
+                    }
+                }
+            } else {
+                // Clothing-style: brands[].products[] (keyword subcategories)
+                foreach ($brand['products'] ?? [] as $sku) {
+                    $sku_entries[] = [
+                        'sku' => $sku,
+                        'catalog_brand' => $brand_name,
+                        'catalog_subcategory' => $brand_name,
+                        'catalog_section' => $section_slug,
+                        'catalog_wc_category' => $section_wc_category,
+                        'catalog_discovery' => 'curated',
+                        '_catalog_position' => $position++,
+                    ];
+                }
+            }
+        }
+    }
+
+    if (!empty($section['items'])) {
+        // Query-based sections (Accessori)
+        foreach ($section['items'] as $item) {
+            $item_name = $item['name'] ?? $item['label'] ?? '';
+            foreach ($item['products'] ?? [] as $sku) {
+                $sku_entries[] = [
+                    'sku' => $sku,
+                    'catalog_brand' => '',
+                    'catalog_subcategory' => $item_name,
+                    'catalog_section' => $section_slug,
+                    'catalog_wc_category' => $section_wc_category,
+                    'catalog_discovery' => 'curated',
+                    '_catalog_position' => $position++,
+                ];
+            }
+        }
+    }
+}
+
+$total_skus = count($sku_entries);
+$logger->info("  Total SKUs: {$total_skus}");
+$logger->info("  Sections:   " . count($catalog['sections']));
+foreach ($catalog['sections'] as $sec) {
+    $sec_skus = 0;
+    foreach ($sku_entries as $e) {
+        if ($e['catalog_section'] === ($sec['slug'] ?? '')) {
+            $sec_skus++;
+        }
+    }
+    $logger->info("    {$sec['name']}: {$sec_skus} SKUs");
+}
+$logger->info("  Market:     {$market}");
+
+if ($opt_limit && $total_skus > $opt_limit) {
+    $sku_entries = array_slice($sku_entries, 0, $opt_limit);
+    $total_skus = count($sku_entries);
+    $logger->info("  Limited to: {$total_skus} SKUs");
+}
+
+if ($opt_dry_run) {
+    $logger->warning('  DRY RUN');
+}
+$logger->info('');
+
+$api_key = $config['pricing']['kicksdb_api_key'] ?? '';
+if (empty($api_key)) {
+    $logger->error('KICKSDB_API_KEY not set in .env');
+    exit(1);
+}
+
+$client = new Client($api_key, [
+    'base_url' => $config['pricing']['kicksdb_base_url'] ?? 'https://api.kicks.dev/v3',
+], $logger);
+
+// ============================================================================
+// Step 2: Load GS SKU cache for deduplication
+// ============================================================================
+
+$gs_skus = [];
+$gs_excluded = 0;
+
+if (!$opt_skip_dedup) {
+    $logger->info('Step 1: Loading GS SKU cache...');
+
+    $cache_file = Config::dataDir() . '/gs-sku-cache.json';
+    if (file_exists($cache_file)) {
+        $cached = json_decode(file_get_contents($cache_file), true);
+        if (is_array($cached)) {
+            $gs_skus = array_flip($cached);
+            $logger->info("  Loaded " . count($gs_skus) . " GS SKUs from cache");
+        }
+    } else {
+        $logger->info("  No GS SKU cache found, skipping dedup");
+    }
+} else {
+    $logger->info('Step 1: Skipped (--skip-dedup)');
+}
+
+// ============================================================================
+// Step 3: Load product cache
+// ============================================================================
+
+$cache_path = Config::dataDir() . '/kicksdb-product-cache.json';
+$product_cache = [];
+$cache_ttl = $opt_no_cache ? 0 : ($config['import']['kicksdb_cache_ttl'] ?? 86400);
+
+if (!$opt_no_cache && file_exists($cache_path)) {
+    $product_cache = json_decode(file_get_contents($cache_path), true) ?: [];
+    $logger->info("Loaded product cache: " . count($product_cache) . " entries");
+} else {
+    $logger->info("Product cache: " . ($opt_no_cache ? 'disabled' : 'empty'));
+}
+
+// ============================================================================
+// Helper: Build assortment product from API item + catalog entry
+// ============================================================================
+
+$buildProduct = function (array $item, array $entry): array {
+    return [
+        'sku' => $entry['sku'],
+        'name' => $item['title'] ?? $item['name'] ?? '',
+        'brand' => $item['brand'] ?? '',
+        'slug' => $item['slug'] ?? '',
+        'model' => $item['model'] ?? '',
+        'gender' => $item['gender'] ?? '',
+        'colorway' => $item['colorway'] ?? '',
+        'product_type' => $item['product_type'] ?? '',
+        'category' => $item['category'] ?? '',
+        'secondary_category' => $item['secondary_category'] ?? '',
+        'categories' => $item['categories'] ?? [],
+        'breadcrumbs' => $item['breadcrumbs'] ?? [],
+        'rank' => $item['rank'] ?? 999999,
+        'weekly_orders' => $item['weekly_orders'] ?? 0,
+        'image_url' => $item['image'] ?? $item['image_url'] ?? '',
+        'gallery' => $item['gallery'] ?? [],
+        'gallery_360' => !empty($item['gallery_360']),
+        'min_price' => $item['min_price'] ?? null,
+        'avg_price' => $item['avg_price'] ?? null,
+        'release_date' => $item['release_date'] ?? '',
+        'catalog_brand' => $entry['catalog_brand'],
+        'catalog_subcategory' => $entry['catalog_subcategory'],
+        'catalog_section' => $entry['catalog_section'],
+        'catalog_wc_category' => $entry['catalog_wc_category'],
+        'catalog_discovery' => 'curated',
+        '_catalog_position' => $entry['_catalog_position'],
+        '_raw' => $item,
+    ];
+};
+
+// ============================================================================
+// Step 4: Fetch each SKU from KicksDB
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 2: Fetching SKUs from KicksDB...');
+$logger->info('');
+
+$all_products = [];
+$api_calls = 0;
+$cache_hits = 0;
+$not_found = 0;
+$seen_skus = []; // Dedup within catalog
+
+foreach ($sku_entries as $entry) {
+    $sku = $entry['sku'];
+
+    // Skip duplicate SKUs within catalog
+    if (isset($seen_skus[$sku])) {
+        $logger->debug("    SKIP (duplicate in catalog): {$sku}");
+        continue;
+    }
+    $seen_skus[$sku] = true;
+
+    // GS dedup
+    if (isset($gs_skus[$sku])) {
+        $gs_excluded++;
+        $logger->debug("    SKIP (GS dedup): {$sku}");
+        continue;
+    }
+
+    // Check product cache
+    $now = time();
+    if ($cache_ttl > 0 && isset($product_cache[$sku]) && ($now - ($product_cache[$sku]['_cached_at'] ?? 0)) < $cache_ttl) {
+        $cached_item = $product_cache[$sku]['data'] ?? null;
+        $cache_hits++;
+
+        if ($cached_item === null) {
+            // Cached miss — skip without API call
+            $not_found++;
+            $logger->debug("    CACHE (miss): {$sku}");
+            continue;
+        }
+
+        $all_products[$sku] = $buildProduct($cached_item, $entry);
+        $logger->debug("    CACHE: {$sku} - " . ($cached_item['title'] ?? '?'));
+        continue;
+    }
+
+    // Fetch from KicksDB API
+    $result = $client->getStockXProduct($sku, $market);
+    $api_calls++;
+
+    if ($result === null) {
+        $not_found++;
+        $logger->warning("    NOT FOUND: {$sku}");
+        // Cache the miss to avoid re-fetching
+        $product_cache[$sku] = ['_cached_at' => $now, 'data' => null];
+        usleep(200000);
+        continue;
+    }
+
+    // Unwrap response (getStockXProduct may wrap in data envelope)
+    $item = $result['data'] ?? $result;
+    if (isset($item['data']) && is_array($item['data']) && isset($item['data']['sku'])) {
+        $item = $item['data'];
+    }
+
+    // Verify SKU matches (getStockXProduct might return a different product via fallback search)
+    $returned_sku = $item['sku'] ?? '';
+    if (!empty($returned_sku) && strcasecmp($returned_sku, $sku) !== 0) {
+        $not_found++;
+        $logger->warning("    MISMATCH: requested {$sku}, got {$returned_sku} — skipping");
+        $product_cache[$sku] = ['_cached_at' => $now, 'data' => null];
+        usleep(200000);
+        continue;
+    }
+
+    // Cache the successful fetch
+    $product_cache[$sku] = ['_cached_at' => $now, 'data' => $item];
+
+    // Build assortment product
+    $all_products[$sku] = $buildProduct($item, $entry);
+
+    $logger->info("    OK: {$sku} - " . ($item['title'] ?? $item['name'] ?? '?'));
+    usleep(200000); // 200ms between API calls
+}
+
+// Save updated product cache
+if (!$opt_dry_run && $api_calls > 0) {
+    file_put_contents($cache_path, json_encode($product_cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    $logger->debug("  Updated product cache: " . count($product_cache) . " entries");
+}
+
+$logger->info('');
+$logger->info("  Fetched:     " . count($all_products) . " products");
+$logger->info("  API calls:   {$api_calls}");
+$logger->info("  Cache hits:  {$cache_hits}");
+$logger->info("  Not found:   {$not_found}");
+if ($gs_excluded > 0) {
+    $logger->info("  GS excluded: {$gs_excluded}");
+}
+
+if (empty($all_products)) {
+    $logger->error('No products fetched from KicksDB.');
+    exit(1);
+}
+
+// ============================================================================
+// Step 5: Order by catalog position (preserves catalog.json order)
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 3: Ordering by catalog position...');
+
+$products = array_values($all_products);
+usort($products, function ($a, $b) {
+    return ($a['_catalog_position'] ?? PHP_INT_MAX) - ($b['_catalog_position'] ?? PHP_INT_MAX);
+});
+
+$logger->info("  Final assortment: " . count($products) . " products");
+
+// Section distribution
+foreach ($catalog['sections'] as $sec) {
+    $sec_slug = $sec['slug'] ?? '';
+    $sec_count = 0;
+    foreach ($products as $p) {
+        if (($p['catalog_section'] ?? '') === $sec_slug) {
+            $sec_count++;
+        }
+    }
+    if ($sec_count > 0) {
+        $logger->info("    {$sec['name']}: {$sec_count}");
+    }
+}
+
+// Brand distribution
+$brand_counts = [];
+foreach ($products as $p) {
+    $b = $p['brand'] ?: '(unknown)';
+    $brand_counts[$b] = ($brand_counts[$b] ?? 0) + 1;
+}
+arsort($brand_counts);
+$logger->info("  Brand distribution:");
+foreach (array_slice($brand_counts, 0, 10, true) as $b => $c) {
+    $logger->info("    {$b}: {$c}");
+}
+if (count($brand_counts) > 10) {
+    $logger->info("    ... and " . (count($brand_counts) - 10) . " more brands");
+}
+
+if ($opt_verbose && count($products) > 0) {
+    $logger->debug("  First 10 by catalog position:");
+    foreach (array_slice($products, 0, 10) as $p) {
+        $logger->debug("    pos={$p['_catalog_position']} {$p['brand']} {$p['sku']} - {$p['name']}");
+    }
+}
+
+// ============================================================================
+// Step 6: Save assortment
+// ============================================================================
+
+if (!$opt_dry_run) {
+    $output = [
+        'discovered_at' => date('c'),
+        'total' => count($products),
+        'gs_skus_excluded' => $gs_excluded,
+        'catalog_file' => $catalog_file,
+        'catalog_mode' => 'curated',
+        'market' => $market,
+        'catalog' => $catalog,
+        'products' => $products,
+    ];
+
+    $output_file = Config::dataDir() . '/kicksdb-assortment.json';
+    file_put_contents(
+        $output_file,
+        json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    );
+
+    $logger->info('');
+    $logger->info("Saved to {$output_file}");
+} else {
+    $logger->info('');
+    $logger->info('[DRY RUN] Would save ' . count($products) . ' products to data/kicksdb-assortment.json');
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  CATALOG FETCH SUMMARY');
+$logger->info('========================================');
+$logger->info("  Catalog:         {$catalog_file}");
+$logger->info("  Total SKUs:      {$total_skus}");
+$logger->info("  Fetched:         " . count($products));
+$logger->info("  API calls:       {$api_calls}");
+$logger->info("  Cache hits:      {$cache_hits}");
+$logger->info("  Not found:       {$not_found}");
+$logger->info("  GS excluded:     {$gs_excluded}");
+$logger->info("  Unique brands:   " . count($brand_counts));
+$logger->info("  Duration:        {$duration}s");
+$logger->info('========================================');
+
+exit(0);

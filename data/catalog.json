@@ -1,0 +1,265 @@
+{
+  "sections": [
+    {
+      "name": "Sneakers",
+      "slug": "sneakers",
+      "wc_category": "sneakers",
+      "brands": [
+        {
+          "name": "Nike",
+          "subcategories": [
+            {
+              "name": "Nike Dunk",
+              "products": []
+            },
+            {
+              "name": "Nike Dunk SB",
+              "products": []
+            },
+            {
+              "name": "Nike Air Force 1",
+              "products": []
+            },
+            {
+              "name": "Nike Travis Scott",
+              "products": []
+            },
+            {
+              "name": "Nike Nocta",
+              "products": []
+            },
+            {
+              "name": "Nike Off White",
+              "products": []
+            },
+            {
+              "name": "Nike Supreme",
+              "products": []
+            },
+            {
+              "name": "Nike Corteiz",
+              "products": []
+            }
+          ]
+        },
+        {
+          "name": "Jordan",
+          "subcategories": [
+            {
+              "name": "Jordan 1 Low",
+              "products": []
+            },
+            {
+              "name": "Jordan 1 Mid",
+              "products": []
+            },
+            {
+              "name": "Jordan 1 High",
+              "products": []
+            },
+            {
+              "name": "Jordan 3",
+              "products": []
+            },
+            {
+              "name": "Jordan 4",
+              "products": []
+            },
+            {
+              "name": "Jordan 5",
+              "products": []
+            },
+            {
+              "name": "Jordan 6",
+              "products": []
+            },
+            {
+              "name": "Jordan 11",
+              "products": []
+            },
+            {
+              "name": "Jordan 12",
+              "products": []
+            },
+            {
+              "name": "Jordan 13",
+              "products": []
+            }
+          ]
+        },
+        {
+          "name": "Adidas",
+          "subcategories": [
+            {
+              "name": "Adidas Campus",
+              "products": []
+            },
+            {
+              "name": "Adidas Gazelle",
+              "products": []
+            },
+            {
+              "name": "Adidas Samba",
+              "products": []
+            },
+            {
+              "name": "Adidas Spezial",
+              "products": []
+            }
+          ]
+        },
+        {
+          "name": "New Balance",
+          "subcategories": [
+            {
+              "name": "New Balance 9060",
+              "products": []
+            },
+            {
+              "name": "New Balance 1906R",
+              "products": []
+            },
+            {
+              "name": "New Balance 550",
+              "products": []
+            },
+            {
+              "name": "New Balance 530",
+              "products": []
+            },
+            {
+              "name": "New Balance 2002",
+              "products": []
+            },
+            {
+              "name": "New Balance 2041",
+              "products": []
+            }
+          ]
+        },
+        {
+          "name": "Asics",
+          "subcategories": [
+            {
+              "name": "Asics Gel-Kayano",
+              "products": []
+            },
+            {
+              "name": "Asics Gel-NYC",
+              "products": []
+            },
+            {
+              "name": "Asics Gel-1130",
+              "products": []
+            },
+            {
+              "name": "Asics GT-2160",
+              "products": []
+            }
+          ]
+        },
+        {
+          "name": "Yeezy",
+          "subcategories": [
+            {
+              "name": "Yeezy 350",
+              "products": []
+            },
+            {
+              "name": "Yeezy 500",
+              "products": []
+            },
+            {
+              "name": "Yeezy 700",
+              "products": []
+            },
+            {
+              "name": "Yeezy Foam",
+              "products": []
+            },
+            {
+              "name": "Yeezy Slide",
+              "products": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Abbigliamento",
+      "slug": "abbigliamento",
+      "wc_category": "clothing",
+      "subcategories": [
+        {"name": "T-Shirt", "keywords": ["t-shirt", "tee"]},
+        {"name": "Felpe", "keywords": ["hoodie", "felpa", "sweatshirt", "crewneck"]},
+        {"name": "Giacche", "keywords": ["jacket", "giacca", "coat", "puffer", "windbreaker"]},
+        {"name": "Pantaloni", "keywords": ["pants", "pantaloni", "jogger", "trousers", "cargo"]}
+      ],
+      "brands": [
+        {
+          "name": "Supreme",
+          "products": []
+        },
+        {
+          "name": "Corteiz",
+          "products": []
+        },
+        {
+          "name": "Essentials",
+          "products": []
+        },
+        {
+          "name": "Chrome Hearts",
+          "products": []
+        },
+        {
+          "name": "Travis Scott",
+          "products": []
+        },
+        {
+          "name": "C.P. Company",
+          "products": []
+        },
+        {
+          "name": "Bape",
+          "products": []
+        },
+        {
+          "name": "Kaws",
+          "products": []
+        },
+        {
+          "name": "Sp5der",
+          "products": []
+        }
+      ]
+    },
+    {
+      "name": "Accessori",
+      "slug": "accessori",
+      "wc_category": "accessories",
+      "items": [
+        {
+          "name": "Beanie",
+          "product_types": ["streetwear"],
+          "products": []
+        },
+        {
+          "name": "59FIFTY",
+          "product_types": ["streetwear"],
+          "products": []
+        },
+        {
+          "name": "Cappelli",
+          "product_types": ["streetwear"],
+          "products": []
+        },
+        {
+          "name": "Labubu",
+          "product_types": ["collectibles"],
+          "products": []
+        }
+      ]
+    }
+  ]
+}
