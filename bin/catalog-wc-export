@@ -147,47 +147,100 @@ if (empty($all_products)) {
 }
 
 // ============================================================================
-// Fetch variations for variable products
+// Fetch variations for variable products (concurrent with curl_multi)
 // ============================================================================
 
-echo "Fetching variations...\n";
-$variation_cache = []; // product_id => [variations]
-
-$variable_count = 0;
+$variable_products = [];
 foreach ($all_products as $product) {
-    if ($product->type !== 'variable') {
-        continue;
-    }
-    $variable_count++;
-
-    $product_id = $product->id;
-    $var_page = 1;
-    $vars = [];
-
-    do {
-        try {
-            $batch = $wc->get("products/{$product_id}/variations", [
-                'per_page' => 100,
-                'page' => $var_page,
-            ]);
-            foreach ($batch as $v) {
-                $vars[] = $v;
-            }
-            $var_page++;
-        } catch (\Exception $e) {
-            fwrite(STDERR, "  Error fetching variations for product {$product_id} (SKU: {$product->sku}): " . $e->getMessage() . "\n");
-            break;
-        }
-    } while (count($batch ?? []) === 100);
-
-    $variation_cache[$product_id] = $vars;
-
-    if ($opt_verbose) {
-        echo "  {$product->sku}: " . count($vars) . " variations\n";
+    if ($product->type === 'variable') {
+        $variable_products[] = $product;
     }
 }
 
-echo "Fetched variations for {$variable_count} variable products\n";
+echo "Fetching variations for " . count($variable_products) . " variable products (concurrent)...\n";
+
+$variation_cache = []; // product_id => [variations]
+$concurrency = (int) ($config['import']['variation_concurrency'] ?? 10);
+$wc_version = $config['woocommerce']['version'] ?? 'wc/v3';
+$wc_base = rtrim($wc_url, '/');
+
+/**
+ * Build authenticated WC API URL
+ */
+$buildUrl = function (string $endpoint, array $params = []) use ($wc_base, $wc_version, $config) {
+    $params['consumer_key'] = $config['woocommerce']['consumer_key'];
+    $params['consumer_secret'] = $config['woocommerce']['consumer_secret'];
+    return "{$wc_base}/wp-json/{$wc_version}/{$endpoint}?" . http_build_query($params);
+};
+
+// Process in batches of $concurrency
+$chunks = array_chunk($variable_products, $concurrency);
+$batch_num = 0;
+
+foreach ($chunks as $chunk) {
+    $batch_num++;
+    $mh = curl_multi_init();
+    $handles = [];
+
+    foreach ($chunk as $product) {
+        $product_id = $product->id;
+        $url = $buildUrl("products/{$product_id}/variations", ['per_page' => 100]);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 120,
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        ]);
+
+        $handles[] = ['ch' => $ch, 'product_id' => $product_id, 'sku' => $product->sku];
+        curl_multi_add_handle($mh, $ch);
+    }
+
+    // Execute all handles concurrently
+    $running = null;
+    do {
+        $status = curl_multi_exec($mh, $running);
+        if ($running > 0) {
+            curl_multi_select($mh, 1.0);
+        }
+    } while ($running > 0 && $status === CURLM_OK);
+
+    // Process responses
+    foreach ($handles as $h) {
+        $ch = $h['ch'];
+        $product_id = $h['product_id'];
+        $response = curl_multi_getcontent($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        if ($http_code === 200 && $response) {
+            $variations = json_decode($response, false);
+            if (is_array($variations)) {
+                $variation_cache[$product_id] = $variations;
+                if ($opt_verbose) {
+                    echo "  {$h['sku']}: " . count($variations) . " variations\n";
+                }
+            } else {
+                $variation_cache[$product_id] = [];
+            }
+        } else {
+            $variation_cache[$product_id] = [];
+            fwrite(STDERR, "  Error fetching variations for {$h['sku']} (HTTP {$http_code})\n");
+        }
+
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+    }
+
+    curl_multi_close($mh);
+
+    if ($opt_verbose && count($chunks) > 1) {
+        echo "  Batch {$batch_num}/" . count($chunks) . " done\n";
+    }
+}
+
+echo "Fetched variations for " . count($variable_products) . " variable products\n";
 
 // ============================================================================
 // Extract catalog metadata and build rows
