@@ -2,6 +2,87 @@
 
 Complete mapping of how data flows across all pipeline stages.
 
+## Conversion Matrix
+
+All formats and every possible conversion path between them.
+
+### Formats
+
+| Format | File | Description |
+|--------|------|-------------|
+| **CSV** | `data/catalog.csv` | Human-editable spreadsheet (Google Docs) |
+| **catalog.json** | `data/catalog.json` | Curated product catalog (explicit SKUs + taxonomy) |
+| **brand-catalog.json** | `data/brand-catalog.json` | Discovery config (queries + filters) |
+| **assortment** | `data/kicksdb-assortment.json` | KicksDB product data with catalog metadata |
+| **merged-assortment** | `data/merged-assortment.json` | Assortment + GS price/stock overlay |
+| **feed-wc** | `data/feed-wc-latest.json` | WooCommerce REST API payloads |
+| **WC** | _(live store)_ | WooCommerce products via REST API |
+| **KicksDB** | _(external API)_ | KicksDB product database |
+| **GS** | _(external API)_ | Golden Sneakers price/stock feed |
+
+### Conversion Paths
+
+| From → To | Tool | Command |
+|-----------|------|---------|
+| CSV → catalog.json | `catalog-csv-import` | `bin/catalog-csv-import` |
+| catalog.json → assortment | `catalog-fetch` + KicksDB API | `bin/catalog-fetch` |
+| brand-catalog.json → assortment | `kicksdb-discover` + KicksDB API | `bin/kicksdb-discover` |
+| assortment → CSV | `catalog-csv-export` | `bin/catalog-csv-export` |
+| assortment → merged-assortment | `gs-ingest` + GS API + KicksDB API | `bin/gs-ingest` |
+| assortment/merged → feed-wc | `catalog-transform` | `bin/catalog-transform` |
+| feed-wc → WC | `sync-wc` | `bin/sync-wc` |
+| _(full pipeline)_ | `catalog-build` | `bin/catalog-build` |
+
+### What does NOT exist
+
+| From → To | Status | Why |
+|-----------|--------|-----|
+| CSV → WC | No direct path | Must go CSV → catalog.json → assortment → WC |
+| WC → CSV | Not implemented | No WC export. Would need `wp-cli` or REST API read |
+| WC → catalog.json | Not implemented | Same — no reverse sync from store |
+| catalog.json → CSV | Not direct | Must go catalog.json → catalog-fetch → assortment → CSV export |
+| brand-catalog.json → CSV | Not direct | Must go brand-catalog.json → kicksdb-discover → assortment → CSV export |
+| brand-catalog.json → catalog.json | Not implemented | Discovery populates assortment, not catalog.json |
+| CSV → assortment | Not direct | Must go CSV → catalog.json → catalog-fetch → assortment |
+
+### Pipeline Diagrams
+
+**Pipeline 1 — Curated (manual control):**
+```
+CSV ──→ catalog.json ──→ catalog-fetch ──→ assortment ──→ gs-ingest ──→ merged
+ (csv-import)             (KicksDB API)                    (GS API)
+                                                               │
+                          ┌────────────────────────────────────┘
+                          ▼
+                    catalog-build ──→ feed-wc ──→ WC
+                    (transform + sync)
+```
+
+**Pipeline 2 — Discovery (auto-populate):**
+```
+brand-catalog.json ──→ kicksdb-discover ──→ assortment ──→ csv-export ──→ CSV
+                        (KicksDB API)                        │
+                                                             ▼
+                                                     (human review)
+                                                             │
+                                                             ▼
+                    CSV ──→ catalog.json ──→ Pipeline 1 (curated)
+                     (csv-import)
+```
+
+**Pipeline 2b — Discovery direct (no review):**
+```
+brand-catalog.json ──→ kicksdb-discover ──→ assortment ──→ gs-ingest ──→ catalog-build ──→ WC
+```
+
+### Round-trip Paths
+
+| Round-trip | Steps | Lossless? |
+|-----------|-------|-----------|
+| CSV → catalog.json → CSV | csv-import → catalog-fetch → csv-export | No — loses Titolo/Query/Taglie/Prezzo (reference-only cols). Gains KicksDB product data |
+| assortment → CSV → catalog.json → assortment | csv-export → csv-import → catalog-fetch | No — CSV export groups products, re-fetch may get updated KicksDB data |
+| catalog.json → assortment → catalog.json | catalog-fetch → _(no path back)_ | N/A — no assortment → catalog.json converter |
+
 ## Pipeline Overview
 
 ```
