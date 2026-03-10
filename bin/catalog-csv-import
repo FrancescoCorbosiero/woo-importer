@@ -46,15 +46,17 @@ Options:
   --help, -h        Show help
 
 CSV format:
-  Sezione,Marca,Sottocategoria,SKU,Taglie,Prezzo,Prezzo Scontato
-  Sneakers,Nike,Nike Dunk,DD1391-100,40-45,120,
-  Abbigliamento,Supreme,,SUP-SKU-1,S/M/L,89,79
-  Accessori,,Beanie,BEANIE-SKU-1,,,
+  Sezione,Marca,Sottocategoria,SKU,Titolo,Query,Taglie,Prezzo,Prezzo Scontato
+  Sneakers,Nike,Nike Dunk,DD1391-100,Nike Dunk Low Panda,Nike Dunk,40-45,120,
+  Abbigliamento,Supreme,,SUP-SKU-1,Supreme Box Logo Tee,Supreme T-Shirt,S/M/L,89,79
+  Accessori,,Beanie,BEANIE-SKU-1,Nike ACG Beanie,beanie,,,
 
   - Sezione: Section name (Sneakers, Abbigliamento, Accessori)
   - Marca: Brand name (empty for Accessori)
   - Sottocategoria: Subcategory (product line for Sneakers, item name for Accessori, empty for Abbigliamento)
   - SKU: Product SKU from KicksDB (empty rows define structure only)
+  - Titolo: Product title from KicksDB (reference-only, ignored by importer)
+  - Query: KicksDB search query used to find this product (reference-only, ignored by importer)
   - Remaining columns are ignored (reference-only for human editors)
 
 Examples:
