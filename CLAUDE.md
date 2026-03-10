@@ -23,17 +23,26 @@ WooCommerce product importer for ResellPiacenza. Architecture: **one master cata
 
 All pipelines produce WooCommerce products (variable or simple) with Italian SEO metadata, size variations (Taglia), brand attributes (Marca), and gallery images.
 
-**Product categories:** Sneakers, Abbigliamento, Accessori — determined by `wc_category` in brand-catalog.json. Hierarchical sub-categories (e.g. Abbigliamento > T-Shirt, Accessori > Beanie) are auto-created from catalog structure.
+**Product categories:** Sneakers, Abbigliamento, Accessori — determined by `wc_category` in catalog.json. Hierarchical sub-categories (e.g. Abbigliamento > T-Shirt, Accessori > Beanie) are auto-created from catalog structure.
+
+**Catalog modes:** Two modes for Step 1 of the Catalog Build pipeline:
+- **Curated** (default when `data/catalog.json` exists) — Explicit product SKUs fetched from KicksDB. Full control over which products appear and in what order.
+- **Discovery** (fallback, or `--discovery` flag) — Query-based auto-discovery from KicksDB via `data/brand-catalog.json`. Useful for populating "New Releases" or exploring available products.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  CATALOG BUILD  (daily)                                      │
-│  kicksdb-discover → gs-ingest → taxonomies → media           │
-│  → catalog-transform → sync-wc                               │
 │                                                               │
-│  brand-catalog.json ──→ KicksDB API ──→ assortment            │
+│  Curated mode (default):                                      │
+│  catalog.json ──→ catalog-fetch ──→ assortment                │
+│                                                               │
+│  Discovery mode (--discovery):                                │
+│  brand-catalog.json ──→ kicksdb-discover ──→ assortment       │
+│                                                               │
+│  → gs-ingest → taxonomies → media                             │
+│  → catalog-transform → sync-wc                               │
 │  GS API ──→ KicksDB lookup (enrich) ──→ merged assortment     │
 │  FeedMerger (variation-level merge) → WcProductBuilder → WC   │
 └─────────────────────────────────────────────────────────────┘
@@ -60,6 +69,7 @@ All pipelines produce WooCommerce products (variable or simple) with Italian SEO
 | `GoldenSneakersAdapter` | `src/Import/GoldenSneakersAdapter.php` | Normalizes Golden Sneakers API response |
 | `KicksDbAdapter` | `src/Import/KicksDbAdapter.php` | Normalizes KicksDB API response |
 | `KicksDb\Client` | `src/KicksDb/Client.php` | KicksDB v3 API client (search, prices, webhooks) |
+| `catalog-fetch` | `bin/catalog-fetch` | Fetches explicit SKUs from KicksDB (curated catalog mode) |
 | `PriceCalculator` | `src/Pricing/PriceCalculator.php` | Tiered margin + floor price + rounding |
 
 ### Catalog Provenance & Tagging
@@ -82,10 +92,11 @@ Every WC product carries metadata tracing it back to its origin in the catalog:
 ```
 woo-importer/
 ├── bin/                          # CLI scripts
-│   ├── catalog-transform         # Merged assortment → WC REST format (NEW)
-│   ├── gs-ingest                 # GS SKUs → KicksDB enrich → merged assortment (NEW)
-│   ├── gs-variation-update       # Lightweight GS → WC variation patcher (NEW)
-│   ├── kicksdb-discover          # KicksDB product discovery (catalog v2)
+│   ├── catalog-fetch             # Fetch explicit SKUs from KicksDB (curated catalog)
+│   ├── catalog-transform         # Merged assortment → WC REST format
+│   ├── gs-ingest                 # GS SKUs → KicksDB enrich → merged assortment
+│   ├── gs-variation-update       # Lightweight GS → WC variation patcher
+│   ├── kicksdb-discover          # KicksDB query-based product discovery
 │   ├── prepare-media             # Upload/validate images
 │   ├── prepare-taxonomies        # Create categories/attributes/brands
 │   ├── pricing-reconcile         # Update stale prices from KicksDB
@@ -112,7 +123,8 @@ woo-importer/
 ├── gs-sync.sh                    # (legacy) GS-only cron pipeline
 ├── kicksdb-sync.sh               # (legacy) KicksDB-only cron pipeline
 ├── data/
-│   ├── brand-catalog.json        # Discovery catalog v2 (sections + discovery modes + subcategories)
+│   ├── catalog.json              # Curated product catalog (sections + explicit SKUs)
+│   ├── brand-catalog.json        # Discovery catalog (sections + query-based discovery)
 │   ├── kicksdb-assortment.json   # KicksDB discovery output (generated)
 │   ├── merged-assortment.json    # KicksDB + GS merged catalog (generated)
 │   ├── catalog-index.json        # Reverse lookup: section → brand/item → SKUs (generated)
@@ -136,13 +148,18 @@ woo-importer/
 
 **Entry point:** `./catalog-build.sh`
 
-**Pipeline:** `kicksdb-discover → gs-ingest → prepare-taxonomies → prepare-media → catalog-transform → sync-wc`
+**Pipeline:** `catalog-fetch|kicksdb-discover → gs-ingest → prepare-taxonomies → prepare-media → catalog-transform → sync-wc`
 
 KicksDB is the product catalog master (rich metadata, images, gallery). GS provides real pricing/stock overlay — when a product exists in both, GS prices and stock replace KicksDB synthetic data at the variation level. New GS SKUs are enriched via KicksDB lookup; if KicksDB miss, they're imported with GS-only data.
 
+**Two catalog modes (auto-detected):**
+- **Curated** (when `data/catalog.json` exists): Fetches explicit SKUs via `bin/catalog-fetch`. Products ordered exactly as listed in catalog file. `menu_order` preserves catalog position.
+- **Discovery** (fallback or `--discovery` flag): Query-based auto-discovery via `bin/kicksdb-discover`. Products ordered by release date. Useful for exploring KicksDB or populating new releases.
+
 ```bash
-./catalog-build.sh                     # Full build
+./catalog-build.sh                     # Full build (auto-detects curated/discovery)
 ./catalog-build.sh --dry-run --verbose # Preview
+./catalog-build.sh --discovery         # Force query-based discovery mode
 ./catalog-build.sh --skip-media        # Skip image upload
 ./catalog-build.sh --skip-discover     # Use cached KicksDB assortment
 ./catalog-build.sh --skip-gs           # Skip GS ingestion
@@ -194,9 +211,71 @@ bin/bulk-upload --file=data/products.json --verbose
 
 **Expected CSV format:** `sku, name, brand, category, image_url, size, price, stock`
 
-## Brand Catalog v2 (`data/brand-catalog.json`)
+## Curated Catalog (`data/catalog.json`)
 
-The KicksDB discovery pipeline uses a JSON catalog to define what to search for. The catalog has **sections** with explicit `wc_category` and `discovery` mode.
+The curated catalog defines exactly which products to import by SKU. It is the **recommended** approach — you control which products appear in your store and in what order. Products are fetched from KicksDB by SKU and ordered by their position in the file.
+
+**Structure rules:**
+- Sneakers: `brands[].subcategories[].products[]` — subcategories are product lines (Nike Dunk, Jordan 4)
+- Clothing: `brands[].products[]` — subcategories use keyword matching (T-Shirt, Felpe, etc.)
+- Accessories: `items[].products[]` — item names are subcategories (Beanie, Labubu)
+- **Order matters:** `menu_order` is assigned from array position. First product = 0, second = 1, etc.
+
+```json
+{
+  "sections": [
+    {
+      "name": "Sneakers",
+      "slug": "sneakers",
+      "wc_category": "sneakers",
+      "brands": [
+        {
+          "name": "Nike",
+          "subcategories": [
+            {
+              "name": "Nike Dunk",
+              "products": ["DD1391-100", "DD1503-101", "FQ6965-700"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Abbigliamento",
+      "slug": "abbigliamento",
+      "wc_category": "clothing",
+      "subcategories": [
+        {"name": "T-Shirt", "keywords": ["t-shirt", "tee"]},
+        {"name": "Felpe", "keywords": ["hoodie", "felpa", "sweatshirt", "crewneck"]}
+      ],
+      "brands": [
+        {
+          "name": "Supreme",
+          "products": ["SUP-SKU-1", "SUP-SKU-2"]
+        }
+      ]
+    },
+    {
+      "name": "Accessori",
+      "slug": "accessori",
+      "wc_category": "accessories",
+      "items": [
+        {
+          "name": "Labubu",
+          "product_types": ["collectibles"],
+          "products": ["LABUBU-SKU-1"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Adding products:** Find SKUs on [explorer.kicks.dev](https://explorer.kicks.dev/) and add them to the appropriate section/subcategory array.
+
+## Brand Catalog (`data/brand-catalog.json`) — Discovery Mode
+
+The KicksDB discovery pipeline uses a JSON catalog to define what to search for. The catalog has **sections** with explicit `wc_category` and `discovery` mode. Used when `data/catalog.json` doesn't exist or when `--discovery` flag is passed.
 
 **Two discovery modes:**
 - `"brand"` — Sections with real brands (Sneakers, Abbigliamento). Iterates `brands[].queries[]`. Brand enrichment applies.
@@ -303,7 +382,8 @@ Applied consistently in both `catalog-transform` (full builds) and `gs-variation
 
 | Source | Entry point | Format | Mode |
 |--------|-------------|--------|------|
-| KicksDB REST API | `bin/kicksdb-discover` | JSON API | Automatic per-label discovery via `brand-catalog.json` |
+| KicksDB REST API (curated) | `bin/catalog-fetch` | JSON API | Fetch explicit SKUs from `catalog.json` |
+| KicksDB REST API (discovery) | `bin/kicksdb-discover` | JSON API | Query-based discovery via `brand-catalog.json` |
 | Golden Sneakers REST API | `bin/gs-ingest` | JSON API | Automatic feed fetch + KicksDB enrichment |
 | GS live price/stock | `bin/gs-variation-update` | JSON API | Lightweight WC variation patches (30-min cron) |
 | KicksDB price API | `bin/pricing-reconcile` | JSON API | Market price refresh for non-GS products |

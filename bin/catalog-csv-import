@@ -1,0 +1,404 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Catalog CSV Import — Converts a CSV catalog into data/catalog.json
+ *
+ * Reads a CSV file with columns: Sezione, Marca, Sottocategoria, SKU, ...
+ * Only the first 4 columns are used; remaining columns (Taglie, Prezzo, etc.)
+ * are ignored (reference-only for human editors).
+ *
+ * Rows without a SKU define the taxonomy structure (sections/brands/subcategories).
+ * Rows with a SKU are products placed under their section/brand/subcategory.
+ * Row order determines product ordering (menu_order in WooCommerce).
+ *
+ * The existing catalog.json is used as a base to preserve fields not in the CSV
+ * (e.g. product_types, keywords). If no catalog.json exists, a fresh one is created.
+ *
+ * @package ResellPiacenza\Import
+ */
+
+$autoloader = __DIR__ . '/../vendor/autoload.php';
+if (file_exists($autoloader)) {
+    require $autoloader;
+    $data_dir = \ResellPiacenza\Support\Config::dataDir();
+    $project_root = \ResellPiacenza\Support\Config::projectRoot();
+} else {
+    $project_root = realpath(__DIR__ . '/..');
+    $data_dir = $project_root . '/data';
+}
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Catalog CSV Import — Convert CSV to catalog.json
+
+Usage:
+  bin/catalog-csv-import [options]
+
+Options:
+  --csv=FILE        CSV file to import (default: data/catalog.csv)
+  --output=FILE     Output JSON file (default: data/catalog.json)
+  --dry-run         Preview without writing
+  --verbose, -v     Show detailed output
+  --help, -h        Show help
+
+CSV format:
+  Sezione,Marca,Sottocategoria,SKU,Taglie,Prezzo,Prezzo Scontato
+  Sneakers,Nike,Nike Dunk,DD1391-100,40-45,120,
+  Abbigliamento,Supreme,,SUP-SKU-1,S/M/L,89,79
+  Accessori,,Beanie,BEANIE-SKU-1,,,
+
+  - Sezione: Section name (Sneakers, Abbigliamento, Accessori)
+  - Marca: Brand name (empty for Accessori)
+  - Sottocategoria: Subcategory (product line for Sneakers, item name for Accessori, empty for Abbigliamento)
+  - SKU: Product SKU from KicksDB (empty rows define structure only)
+  - Remaining columns are ignored (reference-only for human editors)
+
+Examples:
+  bin/catalog-csv-import                              # Default: data/catalog.csv → data/catalog.json
+  bin/catalog-csv-import --csv=my-catalog.csv         # Custom input
+  bin/catalog-csv-import --dry-run --verbose           # Preview
+
+HELP;
+    exit(0);
+}
+
+$opt_verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$opt_dry_run = in_array('--dry-run', $argv);
+$opt_csv = null;
+$opt_output = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--csv=') === 0) {
+        $opt_csv = str_replace('--csv=', '', $arg);
+    }
+    if (strpos($arg, '--output=') === 0) {
+        $opt_output = str_replace('--output=', '', $arg);
+    }
+}
+
+$csv_file = $opt_csv ?? $data_dir . '/catalog.csv';
+$output_file = $opt_output ?? $data_dir . '/catalog.json';
+
+// Resolve relative paths
+if ($csv_file && !preg_match('#^/#', $csv_file)) {
+    $csv_file = $project_root . '/' . $csv_file;
+}
+if ($output_file && !preg_match('#^/#', $output_file)) {
+    $output_file = $project_root . '/' . $output_file;
+}
+
+if (!file_exists($csv_file)) {
+    fwrite(STDERR, "CSV file not found: {$csv_file}\n");
+    exit(1);
+}
+
+// ============================================================================
+// Load existing catalog.json as base (preserves product_types, keywords, etc.)
+// ============================================================================
+
+$base_catalog = null;
+if (file_exists($output_file)) {
+    $base_catalog = json_decode(file_get_contents($output_file), true);
+}
+
+// Build lookup from base catalog for section/brand/item metadata
+$base_sections = [];
+if ($base_catalog && !empty($base_catalog['sections'])) {
+    foreach ($base_catalog['sections'] as $section) {
+        $base_sections[$section['name']] = $section;
+    }
+}
+
+// ============================================================================
+// Parse CSV
+// ============================================================================
+
+$handle = fopen($csv_file, 'r');
+if ($handle === false) {
+    fwrite(STDERR, "Cannot open CSV file: {$csv_file}\n");
+    exit(1);
+}
+
+// Read header
+$header = fgetcsv($handle);
+if ($header === false || count($header) < 4) {
+    fwrite(STDERR, "Invalid CSV header. Expected at least: Sezione,Marca,Sottocategoria,SKU\n");
+    exit(1);
+}
+
+// Normalize header (trim whitespace, case-insensitive lookup)
+$header = array_map('trim', $header);
+$col_map = array_flip(array_map('strtolower', $header));
+
+$col_sezione = $col_map['sezione'] ?? 0;
+$col_marca = $col_map['marca'] ?? 1;
+$col_sottocategoria = $col_map['sottocategoria'] ?? 2;
+$col_sku = $col_map['sku'] ?? 3;
+
+// Collect rows
+$rows = [];
+$line = 1;
+while (($row = fgetcsv($handle)) !== false) {
+    $line++;
+    if (empty(array_filter($row))) {
+        continue; // Skip blank lines
+    }
+
+    $sezione = trim($row[$col_sezione] ?? '');
+    $marca = trim($row[$col_marca] ?? '');
+    $sottocategoria = trim($row[$col_sottocategoria] ?? '');
+    $sku = trim($row[$col_sku] ?? '');
+
+    if (empty($sezione)) {
+        if ($opt_verbose) {
+            fwrite(STDERR, "  SKIP line {$line}: empty Sezione\n");
+        }
+        continue;
+    }
+
+    $rows[] = [
+        'sezione' => $sezione,
+        'marca' => $marca,
+        'sottocategoria' => $sottocategoria,
+        'sku' => $sku,
+    ];
+}
+fclose($handle);
+
+echo "Parsed {$csv_file}: " . count($rows) . " rows\n";
+
+// ============================================================================
+// Build catalog.json structure
+// ============================================================================
+
+// Section slug mapping
+$section_slugs = [
+    'Sneakers' => 'sneakers',
+    'Abbigliamento' => 'abbigliamento',
+    'Accessori' => 'accessori',
+];
+
+$section_wc_categories = [
+    'Sneakers' => 'sneakers',
+    'Abbigliamento' => 'clothing',
+    'Accessori' => 'accessories',
+];
+
+$sections = []; // name → section data
+$section_order = []; // preserve CSV section order
+
+foreach ($rows as $row) {
+    $sezione = $row['sezione'];
+    $marca = $row['marca'];
+    $sottocategoria = $row['sottocategoria'];
+    $sku = $row['sku'];
+
+    // Initialize section if first encounter
+    if (!isset($sections[$sezione])) {
+        $section_order[] = $sezione;
+
+        // Pull metadata from base catalog if available
+        $base = $base_sections[$sezione] ?? [];
+
+        $sections[$sezione] = [
+            'name' => $sezione,
+            'slug' => $base['slug'] ?? $section_slugs[$sezione] ?? strtolower($sezione),
+            'wc_category' => $base['wc_category'] ?? $section_wc_categories[$sezione] ?? strtolower($sezione),
+        ];
+
+        // Preserve keyword subcategories from base catalog (Abbigliamento)
+        if (!empty($base['subcategories'])) {
+            $sections[$sezione]['subcategories'] = $base['subcategories'];
+        }
+
+        // Initialize containers
+        $sections[$sezione]['_brands'] = [];    // ordered brand names
+        $sections[$sezione]['_brand_data'] = []; // brand name → data
+        $sections[$sezione]['_items'] = [];      // ordered item names
+        $sections[$sezione]['_item_data'] = [];  // item name → data
+    }
+
+    $sec = &$sections[$sezione];
+
+    // Determine section type based on content
+    $is_accessori = empty($marca) && !empty($sottocategoria);
+    $is_brand = !empty($marca);
+
+    if ($is_accessori) {
+        // Accessori: items[].products[]
+        if (!isset($sec['_item_data'][$sottocategoria])) {
+            $sec['_items'][] = $sottocategoria;
+
+            // Pull product_types from base catalog
+            $base_item = null;
+            $base_sec = $base_sections[$sezione] ?? [];
+            foreach ($base_sec['items'] ?? [] as $bi) {
+                if (($bi['name'] ?? $bi['label'] ?? '') === $sottocategoria) {
+                    $base_item = $bi;
+                    break;
+                }
+            }
+
+            $item_data = ['name' => $sottocategoria, 'products' => []];
+            if ($base_item && !empty($base_item['product_types'])) {
+                $item_data['product_types'] = $base_item['product_types'];
+            }
+
+            $sec['_item_data'][$sottocategoria] = $item_data;
+        }
+
+        if (!empty($sku)) {
+            $sec['_item_data'][$sottocategoria]['products'][] = $sku;
+        }
+    } elseif ($is_brand) {
+        // Brand-based section
+        if (!isset($sec['_brand_data'][$marca])) {
+            $sec['_brands'][] = $marca;
+            $sec['_brand_data'][$marca] = ['name' => $marca];
+
+            // Sneakers: brands have subcategories
+            // Abbigliamento: brands have flat products
+            if (!empty($sottocategoria)) {
+                $sec['_brand_data'][$marca]['_subcats'] = [];
+                $sec['_brand_data'][$marca]['_subcat_data'] = [];
+            } else {
+                $sec['_brand_data'][$marca]['products'] = [];
+            }
+        }
+
+        $brand = &$sec['_brand_data'][$marca];
+
+        if (!empty($sottocategoria)) {
+            // Sneakers-style: brands[].subcategories[].products[]
+            if (!isset($brand['_subcat_data'][$sottocategoria])) {
+                $brand['_subcats'][] = $sottocategoria;
+                $brand['_subcat_data'][$sottocategoria] = ['name' => $sottocategoria, 'products' => []];
+            }
+            if (!empty($sku)) {
+                $brand['_subcat_data'][$sottocategoria]['products'][] = $sku;
+            }
+        } else {
+            // Abbigliamento-style: brands[].products[]
+            if (!isset($brand['products'])) {
+                $brand['products'] = [];
+            }
+            if (!empty($sku)) {
+                $brand['products'][] = $sku;
+            }
+        }
+
+        unset($brand);
+    }
+
+    unset($sec);
+}
+
+// ============================================================================
+// Assemble final catalog.json
+// ============================================================================
+
+$catalog = ['sections' => []];
+$total_skus = 0;
+
+foreach ($section_order as $sezione) {
+    $sec = $sections[$sezione];
+    $section_out = [
+        'name' => $sec['name'],
+        'slug' => $sec['slug'],
+        'wc_category' => $sec['wc_category'],
+    ];
+
+    // Preserve keyword subcategories (Abbigliamento)
+    if (!empty($sec['subcategories'])) {
+        $section_out['subcategories'] = $sec['subcategories'];
+    }
+
+    // Brands
+    if (!empty($sec['_brands'])) {
+        $section_out['brands'] = [];
+        foreach ($sec['_brands'] as $brand_name) {
+            $brand = $sec['_brand_data'][$brand_name];
+            $brand_out = ['name' => $brand['name']];
+
+            if (isset($brand['_subcats'])) {
+                // Sneakers-style with subcategories
+                $brand_out['subcategories'] = [];
+                foreach ($brand['_subcats'] as $subcat_name) {
+                    $subcat = $brand['_subcat_data'][$subcat_name];
+                    $brand_out['subcategories'][] = [
+                        'name' => $subcat['name'],
+                        'products' => $subcat['products'],
+                    ];
+                    $total_skus += count($subcat['products']);
+                }
+            } else {
+                // Abbigliamento-style flat products
+                $brand_out['products'] = $brand['products'] ?? [];
+                $total_skus += count($brand_out['products']);
+            }
+
+            $section_out['brands'][] = $brand_out;
+        }
+    }
+
+    // Items (Accessori)
+    if (!empty($sec['_items'])) {
+        $section_out['items'] = [];
+        foreach ($sec['_items'] as $item_name) {
+            $item = $sec['_item_data'][$item_name];
+            $item_out = ['name' => $item['name']];
+
+            if (!empty($item['product_types'])) {
+                $item_out['product_types'] = $item['product_types'];
+            }
+
+            $item_out['products'] = $item['products'];
+            $total_skus += count($item['products']);
+            $section_out['items'][] = $item_out;
+        }
+    }
+
+    $catalog['sections'][] = $section_out;
+}
+
+// ============================================================================
+// Output
+// ============================================================================
+
+echo "Built catalog: " . count($catalog['sections']) . " sections, {$total_skus} SKUs\n";
+
+foreach ($catalog['sections'] as $sec) {
+    $sec_skus = 0;
+    foreach ($sec['brands'] ?? [] as $b) {
+        if (isset($b['subcategories'])) {
+            foreach ($b['subcategories'] as $sc) {
+                $sec_skus += count($sc['products']);
+            }
+        } else {
+            $sec_skus += count($b['products'] ?? []);
+        }
+    }
+    foreach ($sec['items'] ?? [] as $item) {
+        $sec_skus += count($item['products']);
+    }
+    echo "  {$sec['name']}: {$sec_skus} SKUs\n";
+}
+
+if ($opt_dry_run) {
+    echo "\n[DRY RUN] Would write to {$output_file}\n";
+    if ($opt_verbose) {
+        echo json_encode($catalog, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n";
+    }
+} else {
+    file_put_contents(
+        $output_file,
+        json_encode($catalog, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n"
+    );
+    echo "\nWritten to {$output_file}\n";
+}
+
+exit(0);

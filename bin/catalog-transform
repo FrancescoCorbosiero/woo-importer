@@ -230,38 +230,67 @@ try {
     $builder->setStockOverride(null); // Use adapter/merger-provided stock
     $wc_products = $builder->buildAll($mergedProducts);
 
-    // Sort by release_date (newest first) for menu_order assignment
-    usort($wc_products, function ($a, $b) {
-        $date_a = 0;
-        $date_b = 0;
-        foreach ($a['meta_data'] ?? [] as $m) {
-            if ($m['key'] === '_release_date' && !empty($m['value'])) {
-                $date_a = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
-                break;
-            }
-        }
-        foreach ($b['meta_data'] ?? [] as $m) {
-            if ($m['key'] === '_release_date' && !empty($m['value'])) {
-                $date_b = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
-                break;
-            }
-        }
-        return $date_b - $date_a; // Newest first
-    });
-
-    // Assign menu_order based on release recency
-    $release_ordered = 0;
-    foreach ($wc_products as $idx => &$wc_tmp) {
-        $wc_tmp['menu_order'] = $idx;
-        foreach ($wc_tmp['meta_data'] ?? [] as $m) {
-            if ($m['key'] === '_release_date' && !empty($m['value'])) {
-                $release_ordered++;
-                break;
-            }
+    // Sort + menu_order assignment
+    // Curated catalog: use _catalog_position (preserves catalog.json order)
+    // Discovery mode: use release_date (newest first)
+    $has_catalog_positions = false;
+    foreach ($assortment_map as $meta) {
+        if (isset($meta['_catalog_position'])) {
+            $has_catalog_positions = true;
+            break;
         }
     }
+
+    if ($has_catalog_positions) {
+        $logger->info("Menu order: catalog position (curated mode)");
+        usort($wc_products, function ($a, $b) use ($assortment_map) {
+            $pos_a = $assortment_map[$a['sku'] ?? '']['_catalog_position'] ?? PHP_INT_MAX;
+            $pos_b = $assortment_map[$b['sku'] ?? '']['_catalog_position'] ?? PHP_INT_MAX;
+            if ($pos_a !== $pos_b) {
+                return $pos_a - $pos_b;
+            }
+            // Fallback for products without catalog position (GS-only)
+            $date_a = 0;
+            $date_b = 0;
+            foreach ($a['meta_data'] ?? [] as $m) {
+                if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                    $date_a = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                    break;
+                }
+            }
+            foreach ($b['meta_data'] ?? [] as $m) {
+                if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                    $date_b = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                    break;
+                }
+            }
+            return $date_b - $date_a;
+        });
+    } else {
+        $logger->info("Menu order: release date (discovery mode)");
+        usort($wc_products, function ($a, $b) {
+            $date_a = 0;
+            $date_b = 0;
+            foreach ($a['meta_data'] ?? [] as $m) {
+                if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                    $date_a = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                    break;
+                }
+            }
+            foreach ($b['meta_data'] ?? [] as $m) {
+                if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                    $date_b = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                    break;
+                }
+            }
+            return $date_b - $date_a; // Newest first
+        });
+    }
+
+    foreach ($wc_products as $idx => &$wc_tmp) {
+        $wc_tmp['menu_order'] = $idx;
+    }
     unset($wc_tmp);
-    $logger->info("Release ordering: {$release_ordered}/" . count($wc_products) . " products have release dates");
 
     // ========================================================================
     // Catalog provenance metadata (ALL products)
@@ -379,9 +408,9 @@ try {
 
         $catalog_indexed++;
 
-        // --- Brand taxonomy enrichment: only for discovery=brand sections ---
+        // --- Brand taxonomy enrichment: for brand/curated discovery with brand set ---
         // Query-mode items (Accessori) don't have brand hierarchies in the catalog
-        if ($catalog_discovery !== 'brand' || empty($catalog_brand)) {
+        if (empty($catalog_brand) || ($catalog_discovery !== 'brand' && $catalog_discovery !== 'curated')) {
             continue;
         }
 

@@ -44,6 +44,7 @@ Options:
   --skip-taxonomies       Skip taxonomy preparation step
   --skip-discover         Skip KicksDB discovery (use cached assortment)
   --skip-gs               Skip GS feed ingestion
+  --discovery             Force query-based discovery (kicksdb-discover) even if catalog.json exists
   --force-full            Force full import (ignore delta)
   --no-cache              Force fresh KicksDB API fetch (bypass product cache)
   --concurrency=N         Parallel media downloads/uploads (default: 6)
@@ -53,9 +54,15 @@ Options:
   --env=FILE              Use alternate .env file
   --help, -h              Show this help
 
+Catalog modes:
+  If data/catalog.json exists, uses curated catalog mode (bin/catalog-fetch).
+  Otherwise falls back to query-based discovery (bin/kicksdb-discover).
+  Use --discovery to force query-based mode even when catalog.json exists.
+
 Examples:
-  bin/catalog-build                           # Full build
+  bin/catalog-build                           # Full build (auto-detects mode)
   bin/catalog-build --dry-run --verbose        # Preview
+  bin/catalog-build --discovery                # Force query-based discovery
   bin/catalog-build --skip-media               # Skip image upload
   bin/catalog-build --skip-discover            # Use cached KicksDB assortment
   bin/catalog-build --skip-gs                  # Skip GS ingestion
@@ -76,6 +83,7 @@ $skip_gs = in_array('--skip-gs', $argv);
 $force_full = in_array('--force-full', $argv);
 $no_cache = in_array('--no-cache', $argv);
 $async_media = in_array('--async-media', $argv);
+$opt_discovery = in_array('--discovery', $argv); // Force query-based discovery
 $concurrency = 6;
 $limit = null;
 
@@ -115,19 +123,33 @@ $verbose_flag = $verbose ? '--verbose' : '';
 $limit_flag = $limit ? "--limit={$limit}" : '';
 
 // ============================================================================
-// Step 1: Discover KicksDB assortment (subprocess)
+// Step 1: Fetch KicksDB assortment (curated catalog or query-based discovery)
 // ============================================================================
 
+// Auto-detect curated mode: use catalog-fetch if data/catalog.json exists,
+// unless --discovery flag forces query-based discovery (kicksdb-discover)
+$curated_catalog_file = Config::dataDir() . '/catalog.json';
+$curated_mode = !$opt_discovery && file_exists($curated_catalog_file);
+
 if (!$skip_discover) {
-    $logger->info('[Step 1/6] Discovering KicksDB assortment...');
-    $cmd = implode(' ', array_filter([
-        'php', escapeshellarg(Config::projectRoot() . '/bin/kicksdb-discover'),
-        '--skip-dedup', $verbose_flag, $limit_flag, $dry_run_flag, $env_arg,
-    ]));
+    if ($curated_mode) {
+        $logger->info('[Step 1/6] Fetching curated catalog from KicksDB...');
+        $no_cache_flag = $no_cache ? '--no-cache' : '';
+        $cmd = implode(' ', array_filter([
+            'php', escapeshellarg(Config::projectRoot() . '/bin/catalog-fetch'),
+            '--skip-dedup', $verbose_flag, $limit_flag, $dry_run_flag, $no_cache_flag, $env_arg,
+        ]));
+    } else {
+        $logger->info('[Step 1/6] Discovering KicksDB assortment (query-based)...');
+        $cmd = implode(' ', array_filter([
+            'php', escapeshellarg(Config::projectRoot() . '/bin/kicksdb-discover'),
+            '--skip-dedup', $verbose_flag, $limit_flag, $dry_run_flag, $env_arg,
+        ]));
+    }
     $logger->debug("  CMD: {$cmd}");
     passthru($cmd, $exit_code);
     if ($exit_code !== 0) {
-        $logger->error('KicksDB discovery failed');
+        $logger->error($curated_mode ? 'Catalog fetch failed' : 'KicksDB discovery failed');
         exit(1);
     }
     $logger->info('');
@@ -394,7 +416,8 @@ $postBuild = function (array $wcProducts) use ($config, $assortment_map, $catalo
         $catalog_indexed++;
 
         // --- Brand taxonomy enrichment ---
-        if ($catalog_discovery !== 'brand' || empty($catalog_brand)) {
+        // Apply for brand-mode discovery AND curated catalog products with a brand set
+        if (empty($catalog_brand) || ($catalog_discovery !== 'brand' && $catalog_discovery !== 'curated')) {
             continue;
         }
 
@@ -444,24 +467,62 @@ $postBuild = function (array $wcProducts) use ($config, $assortment_map, $catalo
     $logger->info("Catalog provenance: {$catalog_indexed}/" . count($wcProducts) . " products indexed");
     $logger->info("Brand enrichment: {$catalog_brand_enriched}/" . count($wcProducts) . " products assigned sub-brands");
 
-    // --- Release date sorting + menu_order ---
-    usort($wcProducts, function ($a, $b) {
-        $date_a = 0;
-        $date_b = 0;
-        foreach ($a['meta_data'] ?? [] as $m) {
-            if ($m['key'] === '_release_date' && !empty($m['value'])) {
-                $date_a = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
-                break;
-            }
+    // --- Sorting + menu_order ---
+    // Curated catalog: use _catalog_position (preserves catalog.json order)
+    // Discovery mode: use release_date (newest first)
+    $has_catalog_positions = false;
+    foreach ($assortment_map as $meta) {
+        if (isset($meta['_catalog_position'])) {
+            $has_catalog_positions = true;
+            break;
         }
-        foreach ($b['meta_data'] ?? [] as $m) {
-            if ($m['key'] === '_release_date' && !empty($m['value'])) {
-                $date_b = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
-                break;
+    }
+
+    if ($has_catalog_positions) {
+        $logger->info("Menu order: catalog position (curated mode)");
+        usort($wcProducts, function ($a, $b) use ($assortment_map) {
+            $pos_a = $assortment_map[$a['sku'] ?? '']['_catalog_position'] ?? PHP_INT_MAX;
+            $pos_b = $assortment_map[$b['sku'] ?? '']['_catalog_position'] ?? PHP_INT_MAX;
+            if ($pos_a !== $pos_b) {
+                return $pos_a - $pos_b;
             }
-        }
-        return $date_b - $date_a;
-    });
+            // Fallback for products without catalog position (GS-only)
+            $date_a = 0;
+            $date_b = 0;
+            foreach ($a['meta_data'] ?? [] as $m) {
+                if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                    $date_a = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                    break;
+                }
+            }
+            foreach ($b['meta_data'] ?? [] as $m) {
+                if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                    $date_b = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                    break;
+                }
+            }
+            return $date_b - $date_a;
+        });
+    } else {
+        $logger->info("Menu order: release date (discovery mode)");
+        usort($wcProducts, function ($a, $b) {
+            $date_a = 0;
+            $date_b = 0;
+            foreach ($a['meta_data'] ?? [] as $m) {
+                if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                    $date_a = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                    break;
+                }
+            }
+            foreach ($b['meta_data'] ?? [] as $m) {
+                if ($m['key'] === '_release_date' && !empty($m['value'])) {
+                    $date_b = strtotime(preg_replace('/T.*$/', '', $m['value'])) ?: 0;
+                    break;
+                }
+            }
+            return $date_b - $date_a;
+        });
+    }
 
     foreach ($wcProducts as $idx => &$wc_tmp) {
         $wc_tmp['menu_order'] = $idx;
