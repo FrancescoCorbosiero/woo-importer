@@ -1,0 +1,396 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Catalog WC Export — Generate CSV snapshot from current WooCommerce inventory
+ *
+ * Fetches all products from WooCommerce REST API (with variations) and exports
+ * a CSV in the same format as catalog-csv-export. Unlike that script (which reads
+ * from cached KicksDB assortment), this reads live WC data — so Taglie, Prezzo,
+ * and Prezzo Scontato columns are populated with real values.
+ *
+ * The output CSV is compatible with catalog-csv-import for round-tripping.
+ *
+ * Flow: WC REST API → THIS SCRIPT → catalog.csv
+ *       → (human review) → catalog-csv-import → catalog.json → catalog-build
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Automattic\WooCommerce\Client;
+use ResellPiacenza\Support\Config;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Catalog WC Export — Generate CSV snapshot from WooCommerce inventory
+
+Usage:
+  bin/catalog-wc-export [options]
+
+Options:
+  --output=FILE     Output CSV file (default: data/catalog.csv)
+  --verbose, -v     Show detailed output
+  --help, -h        Show help
+
+CSV columns:
+  Sezione, Marca, Sottocategoria, SKU, Titolo, Query, Taglie, Prezzo, Prezzo Scontato
+
+  - Sezione/Marca/Sottocategoria: from product _catalog_* metadata
+  - SKU: product SKU
+  - Titolo: product name from WooCommerce
+  - Query: catalog subcategory (from metadata)
+  - Taglie: comma-separated variation sizes (e.g. "40,41,42,43")
+  - Prezzo: regular price (from first variation with a price, or parent)
+  - Prezzo Scontato: sale price (if set)
+
+Examples:
+  bin/catalog-wc-export                           # Full export
+  bin/catalog-wc-export --output=data/wc-snap.csv # Custom output
+  bin/catalog-wc-export --verbose                  # Detailed output
+
+HELP;
+    exit(0);
+}
+
+$opt_verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$opt_output = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--output=') === 0) {
+        $opt_output = str_replace('--output=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$project_root = Config::projectRoot();
+$data_dir = Config::dataDir();
+
+$output_file = $opt_output ?? $data_dir . '/catalog.csv';
+if (!preg_match('#^/#', $output_file)) {
+    $output_file = $project_root . '/' . $output_file;
+}
+
+$wc_url = trim($config['woocommerce']['url'] ?? '');
+if (empty($wc_url)) {
+    fwrite(STDERR, "WC_URL is not configured. Set it in your .env file.\n");
+    exit(1);
+}
+
+$wc_url = rtrim($wc_url, ':');
+$timeout = (int) ($config['import']['api_timeout'] ?? 120);
+
+$wc = new Client(
+    $wc_url,
+    $config['woocommerce']['consumer_key'],
+    $config['woocommerce']['consumer_secret'],
+    ['version' => $config['woocommerce']['version'], 'timeout' => $timeout]
+);
+
+echo "Connecting to WooCommerce: {$wc_url}\n";
+
+// ============================================================================
+// Fetch all products (paginated)
+// ============================================================================
+
+$all_products = [];
+$page = 1;
+$retries = 0;
+
+echo "Fetching products...\n";
+
+do {
+    try {
+        $products = $wc->get('products', [
+            'per_page' => 100,
+            'page' => $page,
+            'status' => 'any',
+        ]);
+
+        foreach ($products as $product) {
+            $all_products[] = $product;
+        }
+
+        if ($opt_verbose) {
+            echo "  Page {$page}: " . count($products) . " products\n";
+        }
+
+        $page++;
+        $retries = 0;
+    } catch (\Exception $e) {
+        $retries++;
+        if ($retries >= 3) {
+            fwrite(STDERR, "Error fetching products page {$page} after 3 retries: " . $e->getMessage() . "\n");
+            $retries = 0;
+            $page++;
+        } else {
+            fwrite(STDERR, "Retrying page {$page} ({$retries}/3)...\n");
+            usleep(500000);
+            continue;
+        }
+    }
+} while (count($products ?? []) === 100);
+
+echo "Fetched " . count($all_products) . " products from WooCommerce\n";
+
+if (empty($all_products)) {
+    fwrite(STDERR, "No products found in WooCommerce.\n");
+    exit(1);
+}
+
+// ============================================================================
+// Fetch variations for variable products
+// ============================================================================
+
+echo "Fetching variations...\n";
+$variation_cache = []; // product_id => [variations]
+
+$variable_count = 0;
+foreach ($all_products as $product) {
+    if ($product->type !== 'variable') {
+        continue;
+    }
+    $variable_count++;
+
+    $product_id = $product->id;
+    $var_page = 1;
+    $vars = [];
+
+    do {
+        try {
+            $batch = $wc->get("products/{$product_id}/variations", [
+                'per_page' => 100,
+                'page' => $var_page,
+            ]);
+            foreach ($batch as $v) {
+                $vars[] = $v;
+            }
+            $var_page++;
+        } catch (\Exception $e) {
+            fwrite(STDERR, "  Error fetching variations for product {$product_id} (SKU: {$product->sku}): " . $e->getMessage() . "\n");
+            break;
+        }
+    } while (count($batch ?? []) === 100);
+
+    $variation_cache[$product_id] = $vars;
+
+    if ($opt_verbose) {
+        echo "  {$product->sku}: " . count($vars) . " variations\n";
+    }
+}
+
+echo "Fetched variations for {$variable_count} variable products\n";
+
+// ============================================================================
+// Extract catalog metadata and build rows
+// ============================================================================
+
+/**
+ * Get meta value from WC product meta_data array
+ */
+function get_meta($product, string $key): string
+{
+    foreach ($product->meta_data ?? [] as $meta) {
+        if ($meta->key === $key) {
+            return (string) $meta->value;
+        }
+    }
+    return '';
+}
+
+// Section slug → display name
+$section_display_map = [
+    'sneakers' => 'Sneakers',
+    'abbigliamento' => 'Abbigliamento',
+    'accessori' => 'Accessori',
+];
+
+// Build rows with catalog metadata
+$rows = [];
+
+foreach ($all_products as $product) {
+    $sku = $product->sku ?? '';
+    if (empty($sku)) {
+        continue;
+    }
+
+    $section_slug = get_meta($product, '_catalog_section');
+    $brand = get_meta($product, '_catalog_brand');
+    $subcategory = get_meta($product, '_catalog_subcategory');
+    $wc_category = get_meta($product, '_catalog_wc_category');
+
+    // Map section slug to display name
+    $section_display = $section_display_map[$section_slug] ?? '';
+
+    // Fallback: infer section from WC category if metadata is missing
+    if (empty($section_display) && !empty($wc_category)) {
+        $wc_cat_to_section = [
+            'sneakers' => 'Sneakers',
+            'clothing' => 'Abbigliamento',
+            'accessories' => 'Accessori',
+        ];
+        $section_display = $wc_cat_to_section[$wc_category] ?? '';
+    }
+
+    // Fallback: try to infer from product categories
+    if (empty($section_display) && !empty($product->categories)) {
+        foreach ($product->categories as $cat) {
+            $cat_slug = $cat->slug ?? '';
+            if (isset($section_display_map[$cat_slug])) {
+                $section_display = $section_display_map[$cat_slug];
+                break;
+            }
+        }
+    }
+
+    // Default to "Sneakers" if no section can be determined
+    if (empty($section_display)) {
+        $section_display = 'Sneakers';
+    }
+
+    // Fallback: infer brand from pa_marca attribute
+    if (empty($brand) && !empty($product->attributes)) {
+        foreach ($product->attributes as $attr) {
+            $attr_slug = $attr->slug ?? ($attr->name ?? '');
+            if (in_array(strtolower($attr_slug), ['pa_marca', 'marca'])) {
+                $brand = $attr->options[0] ?? '';
+                break;
+            }
+        }
+    }
+
+    // Collect sizes and prices from variations
+    $sizes = [];
+    $regular_price = '';
+    $sale_price = '';
+
+    if ($product->type === 'variable' && isset($variation_cache[$product->id])) {
+        foreach ($variation_cache[$product->id] as $var) {
+            // Extract size from variation attributes
+            foreach ($var->attributes ?? [] as $attr) {
+                $attr_slug = $attr->slug ?? ($attr->name ?? '');
+                if (in_array(strtolower($attr_slug), ['pa_taglia', 'taglia'])) {
+                    $sizes[] = $attr->option ?? '';
+                }
+            }
+
+            // Use first variation with a price
+            if (empty($regular_price) && !empty($var->regular_price)) {
+                $regular_price = $var->regular_price;
+                $sale_price = $var->sale_price ?? '';
+            }
+        }
+    } elseif ($product->type === 'simple') {
+        // Simple product (One Size)
+        $sizes[] = 'One Size';
+        $regular_price = $product->regular_price ?? '';
+        $sale_price = $product->sale_price ?? '';
+    }
+
+    // Determine subcategory display for CSV
+    $subcat_display = $subcategory;
+    $query_display = $subcategory;
+
+    // For Abbigliamento: subcategory goes in Query column, Sottocategoria empty
+    if ($wc_category === 'clothing' || $section_display === 'Abbigliamento') {
+        $query_display = $subcategory;
+        $subcat_display = '';
+    }
+
+    $rows[] = [
+        'section' => $section_display,
+        'brand' => $brand,
+        'subcategory' => $subcat_display,
+        'sku' => $sku,
+        'name' => $product->name ?? '',
+        'query' => $query_display,
+        'sizes' => implode(',', $sizes),
+        'regular_price' => $regular_price,
+        'sale_price' => $sale_price,
+        'menu_order' => $product->menu_order ?? 0,
+    ];
+}
+
+echo "Processed " . count($rows) . " products with SKUs\n";
+
+// ============================================================================
+// Sort: by section order, then brand, then subcategory, then menu_order
+// ============================================================================
+
+$section_sort_order = ['Sneakers' => 0, 'Abbigliamento' => 1, 'Accessori' => 2];
+
+usort($rows, function ($a, $b) use ($section_sort_order) {
+    // Section order
+    $sa = $section_sort_order[$a['section']] ?? 99;
+    $sb = $section_sort_order[$b['section']] ?? 99;
+    if ($sa !== $sb) return $sa - $sb;
+
+    // Brand
+    $bc = strcasecmp($a['brand'], $b['brand']);
+    if ($bc !== 0) return $bc;
+
+    // Subcategory
+    $sc = strcasecmp($a['subcategory'], $b['subcategory']);
+    if ($sc !== 0) return $sc;
+
+    // Menu order
+    return ($a['menu_order'] ?? 0) - ($b['menu_order'] ?? 0);
+});
+
+// ============================================================================
+// Write CSV
+// ============================================================================
+
+$handle = fopen($output_file, 'w');
+if ($handle === false) {
+    fwrite(STDERR, "Cannot open output file: {$output_file}\n");
+    exit(1);
+}
+
+// Header (same as catalog-csv-export)
+fputcsv($handle, ['Sezione', 'Marca', 'Sottocategoria', 'SKU', 'Titolo', 'Query', 'Taglie', 'Prezzo', 'Prezzo Scontato']);
+
+$section_stats = [];
+
+foreach ($rows as $row) {
+    fputcsv($handle, [
+        $row['section'],
+        $row['brand'],
+        $row['subcategory'],
+        $row['sku'],
+        $row['name'],
+        $row['query'],
+        $row['sizes'],
+        $row['regular_price'],
+        $row['sale_price'],
+    ]);
+
+    $sec = $row['section'];
+    $section_stats[$sec] = ($section_stats[$sec] ?? 0) + 1;
+}
+
+fclose($handle);
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+echo "\nExported " . count($rows) . " rows to {$output_file}\n";
+foreach ($section_stats as $sec => $count) {
+    echo "  {$sec}: {$count}\n";
+}
+echo "\nCSV is a snapshot of current WooCommerce inventory.\n";
+echo "Next steps:\n";
+echo "  1. Review/edit the CSV (Google Docs, Excel, etc.)\n";
+echo "  2. Run: bin/catalog-csv-import --csv={$output_file}\n";
+echo "  3. Run: bin/catalog-build\n";
+
+exit(0);
