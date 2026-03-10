@@ -257,19 +257,15 @@ foreach ($rows as $row) {
             $sec['_item_data'][$sottocategoria]['products'][] = $sku;
         }
     } elseif ($is_brand) {
-        // Brand-based section
+        // Brand-based section — always support both flat products and subcategories
         if (!isset($sec['_brand_data'][$marca])) {
             $sec['_brands'][] = $marca;
-            $sec['_brand_data'][$marca] = ['name' => $marca];
-
-            // Sneakers: brands have subcategories
-            // Abbigliamento: brands have flat products
-            if (!empty($sottocategoria)) {
-                $sec['_brand_data'][$marca]['_subcats'] = [];
-                $sec['_brand_data'][$marca]['_subcat_data'] = [];
-            } else {
-                $sec['_brand_data'][$marca]['products'] = [];
-            }
+            $sec['_brand_data'][$marca] = [
+                'name' => $marca,
+                'products' => [],
+                '_subcats' => [],
+                '_subcat_data' => [],
+            ];
         }
 
         $brand = &$sec['_brand_data'][$marca];
@@ -284,10 +280,7 @@ foreach ($rows as $row) {
                 $brand['_subcat_data'][$sottocategoria]['products'][] = $sku;
             }
         } else {
-            // Abbigliamento-style: brands[].products[]
-            if (!isset($brand['products'])) {
-                $brand['products'] = [];
-            }
+            // Flat products (no subcategory)
             if (!empty($sku)) {
                 $brand['products'][] = $sku;
             }
@@ -326,9 +319,24 @@ foreach ($section_order as $sezione) {
             $brand = $sec['_brand_data'][$brand_name];
             $brand_out = ['name' => $brand['name']];
 
-            if (isset($brand['_subcats'])) {
+            $has_subcats = !empty($brand['_subcats']);
+            $has_flat = !empty($brand['products']);
+
+            if ($has_subcats) {
                 // Sneakers-style with subcategories
                 $brand_out['subcategories'] = [];
+
+                // If brand has flat products alongside subcategories,
+                // put them in a default subcategory named after the brand
+                if ($has_flat) {
+                    $default_subcat_name = $brand['name'] . ' Altro';
+                    $brand_out['subcategories'][] = [
+                        'name' => $default_subcat_name,
+                        'products' => $brand['products'],
+                    ];
+                    $total_skus += count($brand['products']);
+                }
+
                 foreach ($brand['_subcats'] as $subcat_name) {
                     $subcat = $brand['_subcat_data'][$subcat_name];
                     $brand_out['subcategories'][] = [
@@ -337,9 +345,9 @@ foreach ($section_order as $sezione) {
                     ];
                     $total_skus += count($subcat['products']);
                 }
-            } else {
-                // Abbigliamento-style flat products
-                $brand_out['products'] = $brand['products'] ?? [];
+            } elseif ($has_flat) {
+                // Abbigliamento-style flat products only
+                $brand_out['products'] = $brand['products'];
                 $total_skus += count($brand_out['products']);
             }
 
