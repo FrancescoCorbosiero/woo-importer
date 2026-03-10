@@ -91,9 +91,9 @@
       "product_types": ["streetwear"],
       "subcategories": [
         {"name": "T-Shirt", "keywords": ["t-shirt", "tee"]},
-        {"name": "Felpe", "keywords": ["hoodie", "felpa", "sweatshirt", "crewneck"]},
-        {"name": "Giacche", "keywords": ["jacket", "giacca", "coat", "puffer", "windbreaker"]},
-        {"name": "Pantaloni", "keywords": ["pants", "pantaloni", "jogger", "trousers", "cargo"]}
+        {"name": "Felpe", "keywords": ["hoodie", "sweatshirt", "crewneck"]},
+        {"name": "Giacche", "keywords": ["jacket", "coat", "puffer", "windbreaker"]},
+        {"name": "Pantaloni", "keywords": ["pants", "jogger", "trousers", "cargo"]}
       ],
       "brands": [
         {
@@ -192,12 +192,25 @@
       "wc_category": "accessories",
       "discovery": "query",
       "product_types": ["streetwear"],
+      "subcategories": [
+        {"name": "Beanie", "keywords": ["beanie"]},
+        {"name": "Borse", "keywords": ["bag", "tote", "backpack", "shoulder"]},
+        {"name": "59FIFTY", "keywords": ["59fifty", "fitted"]},
+        {"name": "Cappelli", "keywords": ["cap", "hat"]},
+        {"name": "Labubu", "keywords": ["labubu"]}
+      ],
       "items": [
         {
           "label": "Beanie",
           "per_label": 15,
           "product_types": ["streetwear"],
           "queries": ["beanie"]
+        },
+        {
+          "label": "Borse",
+          "per_label": 15,
+          "product_types": ["streetwear"],
+          "queries": ["bag", "tote"]
         },
         {
           "label": "59FIFTY",
