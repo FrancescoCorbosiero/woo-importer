@@ -1,0 +1,344 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Catalog CSV Export — Generate curated CSV from KicksDB assortment data
+ *
+ * Reads a cached assortment file (from kicksdb-discover or catalog-fetch) and
+ * generates a CSV for manual curation. The user reviews/edits the CSV (e.g. in
+ * Google Docs), then runs catalog-csv-import to convert it to catalog.json.
+ *
+ * Flow: kicksdb-discover → assortment.json → THIS SCRIPT → catalog.csv
+ *       → (human review) → catalog-csv-import → catalog.json → catalog-build
+ *
+ * @package ResellPiacenza\Import
+ */
+
+$autoloader = __DIR__ . '/../vendor/autoload.php';
+if (file_exists($autoloader)) {
+    require $autoloader;
+    $data_dir = \ResellPiacenza\Support\Config::dataDir();
+    $project_root = \ResellPiacenza\Support\Config::projectRoot();
+} else {
+    $project_root = realpath(__DIR__ . '/..');
+    $data_dir = $project_root . '/data';
+}
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Catalog CSV Export — Generate curated CSV from assortment data
+
+Usage:
+  bin/catalog-csv-export [options]
+
+Options:
+  --input=FILE      Assortment JSON file (default: data/kicksdb-assortment.json)
+  --output=FILE     Output CSV file (default: data/catalog.csv)
+  --since=YEAR      Only include products released in YEAR or later (e.g. --since=2026)
+  --verbose, -v     Show detailed output
+  --help, -h        Show help
+
+CSV columns:
+  Sezione, Marca, Sottocategoria, SKU, Titolo, Query, Taglie, Prezzo, Prezzo Scontato
+
+  - Sezione/Marca/Sottocategoria: from catalog metadata in assortment
+  - SKU: product identifier
+  - Titolo: product title from KicksDB
+  - Query: the search query used to discover this product (nullable)
+  - Taglie/Prezzo/Prezzo Scontato: empty (reference columns for manual editing)
+
+Examples:
+  bin/catalog-csv-export                                    # Full export
+  bin/catalog-csv-export --since=2026                       # Only 2026+ releases
+  bin/catalog-csv-export --input=data/my-assortment.json    # Custom input
+  bin/catalog-csv-export --output=data/review.csv           # Custom output
+
+HELP;
+    exit(0);
+}
+
+$opt_verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$opt_input = null;
+$opt_output = null;
+$opt_since = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--input=') === 0) {
+        $opt_input = str_replace('--input=', '', $arg);
+    }
+    if (strpos($arg, '--output=') === 0) {
+        $opt_output = str_replace('--output=', '', $arg);
+    }
+    if (strpos($arg, '--since=') === 0) {
+        $opt_since = str_replace('--since=', '', $arg);
+    }
+}
+
+$input_file = $opt_input ?? $data_dir . '/kicksdb-assortment.json';
+$output_file = $opt_output ?? $data_dir . '/catalog.csv';
+
+// Resolve relative paths
+if (!preg_match('#^/#', $input_file)) {
+    $input_file = $project_root . '/' . $input_file;
+}
+if (!preg_match('#^/#', $output_file)) {
+    $output_file = $project_root . '/' . $output_file;
+}
+
+if (!file_exists($input_file)) {
+    fwrite(STDERR, "Assortment file not found: {$input_file}\n");
+    fwrite(STDERR, "Run bin/kicksdb-discover first to generate it.\n");
+    exit(1);
+}
+
+// ============================================================================
+// Load assortment
+// ============================================================================
+
+$assortment = json_decode(file_get_contents($input_file), true);
+if (!is_array($assortment) || empty($assortment['products'])) {
+    fwrite(STDERR, "Invalid or empty assortment file: {$input_file}\n");
+    exit(1);
+}
+
+$products = $assortment['products'];
+echo "Loaded assortment: " . count($products) . " products from {$input_file}\n";
+
+if (!empty($assortment['discovered_at'])) {
+    echo "  Discovered at: {$assortment['discovered_at']}\n";
+}
+
+// ============================================================================
+// Filter by release date
+// ============================================================================
+
+if ($opt_since) {
+    $since_timestamp = strtotime("{$opt_since}-01-01");
+    if ($since_timestamp === false) {
+        fwrite(STDERR, "Invalid --since value: {$opt_since}\n");
+        exit(1);
+    }
+
+    $before_count = count($products);
+    $products = array_filter($products, function ($p) use ($since_timestamp, $opt_verbose) {
+        $release = $p['release_date'] ?? '';
+        if (empty($release)) {
+            // Keep products without release date (can't filter them)
+            return true;
+        }
+        $ts = strtotime($release);
+        if ($ts === false) {
+            return true;
+        }
+        $keep = $ts >= $since_timestamp;
+        if (!$keep && $opt_verbose) {
+            fwrite(STDERR, "  SKIP (release {$release}): {$p['sku']} - {$p['name']}\n");
+        }
+        return $keep;
+    });
+    $products = array_values($products);
+
+    $filtered = $before_count - count($products);
+    echo "  Filtered by release >= {$opt_since}: {$filtered} removed, " . count($products) . " remaining\n";
+}
+
+if (empty($products)) {
+    fwrite(STDERR, "No products after filtering.\n");
+    exit(1);
+}
+
+// ============================================================================
+// Group by section structure for CSV ordering
+// ============================================================================
+
+// Products in the assortment already have catalog_section, catalog_brand, catalog_subcategory.
+// We group them to produce a clean CSV with section/brand/subcategory headers.
+
+// Collect unique sections, brands, subcategories (preserving assortment order)
+$section_order = [];
+$brand_order = [];   // section → [brands in order]
+$subcat_order = [];  // section:brand → [subcategories in order]
+$grouped = [];       // section:brand:subcategory → [products]
+
+foreach ($products as $p) {
+    $section = $p['catalog_section'] ?? 'unknown';
+    $brand = $p['catalog_brand'] ?? '';
+    $subcat = $p['catalog_subcategory'] ?? '';
+
+    // Map section slugs back to display names
+    $section_display = [
+        'sneakers' => 'Sneakers',
+        'abbigliamento' => 'Abbigliamento',
+        'accessori' => 'Accessori',
+    ][$section] ?? ucfirst($section);
+
+    // Track ordering
+    if (!in_array($section_display, $section_order)) {
+        $section_order[] = $section_display;
+    }
+
+    $brand_key = $section_display;
+    if (!isset($brand_order[$brand_key])) {
+        $brand_order[$brand_key] = [];
+    }
+    $brand_display = $brand ?: '';
+    if (!empty($brand_display) && !in_array($brand_display, $brand_order[$brand_key])) {
+        $brand_order[$brand_key][] = $brand_display;
+    }
+
+    $subcat_key = "{$section_display}:{$brand_display}";
+    if (!isset($subcat_order[$subcat_key])) {
+        $subcat_order[$subcat_key] = [];
+    }
+    if (!empty($subcat) && !in_array($subcat, $subcat_order[$subcat_key])) {
+        $subcat_order[$subcat_key][] = $subcat;
+    }
+
+    // For Accessori (no brand), the subcategory is the item name
+    // For Abbigliamento (keyword subcats), subcategory = brand name in discovery
+    $group_key = "{$section_display}:{$brand_display}:{$subcat}";
+    if (!isset($grouped[$group_key])) {
+        $grouped[$group_key] = [];
+    }
+    $grouped[$group_key][] = $p;
+}
+
+// ============================================================================
+// Write CSV
+// ============================================================================
+
+$handle = fopen($output_file, 'w');
+if ($handle === false) {
+    fwrite(STDERR, "Cannot open output file: {$output_file}\n");
+    exit(1);
+}
+
+// Header
+fputcsv($handle, ['Sezione', 'Marca', 'Sottocategoria', 'SKU', 'Titolo', 'Query', 'Taglie', 'Prezzo', 'Prezzo Scontato']);
+
+$total_rows = 0;
+$section_stats = [];
+
+foreach ($section_order as $section_display) {
+    $sec_count = 0;
+
+    // Determine section type
+    $brands = $brand_order[$section_display] ?? [];
+    $is_accessori = empty($brands);
+
+    if ($is_accessori) {
+        // Accessori: group by subcategory (item name)
+        $subcat_key = "{$section_display}:";
+        $subcats = $subcat_order[$subcat_key] ?? [];
+
+        foreach ($subcats as $subcat) {
+            $group_key = "{$section_display}::{$subcat}";
+            $group_products = $grouped[$group_key] ?? [];
+
+            foreach ($group_products as $p) {
+                fputcsv($handle, [
+                    $section_display,
+                    '',
+                    $subcat,
+                    $p['sku'] ?? '',
+                    $p['name'] ?? '',
+                    $p['catalog_subcategory'] ?? '',
+                    '',
+                    '',
+                    '',
+                ]);
+                $total_rows++;
+                $sec_count++;
+            }
+        }
+    } else {
+        // Brand-based sections (Sneakers, Abbigliamento)
+        foreach ($brands as $brand) {
+            $subcat_key = "{$section_display}:{$brand}";
+            $subcats = $subcat_order[$subcat_key] ?? [];
+
+            if (!empty($subcats)) {
+                // Has subcategories (Sneakers-style or discovery query labels)
+                foreach ($subcats as $subcat) {
+                    $group_key = "{$section_display}:{$brand}:{$subcat}";
+                    $group_products = $grouped[$group_key] ?? [];
+
+                    // Determine if this is a "real" subcategory (Sneakers product line)
+                    // or a discovery query label that equals the brand (Abbigliamento)
+                    $subcat_display = $subcat;
+                    $query_display = '';
+
+                    // For Sneakers: subcategory is the product line, query is the same
+                    // For Abbigliamento: subcategory is empty (keyword matching), query is the discovery label
+                    $wc_cat = $group_products[0]['catalog_wc_category'] ?? '';
+                    if ($wc_cat === 'clothing') {
+                        // Abbigliamento: subcategory empty, query = discovery label
+                        $query_display = $subcat;
+                        $subcat_display = '';
+                    } else {
+                        // Sneakers: subcategory = product line
+                        $query_display = $subcat;
+                    }
+
+                    foreach ($group_products as $p) {
+                        fputcsv($handle, [
+                            $section_display,
+                            $brand,
+                            $subcat_display,
+                            $p['sku'] ?? '',
+                            $p['name'] ?? '',
+                            $query_display,
+                            '',
+                            '',
+                            '',
+                        ]);
+                        $total_rows++;
+                        $sec_count++;
+                    }
+                }
+            } else {
+                // No subcategories
+                $group_key = "{$section_display}:{$brand}:";
+                $group_products = $grouped[$group_key] ?? [];
+
+                foreach ($group_products as $p) {
+                    fputcsv($handle, [
+                        $section_display,
+                        $brand,
+                        '',
+                        $p['sku'] ?? '',
+                        $p['name'] ?? '',
+                        $p['catalog_subcategory'] ?? '',
+                        '',
+                        '',
+                        '',
+                    ]);
+                    $total_rows++;
+                    $sec_count++;
+                }
+            }
+        }
+    }
+
+    $section_stats[$section_display] = $sec_count;
+}
+
+fclose($handle);
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+echo "\nExported {$total_rows} rows to {$output_file}\n";
+foreach ($section_stats as $sec => $count) {
+    echo "  {$sec}: {$count}\n";
+}
+echo "\nNext steps:\n";
+echo "  1. Review/edit the CSV (Google Docs, Excel, etc.)\n";
+echo "  2. Run: bin/catalog-csv-import --csv={$output_file}\n";
+echo "  3. Run: bin/catalog-build\n";
+
+exit(0);
