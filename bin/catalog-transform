@@ -360,9 +360,10 @@ try {
 
         // --- Sub-category assignment: add product to hierarchical WC sub-category ---
         // Two modes depending on taxonomy-map format:
-        //   1. Keyword-based (Abbigliamento): match query/title against keywords → garment type
+        //   1. Keyword-based (Abbigliamento, Accessori): match query/title against keywords
         //      e.g. "Supreme Hoodie" matches keyword "hoodie" → Felpe
-        //   2. Direct slug (Sneakers, Accessori): slugify catalog_subcategory → match slug
+        //      e.g. "beanie" matches keyword "beanie" → Beanie
+        //   2. Direct slug (Sneakers): slugify catalog_subcategory → match slug
         //      e.g. "Nike Dunk" → slug "nike-dunk" → Sneakers > Nike Dunk
         // NOTE: brand names stay in pa_marca only, never used as product categories.
         if ($catalog_wc_category) {

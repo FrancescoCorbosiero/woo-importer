@@ -218,7 +218,7 @@ The curated catalog defines exactly which products to import by SKU. It is the *
 **Structure rules:**
 - Sneakers: `brands[].subcategories[].products[]` — subcategories are product lines (Nike Dunk, Jordan 4)
 - Clothing: `brands[].products[]` — subcategories use keyword matching (T-Shirt, Felpe, etc.)
-- Accessories: `items[].products[]` — item names are subcategories (Beanie, Labubu)
+- Accessories: `items[].products[]` — subcategories use keyword matching (Beanie, Cappelli, etc.)
 - **Order matters:** `menu_order` is assigned from array position. First product = 0, second = 1, etc.
 
 ```json
@@ -246,7 +246,7 @@ The curated catalog defines exactly which products to import by SKU. It is the *
       "wc_category": "clothing",
       "subcategories": [
         {"name": "T-Shirt", "keywords": ["t-shirt", "tee"]},
-        {"name": "Felpe", "keywords": ["hoodie", "felpa", "sweatshirt", "crewneck"]}
+        {"name": "Felpe", "keywords": ["hoodie", "sweatshirt", "crewneck"]}
       ],
       "brands": [
         {
@@ -259,6 +259,11 @@ The curated catalog defines exactly which products to import by SKU. It is the *
       "name": "Accessori",
       "slug": "accessori",
       "wc_category": "accessories",
+      "subcategories": [
+        {"name": "Beanie", "keywords": ["beanie"]},
+        {"name": "Cappelli", "keywords": ["cap", "hat"]},
+        {"name": "Labubu", "keywords": ["labubu"]}
+      ],
       "items": [
         {
           "name": "Labubu",
@@ -287,9 +292,8 @@ Each section specifies `wc_category` (config key: `sneakers`, `clothing`, `acces
 
 Sections can define how products are auto-categorized into WC sub-categories:
 
-- **Explicit `subcategories`** — keyword-based matching (Abbigliamento). Products are classified by matching query/title against keywords. Sub-categories are garment types (T-Shirt, Felpe, Giacche, Pantaloni), NOT brand names.
+- **Explicit `subcategories`** — keyword-based matching (Abbigliamento, Accessori). Products are classified by matching query/title against English keywords. Sub-categories are garment/item types, NOT brand names.
 - **Brand-mode without `subcategories`** — queries become sub-categories directly (Sneakers > Nike Dunk, Sneakers > Jordan 1). These represent product lines, not brands.
-- **Query-mode** — item labels become sub-categories (Accessori > Beanie, Accessori > Labubu).
 
 **Brand vs Category separation:** Brand names (Nike, Supreme, Sp5der) live exclusively in `pa_marca`. They are never used as product categories. For sections with keyword subcategories, brand enrichment only adds the parent brand — query labels like "Sp5der Pants" are NOT created as sub-brands.
 
@@ -314,9 +318,9 @@ Sections can define how products are auto-categorized into WC sub-categories:
       "product_types": ["streetwear"],
       "subcategories": [
         {"name": "T-Shirt", "keywords": ["t-shirt", "tee"]},
-        {"name": "Felpe", "keywords": ["hoodie", "felpa", "sweatshirt", "crewneck"]},
-        {"name": "Giacche", "keywords": ["jacket", "giacca", "coat", "puffer", "windbreaker"]},
-        {"name": "Pantaloni", "keywords": ["pants", "pantaloni", "jogger", "trousers", "cargo"]}
+        {"name": "Felpe", "keywords": ["hoodie", "sweatshirt", "crewneck"]},
+        {"name": "Giacche", "keywords": ["jacket", "coat", "puffer", "windbreaker"]},
+        {"name": "Pantaloni", "keywords": ["pants", "jogger", "trousers", "cargo"]}
       ],
       "brands": [
         { "name": "Supreme", "per_label": 20, "queries": ["Supreme T-Shirt", "Supreme Hoodie"] }
@@ -328,6 +332,11 @@ Sections can define how products are auto-categorized into WC sub-categories:
       "wc_category": "accessories",
       "discovery": "query",
       "product_types": ["streetwear"],
+      "subcategories": [
+        {"name": "Beanie", "keywords": ["beanie"]},
+        {"name": "Cappelli", "keywords": ["cap", "hat"]},
+        {"name": "Labubu", "keywords": ["labubu"]}
+      ],
       "items": [
         { "label": "Beanie", "per_label": 15, "product_types": ["streetwear"], "queries": ["beanie"] },
         { "label": "Labubu", "per_label": 15, "product_types": ["collectibles"], "queries": ["labubu"] }
@@ -429,6 +438,6 @@ GS_SALE_PRICING_MARKUP=15               # Markup % for regular_price
 - **image-map.json:** Delete this file to force re-upload of all images. Stale entries are auto-filtered by `prepare-media --validate`.
 - **Dry-run + images:** Never persist fake media IDs during `--dry-run`. Gallery upload returns `[]` in dry-run mode.
 - **KicksDB API filters:** Non-sneaker queries (clothing, accessories, collectibles) require the `filters=product_type=...` parameter. This is set automatically from `product_types` in the brand catalog.
-- **Sub-category keyword matching:** Keyword search is case-insensitive and matches against both the query label and product title. Order matters — first matching keyword wins. Keep keywords specific to avoid false positives.
+- **Sub-category keyword matching:** Keyword search is case-insensitive and matches against both the query label and product title. Order matters — first matching keyword wins. Keep keywords specific to avoid false positives. Keywords must be in English (KicksDB uses English queries/titles).
 - **Brand vs category leakage:** For sections with keyword `subcategories`, brand enrichment only adds the parent brand. Query labels (e.g. "Sp5der Pants") are NOT created as sub-brands in `pa_marca`.
-- **taxonomy-map.json format:** Subcategory entries can be either plain int IDs (direct slug match) or `{"id": int, "keywords": [...]}` objects (keyword match). `catalog-transform` auto-detects the format.
+- **taxonomy-map.json format:** Subcategory entries can be either plain int IDs (direct slug match, Sneakers only) or `{"id": int, "keywords": [...]}` objects (keyword match, Abbigliamento + Accessori). `catalog-transform` auto-detects the format. Prefer keyword matching — direct slug matching is fragile when query strings don't exactly match item labels.
