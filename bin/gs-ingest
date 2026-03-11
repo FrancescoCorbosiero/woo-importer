@@ -123,6 +123,69 @@ function inferCatalogSection(string $product_type): array
 }
 
 // ============================================================================
+// Step 0: Load catalog.json for SKU → catalog metadata lookup
+// ============================================================================
+
+$catalog_lookup = []; // SKU → {catalog_brand, catalog_subcategory, catalog_section, catalog_wc_category}
+
+$catalog_file = Config::dataDir() . '/catalog.json';
+if (file_exists($catalog_file)) {
+    $catalog_data = json_decode(file_get_contents($catalog_file), true);
+    if (is_array($catalog_data) && !empty($catalog_data['sections'])) {
+        foreach ($catalog_data['sections'] as $section) {
+            $section_slug = $section['slug'] ?? '';
+            $section_wc_cat = $section['wc_category'] ?? '';
+
+            // Brand-based sections (Sneakers, Abbigliamento)
+            foreach ($section['brands'] ?? [] as $brand) {
+                $brand_name = $brand['name'] ?? '';
+
+                if (!empty($brand['subcategories'])) {
+                    // Sneakers-style: brands[].subcategories[].products[]
+                    foreach ($brand['subcategories'] as $subcat) {
+                        $subcat_name = $subcat['name'] ?? '';
+                        foreach ($subcat['products'] ?? [] as $sku) {
+                            $catalog_lookup[$sku] = [
+                                'catalog_brand' => $brand_name,
+                                'catalog_subcategory' => $subcat_name,
+                                'catalog_section' => $section_slug,
+                                'catalog_wc_category' => $section_wc_cat,
+                            ];
+                        }
+                    }
+                } else {
+                    // Clothing-style: brands[].products[]
+                    foreach ($brand['products'] ?? [] as $sku) {
+                        $catalog_lookup[$sku] = [
+                            'catalog_brand' => $brand_name,
+                            'catalog_subcategory' => $brand_name,
+                            'catalog_section' => $section_slug,
+                            'catalog_wc_category' => $section_wc_cat,
+                        ];
+                    }
+                }
+            }
+
+            // Item-based sections (Accessori)
+            foreach ($section['items'] ?? [] as $item) {
+                $item_name = $item['name'] ?? $item['label'] ?? '';
+                foreach ($item['products'] ?? [] as $sku) {
+                    $catalog_lookup[$sku] = [
+                        'catalog_brand' => '',
+                        'catalog_subcategory' => $item_name,
+                        'catalog_section' => $section_slug,
+                        'catalog_wc_category' => $section_wc_cat,
+                    ];
+                }
+            }
+        }
+        $logger->info("Loaded catalog lookup: " . count($catalog_lookup) . " SKUs from {$catalog_file}");
+    }
+} else {
+    $logger->info("No catalog.json found, GS products will use inferred metadata only");
+}
+
+// ============================================================================
 // Step 1: Load KicksDB assortment
 // ============================================================================
 
@@ -230,6 +293,10 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
             if ($product !== null) {
                 $data = $product['data'] ?? $product;
                 $inferred = inferCatalogSection($data['product_type'] ?? '');
+
+                // Use catalog.json metadata if SKU is in curated catalog
+                $cat_meta = $catalog_lookup[$sku] ?? null;
+
                 $kdb_products[$sku] = [
                     'sku' => $sku,
                     'name' => $data['title'] ?? $data['name'] ?? $gs_products[$sku]['name'] ?? '',
@@ -251,10 +318,10 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
                     'min_price' => $data['min_price'] ?? null,
                     'avg_price' => $data['avg_price'] ?? null,
                     'release_date' => $data['release_date'] ?? '',
-                    'catalog_brand' => '',
-                    'catalog_subcategory' => '',
-                    'catalog_section' => $inferred['section'],
-                    'catalog_wc_category' => $inferred['wc_category'],
+                    'catalog_brand' => $cat_meta['catalog_brand'] ?? ($data['brand'] ?? ''),
+                    'catalog_subcategory' => $cat_meta['catalog_subcategory'] ?? '',
+                    'catalog_section' => $cat_meta['catalog_section'] ?? $inferred['section'],
+                    'catalog_wc_category' => $cat_meta['catalog_wc_category'] ?? $inferred['wc_category'],
                     'catalog_discovery' => 'gs_enriched',
                     'gs_tracked' => true,
                     'source' => 'gs_enriched',
@@ -266,6 +333,10 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
                 // Fallback: use GS data as-is (minimal metadata)
                 $gs_p = $gs_products[$sku];
                 $inferred_gs = inferCatalogSection($gs_p['category_type'] ?? 'sneakers');
+
+                // Use catalog.json metadata if SKU is in curated catalog
+                $cat_meta = $catalog_lookup[$sku] ?? null;
+
                 $kdb_products[$sku] = [
                     'sku' => $sku,
                     'name' => $gs_p['name'] ?? '',
@@ -287,10 +358,10 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
                     'min_price' => null,
                     'avg_price' => null,
                     'release_date' => '',
-                    'catalog_brand' => '',
-                    'catalog_subcategory' => '',
-                    'catalog_section' => $inferred_gs['section'],
-                    'catalog_wc_category' => $inferred_gs['wc_category'],
+                    'catalog_brand' => $cat_meta['catalog_brand'] ?? ($gs_p['brand'] ?? ''),
+                    'catalog_subcategory' => $cat_meta['catalog_subcategory'] ?? '',
+                    'catalog_section' => $cat_meta['catalog_section'] ?? $inferred_gs['section'],
+                    'catalog_wc_category' => $cat_meta['catalog_wc_category'] ?? $inferred_gs['wc_category'],
                     'catalog_discovery' => 'gs_only',
                     'gs_tracked' => true,
                     'source' => 'gs_only',
@@ -306,6 +377,7 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
         foreach ($gs_new_skus as $sku) {
             $gs_p = $gs_products[$sku];
             $inferred_gs = inferCatalogSection($gs_p['category_type'] ?? 'sneakers');
+            $cat_meta = $catalog_lookup[$sku] ?? null;
             $kdb_products[$sku] = [
                 'sku' => $sku,
                 'name' => $gs_p['name'] ?? '',
@@ -327,10 +399,10 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
                 'min_price' => null,
                 'avg_price' => null,
                 'release_date' => '',
-                'catalog_brand' => '',
-                'catalog_subcategory' => '',
-                'catalog_section' => $inferred_gs['section'],
-                'catalog_wc_category' => $inferred_gs['wc_category'],
+                'catalog_brand' => $cat_meta['catalog_brand'] ?? ($gs_p['brand'] ?? ''),
+                'catalog_subcategory' => $cat_meta['catalog_subcategory'] ?? '',
+                'catalog_section' => $cat_meta['catalog_section'] ?? $inferred_gs['section'],
+                'catalog_wc_category' => $cat_meta['catalog_wc_category'] ?? $inferred_gs['wc_category'],
                 'catalog_discovery' => 'gs_only',
                 'gs_tracked' => true,
                 'source' => 'gs_only',
@@ -346,6 +418,7 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
     foreach ($gs_new_skus as $sku) {
         $gs_p = $gs_products[$sku];
         $inferred_gs = inferCatalogSection($gs_p['category_type'] ?? 'sneakers');
+        $cat_meta = $catalog_lookup[$sku] ?? null;
         $kdb_products[$sku] = [
             'sku' => $sku,
             'name' => $gs_p['name'] ?? '',
@@ -367,10 +440,10 @@ if (!empty($gs_new_skus) && !$skip_enrich) {
             'min_price' => null,
             'avg_price' => null,
             'release_date' => '',
-            'catalog_brand' => '',
-            'catalog_subcategory' => '',
-            'catalog_section' => $inferred_gs['section'],
-            'catalog_wc_category' => $inferred_gs['wc_category'],
+            'catalog_brand' => $cat_meta['catalog_brand'] ?? ($gs_p['brand'] ?? ''),
+            'catalog_subcategory' => $cat_meta['catalog_subcategory'] ?? '',
+            'catalog_section' => $cat_meta['catalog_section'] ?? $inferred_gs['section'],
+            'catalog_wc_category' => $cat_meta['catalog_wc_category'] ?? $inferred_gs['wc_category'],
             'catalog_discovery' => 'gs_only',
             'gs_tracked' => true,
             'source' => 'gs_only',
