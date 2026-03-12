@@ -41,6 +41,7 @@ Usage:
 Options:
   --csv=FILE        CSV file to import (default: data/catalog.csv)
   --output=FILE     Output JSON file (default: data/catalog.json)
+  --merge           Merge CSV products into existing catalog (add new SKUs only)
   --dry-run         Preview without writing
   --verbose, -v     Show detailed output
   --help, -h        Show help
@@ -62,6 +63,7 @@ CSV format:
 Examples:
   bin/catalog-csv-import                              # Default: data/catalog.csv → data/catalog.json
   bin/catalog-csv-import --csv=my-catalog.csv         # Custom input
+  bin/catalog-csv-import --merge --csv=new-products.csv  # Add new products to existing catalog
   bin/catalog-csv-import --dry-run --verbose           # Preview
 
 HELP;
@@ -70,6 +72,7 @@ HELP;
 
 $opt_verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
 $opt_dry_run = in_array('--dry-run', $argv);
+$opt_merge = in_array('--merge', $argv);
 $opt_csv = null;
 $opt_output = null;
 
@@ -192,6 +195,86 @@ $section_wc_categories = [
 
 $sections = []; // name → section data
 $section_order = []; // preserve CSV section order
+$existing_skus = []; // SKU set for --merge deduplication
+
+// ============================================================================
+// Pre-populate from existing catalog when --merge is active
+// ============================================================================
+
+if ($opt_merge && $base_catalog && !empty($base_catalog['sections'])) {
+    echo "Merge mode: loading existing catalog as base\n";
+
+    foreach ($base_catalog['sections'] as $base_sec) {
+        $sezione = $base_sec['name'];
+        $section_order[] = $sezione;
+
+        $sections[$sezione] = [
+            'name' => $sezione,
+            'slug' => $base_sec['slug'] ?? $section_slugs[$sezione] ?? strtolower($sezione),
+            'wc_category' => $base_sec['wc_category'] ?? $section_wc_categories[$sezione] ?? strtolower($sezione),
+        ];
+
+        if (!empty($base_sec['subcategories'])) {
+            $sections[$sezione]['subcategories'] = $base_sec['subcategories'];
+        }
+
+        $sections[$sezione]['_brands'] = [];
+        $sections[$sezione]['_brand_data'] = [];
+        $sections[$sezione]['_items'] = [];
+        $sections[$sezione]['_item_data'] = [];
+
+        // Replay brands
+        foreach ($base_sec['brands'] ?? [] as $brand) {
+            $brand_name = $brand['name'];
+            $sections[$sezione]['_brands'][] = $brand_name;
+            $sections[$sezione]['_brand_data'][$brand_name] = [
+                'name' => $brand_name,
+                'products' => $brand['products'] ?? [],
+                '_subcats' => [],
+                '_subcat_data' => [],
+            ];
+
+            foreach ($brand['products'] ?? [] as $sku) {
+                $existing_skus[$sku] = true;
+            }
+
+            foreach ($brand['subcategories'] ?? [] as $subcat) {
+                $subcat_name = $subcat['name'];
+                $sections[$sezione]['_brand_data'][$brand_name]['_subcats'][] = $subcat_name;
+                $sections[$sezione]['_brand_data'][$brand_name]['_subcat_data'][$subcat_name] = [
+                    'name' => $subcat_name,
+                    'products' => $subcat['products'] ?? [],
+                ];
+
+                foreach ($subcat['products'] ?? [] as $sku) {
+                    $existing_skus[$sku] = true;
+                }
+            }
+        }
+
+        // Replay items (Accessori)
+        foreach ($base_sec['items'] ?? [] as $item) {
+            $item_name = $item['name'];
+            $sections[$sezione]['_items'][] = $item_name;
+
+            $item_data = ['name' => $item_name, 'products' => $item['products'] ?? []];
+            if (!empty($item['product_types'])) {
+                $item_data['product_types'] = $item['product_types'];
+            }
+
+            $sections[$sezione]['_item_data'][$item_name] = $item_data;
+
+            foreach ($item['products'] ?? [] as $sku) {
+                $existing_skus[$sku] = true;
+            }
+        }
+    }
+
+    echo "  Existing catalog: " . count($existing_skus) . " SKUs\n";
+}
+
+$skus_added = 0;
+$skus_skipped = 0;
 
 foreach ($rows as $row) {
     $sezione = $row['sezione'];
@@ -254,7 +337,16 @@ foreach ($rows as $row) {
         }
 
         if (!empty($sku)) {
-            $sec['_item_data'][$sottocategoria]['products'][] = $sku;
+            if ($opt_merge && isset($existing_skus[$sku])) {
+                $skus_skipped++;
+                if ($opt_verbose) {
+                    fwrite(STDERR, "  SKIP duplicate SKU: {$sku}\n");
+                }
+            } else {
+                $sec['_item_data'][$sottocategoria]['products'][] = $sku;
+                $existing_skus[$sku] = true;
+                $skus_added++;
+            }
         }
     } elseif ($is_brand) {
         // Brand-based section — always support both flat products and subcategories
@@ -277,12 +369,30 @@ foreach ($rows as $row) {
                 $brand['_subcat_data'][$sottocategoria] = ['name' => $sottocategoria, 'products' => []];
             }
             if (!empty($sku)) {
-                $brand['_subcat_data'][$sottocategoria]['products'][] = $sku;
+                if ($opt_merge && isset($existing_skus[$sku])) {
+                    $skus_skipped++;
+                    if ($opt_verbose) {
+                        fwrite(STDERR, "  SKIP duplicate SKU: {$sku}\n");
+                    }
+                } else {
+                    $brand['_subcat_data'][$sottocategoria]['products'][] = $sku;
+                    $existing_skus[$sku] = true;
+                    $skus_added++;
+                }
             }
         } else {
             // Flat products (no subcategory)
             if (!empty($sku)) {
-                $brand['products'][] = $sku;
+                if ($opt_merge && isset($existing_skus[$sku])) {
+                    $skus_skipped++;
+                    if ($opt_verbose) {
+                        fwrite(STDERR, "  SKIP duplicate SKU: {$sku}\n");
+                    }
+                } else {
+                    $brand['products'][] = $sku;
+                    $existing_skus[$sku] = true;
+                    $skus_added++;
+                }
             }
         }
 
@@ -380,6 +490,10 @@ foreach ($section_order as $sezione) {
 // ============================================================================
 
 echo "Built catalog: " . count($catalog['sections']) . " sections, {$total_skus} SKUs\n";
+
+if ($opt_merge) {
+    echo "  Merge: {$skus_added} new SKUs added, {$skus_skipped} duplicates skipped\n";
+}
 
 foreach ($catalog['sections'] as $sec) {
     $sec_skus = 0;
