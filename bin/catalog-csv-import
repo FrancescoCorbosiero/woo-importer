@@ -335,6 +335,7 @@ if ($opt_wc_snapshot) {
 
 $skus_added = 0;
 $skus_skipped = 0;
+$skus_manual = 0;
 
 foreach ($rows as $row) {
     $sezione = $row['sezione'];
@@ -342,6 +343,15 @@ foreach ($rows as $row) {
     $sottocategoria = $row['sottocategoria'];
     $sku = $row['sku'];
     $query = $row['query'] ?? '';
+
+    // SKUs without a query are not fetchable from KicksDB — skip (managed manually in WC)
+    if (!empty($sku) && empty($query) && $col_query !== null) {
+        $skus_manual++;
+        if ($opt_verbose) {
+            fwrite(STDERR, "  SKIP manual SKU (no query): {$sku}\n");
+        }
+        continue;
+    }
 
     // Collect query fallback for KicksDB lookup
     if (!empty($sku) && !empty($query) && $query !== $sku) {
@@ -567,6 +577,9 @@ if (!empty($query_map)) {
 
 if ($opt_merge || $opt_wc_snapshot) {
     echo "  Merge: {$skus_added} new SKUs added, {$skus_skipped} duplicates skipped\n";
+}
+if ($skus_manual > 0) {
+    echo "  Manual (no query): {$skus_manual} SKUs excluded (manage in WooCommerce directly)\n";
 }
 
 foreach ($catalog['sections'] as $sec) {
