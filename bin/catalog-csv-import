@@ -149,6 +149,7 @@ $col_sezione = $col_map['sezione'] ?? 0;
 $col_marca = $col_map['marca'] ?? 1;
 $col_sottocategoria = $col_map['sottocategoria'] ?? 2;
 $col_sku = $col_map['sku'] ?? 3;
+$col_query = $col_map['query'] ?? null;
 
 // Collect rows
 $rows = [];
@@ -171,11 +172,14 @@ while (($row = fgetcsv($handle)) !== false) {
         continue;
     }
 
+    $query = ($col_query !== null) ? trim($row[$col_query] ?? '') : '';
+
     $rows[] = [
         'sezione' => $sezione,
         'marca' => $marca,
         'sottocategoria' => $sottocategoria,
         'sku' => $sku,
+        'query' => $query,
     ];
 }
 fclose($handle);
@@ -202,6 +206,7 @@ $section_wc_categories = [
 $sections = []; // name → section data
 $section_order = []; // preserve CSV section order
 $existing_skus = []; // SKU set for --merge deduplication
+$query_map = []; // SKU → query fallback for KicksDB lookup
 
 // ============================================================================
 // Pre-populate from existing catalog when --merge is active
@@ -276,6 +281,11 @@ if ($opt_merge && $base_catalog && !empty($base_catalog['sections'])) {
         }
     }
 
+    // Preserve existing query_map
+    if (!empty($base_catalog['query_map'])) {
+        $query_map = $base_catalog['query_map'];
+    }
+
     echo "  Existing catalog: " . count($existing_skus) . " SKUs\n";
 }
 
@@ -331,6 +341,12 @@ foreach ($rows as $row) {
     $marca = $row['marca'];
     $sottocategoria = $row['sottocategoria'];
     $sku = $row['sku'];
+    $query = $row['query'] ?? '';
+
+    // Collect query fallback for KicksDB lookup
+    if (!empty($sku) && !empty($query) && $query !== $sku) {
+        $query_map[$sku] = $query;
+    }
 
     // Initialize section if first encounter
     if (!isset($sections[$sezione])) {
@@ -535,11 +551,19 @@ foreach ($section_order as $sezione) {
     $catalog['sections'][] = $section_out;
 }
 
+// Add query_map for KicksDB fallback lookup
+if (!empty($query_map)) {
+    $catalog['query_map'] = $query_map;
+}
+
 // ============================================================================
 // Output
 // ============================================================================
 
 echo "Built catalog: " . count($catalog['sections']) . " sections, {$total_skus} SKUs\n";
+if (!empty($query_map)) {
+    echo "  Query map: " . count($query_map) . " SKUs with fallback queries\n";
+}
 
 if ($opt_merge || $opt_wc_snapshot) {
     echo "  Merge: {$skus_added} new SKUs added, {$skus_skipped} duplicates skipped\n";

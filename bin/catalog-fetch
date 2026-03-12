@@ -135,6 +135,9 @@ if (!is_array($catalog) || empty($catalog['sections'])) {
 
 $market = $config['pricing']['kicksdb_market'] ?? 'IT';
 
+// Load query_map for fallback search (SKU → query)
+$query_map = $catalog['query_map'] ?? [];
+
 // ============================================================================
 // Step 1: Walk catalog tree, collect SKU list with metadata
 // ============================================================================
@@ -225,6 +228,9 @@ foreach ($catalog['sections'] as $sec) {
     $logger->info("    {$sec['name']}: {$sec_skus} SKUs");
 }
 $logger->info("  Market:     {$market}");
+if (!empty($query_map)) {
+    $logger->info("  Query map:  " . count($query_map) . " fallback queries");
+}
 
 if ($opt_limit && $total_skus > $opt_limit) {
     $sku_entries = array_slice($sku_entries, 0, $opt_limit);
@@ -334,6 +340,7 @@ $all_products = [];
 $api_calls = 0;
 $cache_hits = 0;
 $not_found = 0;
+$query_fallback_hits = 0;
 $seen_skus = []; // Dedup within catalog
 
 foreach ($sku_entries as $entry) {
@@ -360,15 +367,21 @@ foreach ($sku_entries as $entry) {
         $cache_hits++;
 
         if ($cached_item === null) {
-            // Cached miss — skip without API call
-            $not_found++;
-            $logger->debug("    CACHE (miss): {$sku}");
+            if (isset($query_map[$sku])) {
+                // Cached miss but query_map has a fallback — skip cache, try API below
+                $cache_hits--;
+                $logger->debug("    CACHE (miss) but query_map available: {$sku}");
+                // Fall through to API fetch
+            } else {
+                $not_found++;
+                $logger->debug("    CACHE (miss): {$sku}");
+                continue;
+            }
+        } else {
+            $all_products[$sku] = $buildProduct($cached_item, $entry);
+            $logger->debug("    CACHE: {$sku} - " . ($cached_item['title'] ?? '?'));
             continue;
         }
-
-        $all_products[$sku] = $buildProduct($cached_item, $entry);
-        $logger->debug("    CACHE: {$sku} - " . ($cached_item['title'] ?? '?'));
-        continue;
     }
 
     // Fetch from KicksDB API
@@ -376,8 +389,56 @@ foreach ($sku_entries as $entry) {
     $api_calls++;
 
     if ($result === null) {
+        // Fallback: try query_map search if available
+        $fallback_query = $query_map[$sku] ?? null;
+        if ($fallback_query !== null) {
+            $logger->info("    NOT FOUND by SKU: {$sku} — trying query fallback: '{$fallback_query}'");
+            $search = $client->searchStockX($fallback_query, 5, $market);
+            $api_calls++;
+
+            $items = $search['data'] ?? $search;
+            $match = null;
+            if (is_array($items) && !empty($items)) {
+                // Try exact SKU match first, then take best result
+                foreach ($items as $candidate) {
+                    if (strcasecmp($candidate['sku'] ?? '', $sku) === 0) {
+                        $match = $candidate;
+                        break;
+                    }
+                }
+                if ($match === null) {
+                    $match = $items[0] ?? null;
+                }
+            }
+
+            if ($match !== null) {
+                // Re-fetch full product details if needed
+                $product_id = $match['slug'] ?? $match['id'] ?? null;
+                if ($product_id !== null && empty($match['variants'])) {
+                    $full = $client->getStockXProduct($product_id, $market);
+                    $api_calls++;
+                    if ($full !== null) {
+                        $full_item = $full['data'] ?? $full;
+                        if (isset($full_item['data']) && is_array($full_item['data'])) {
+                            $full_item = $full_item['data'];
+                        }
+                        $match = $full_item;
+                    }
+                }
+
+                // Use the original catalog SKU (not KicksDB's SKU)
+                $entry_with_sku = $entry;
+                $product_cache[$sku] = ['_cached_at' => $now, 'data' => $match];
+                $all_products[$sku] = $buildProduct($match, $entry_with_sku);
+                $query_fallback_hits++;
+                $logger->info("    QUERY FALLBACK OK: {$sku} → " . ($match['title'] ?? $match['name'] ?? '?'));
+                usleep(200000);
+                continue;
+            }
+        }
+
         $not_found++;
-        $logger->warning("    NOT FOUND: {$sku}");
+        $logger->warning("    NOT FOUND: {$sku}" . ($fallback_query ? " (query fallback also failed)" : ''));
         // Cache the miss to avoid re-fetching
         $product_cache[$sku] = ['_cached_at' => $now, 'data' => null];
         usleep(200000);
@@ -421,6 +482,9 @@ $logger->info("  Fetched:     " . count($all_products) . " products");
 $logger->info("  API calls:   {$api_calls}");
 $logger->info("  Cache hits:  {$cache_hits}");
 $logger->info("  Not found:   {$not_found}");
+if ($query_fallback_hits > 0) {
+    $logger->info("  Query fallback: {$query_fallback_hits} recovered");
+}
 if ($gs_excluded > 0) {
     $logger->info("  GS excluded: {$gs_excluded}");
 }
@@ -525,6 +589,7 @@ $logger->info("  Fetched:         " . count($products));
 $logger->info("  API calls:       {$api_calls}");
 $logger->info("  Cache hits:      {$cache_hits}");
 $logger->info("  Not found:       {$not_found}");
+$logger->info("  Query fallback:  {$query_fallback_hits}");
 $logger->info("  GS excluded:     {$gs_excluded}");
 $logger->info("  Unique brands:   " . count($brand_counts));
 $logger->info("  Duration:        {$duration}s");
