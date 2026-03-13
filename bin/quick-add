@@ -3,8 +3,8 @@
 /**
  * Quick Add — Fetch products from KicksDB and import to WooCommerce
  *
- * Accepts a single SKU or a JSON file with {SKU: title} pairs (same format
- * as catalog.json products). For each product, searches KicksDB using the
+ * Accepts a single SKU or a JSON file with [{sku, title}] objects.
+ * For each product, searches KicksDB using the
  * title as hint, verifies the SKU matches, normalizes, uploads images,
  * and imports to WC. Self-contained — no pipeline dependencies.
  *
@@ -34,16 +34,16 @@ Usage:
   bin/quick-add --sku=DD1391-100 "Nike Dunk Low"     # SKU + title hint
   bin/quick-add --file=products.json                  # Batch from JSON
 
-JSON file format (same as catalog.json products):
-  {
-    "DD1391-100": "Nike Dunk Low Retro White Black",
-    "FQ6965-700": "Nike Dunk Low LX Phantom Khaki (Women's)",
-    "FD6900-200": ""
-  }
+JSON file format (array of {sku, title} objects):
+  [
+    {"sku": "DD1391-100", "title": "Nike Dunk Low Retro White Black"},
+    {"sku": "FQ6965-700", "title": "Nike Dunk Low LX Phantom Khaki (Women's)"},
+    {"sku": "FD6900-200", "title": ""}
+  ]
 
 Options:
   --sku=SKU                 Single product SKU
-  --file=FILE               JSON file with {"SKU": "title"} pairs
+  --file=FILE               JSON file with [{sku, title}] array
   --category=KEY            Override WC category (sneakers|clothing|accessories)
   --skip-media              Don't upload images
   --dry-run                 Preview without importing
@@ -136,9 +136,14 @@ if ($opt_file) {
         exit(1);
     }
 
-    // Format: {"SKU": "title", ...}
-    foreach ($json as $sku => $title) {
-        $entries[] = ['sku' => (string) $sku, 'title' => (string) $title];
+    // Format: [{"sku": "...", "title": "..."}, ...]
+    foreach ($json as $item) {
+        $sku = $item['sku'] ?? '';
+        $title = $item['title'] ?? '';
+        if (empty($sku)) {
+            continue;
+        }
+        $entries[] = ['sku' => $sku, 'title' => $title];
     }
 
     if (empty($entries)) {
