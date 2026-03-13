@@ -47,10 +47,10 @@ Options:
   --help, -h        Show help
 
 CSV format:
-  Sezione,Marca,Sottocategoria,SKU,Titolo,Query,Taglie,Prezzo,Prezzo Scontato
-  Sneakers,Nike,Nike Dunk,DD1391-100,Nike Dunk Low Panda,Nike Dunk,40-45,120,
-  Abbigliamento,Supreme,,SUP-SKU-1,Supreme Box Logo Tee,Supreme T-Shirt,S/M/L,89,79
-  Accessori,,Beanie,BEANIE-SKU-1,Nike ACG Beanie,beanie,,,
+  Sezione,Marca,Sottocategoria,SKU,Titolo,Query
+  Sneakers,Nike,Nike Dunk,DD1391-100,Nike Dunk Low Panda,Nike Dunk
+  Abbigliamento,Supreme,,SUP-SKU-1,Supreme Box Logo Tee,Supreme T-Shirt
+  Accessori,,Beanie,BEANIE-SKU-1,Nike ACG Beanie,beanie
 
   - Sezione: Section name (Sneakers, Abbigliamento, Accessori)
   - Marca: Brand name (empty for Accessori)

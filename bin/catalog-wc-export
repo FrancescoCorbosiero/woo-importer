@@ -38,15 +38,12 @@ Options:
   --help, -h        Show help
 
 CSV columns:
-  Sezione, Marca, Sottocategoria, SKU, Titolo, Query, Taglie, Prezzo, Prezzo Scontato
+  Sezione, Marca, Sottocategoria, SKU, Titolo, Query
 
   - Sezione/Marca/Sottocategoria: from product _catalog_* metadata
   - SKU: product SKU
-  - Titolo: product name from WooCommerce
-  - Query: catalog subcategory (from metadata)
-  - Taglie: comma-separated variation sizes (e.g. "40,41,42,43")
-  - Prezzo: regular price (from first variation with a price, or parent)
-  - Prezzo Scontato: sale price (if set)
+  - Titolo: product name from WooCommerce (used as KicksDB search query)
+  - Query: catalog subcategory (from metadata, reference-only)
 
 Examples:
   bin/catalog-wc-export                           # Full export
@@ -147,102 +144,6 @@ if (empty($all_products)) {
 }
 
 // ============================================================================
-// Fetch variations for variable products (concurrent with curl_multi)
-// ============================================================================
-
-$variable_products = [];
-foreach ($all_products as $product) {
-    if ($product->type === 'variable') {
-        $variable_products[] = $product;
-    }
-}
-
-echo "Fetching variations for " . count($variable_products) . " variable products (concurrent)...\n";
-
-$variation_cache = []; // product_id => [variations]
-$concurrency = (int) ($config['import']['variation_concurrency'] ?? 10);
-$wc_version = $config['woocommerce']['version'] ?? 'wc/v3';
-$wc_base = rtrim($wc_url, '/');
-
-/**
- * Build authenticated WC API URL
- */
-$buildUrl = function (string $endpoint, array $params = []) use ($wc_base, $wc_version, $config) {
-    $params['consumer_key'] = $config['woocommerce']['consumer_key'];
-    $params['consumer_secret'] = $config['woocommerce']['consumer_secret'];
-    return "{$wc_base}/wp-json/{$wc_version}/{$endpoint}?" . http_build_query($params);
-};
-
-// Process in batches of $concurrency
-$chunks = array_chunk($variable_products, $concurrency);
-$batch_num = 0;
-
-foreach ($chunks as $chunk) {
-    $batch_num++;
-    $mh = curl_multi_init();
-    $handles = [];
-
-    foreach ($chunk as $product) {
-        $product_id = $product->id;
-        $url = $buildUrl("products/{$product_id}/variations", ['per_page' => 100]);
-
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 120,
-            CURLOPT_HTTPHEADER => ['Accept: application/json'],
-        ]);
-
-        $handles[] = ['ch' => $ch, 'product_id' => $product_id, 'sku' => $product->sku];
-        curl_multi_add_handle($mh, $ch);
-    }
-
-    // Execute all handles concurrently
-    $running = null;
-    do {
-        $status = curl_multi_exec($mh, $running);
-        if ($running > 0) {
-            curl_multi_select($mh, 1.0);
-        }
-    } while ($running > 0 && $status === CURLM_OK);
-
-    // Process responses
-    foreach ($handles as $h) {
-        $ch = $h['ch'];
-        $product_id = $h['product_id'];
-        $response = curl_multi_getcontent($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-        if ($http_code === 200 && $response) {
-            $variations = json_decode($response, false);
-            if (is_array($variations)) {
-                $variation_cache[$product_id] = $variations;
-                if ($opt_verbose) {
-                    echo "  {$h['sku']}: " . count($variations) . " variations\n";
-                }
-            } else {
-                $variation_cache[$product_id] = [];
-            }
-        } else {
-            $variation_cache[$product_id] = [];
-            fwrite(STDERR, "  Error fetching variations for {$h['sku']} (HTTP {$http_code})\n");
-        }
-
-        curl_multi_remove_handle($mh, $ch);
-        curl_close($ch);
-    }
-
-    curl_multi_close($mh);
-
-    if ($opt_verbose && count($chunks) > 1) {
-        echo "  Batch {$batch_num}/" . count($chunks) . " done\n";
-    }
-}
-
-echo "Fetched variations for " . count($variable_products) . " variable products\n";
-
-// ============================================================================
 // Extract catalog metadata and build rows
 // ============================================================================
 
@@ -320,34 +221,6 @@ foreach ($all_products as $product) {
         }
     }
 
-    // Collect sizes and prices from variations
-    $sizes = [];
-    $regular_price = '';
-    $sale_price = '';
-
-    if ($product->type === 'variable' && isset($variation_cache[$product->id])) {
-        foreach ($variation_cache[$product->id] as $var) {
-            // Extract size from variation attributes
-            foreach ($var->attributes ?? [] as $attr) {
-                $attr_slug = $attr->slug ?? ($attr->name ?? '');
-                if (in_array(strtolower($attr_slug), ['pa_taglia', 'taglia'])) {
-                    $sizes[] = $attr->option ?? '';
-                }
-            }
-
-            // Use first variation with a price
-            if (empty($regular_price) && !empty($var->regular_price)) {
-                $regular_price = $var->regular_price;
-                $sale_price = $var->sale_price ?? '';
-            }
-        }
-    } elseif ($product->type === 'simple') {
-        // Simple product (One Size)
-        $sizes[] = 'One Size';
-        $regular_price = $product->regular_price ?? '';
-        $sale_price = $product->sale_price ?? '';
-    }
-
     // Determine subcategory display for CSV
     $subcat_display = $subcategory;
     $query_display = $subcategory;
@@ -365,9 +238,6 @@ foreach ($all_products as $product) {
         'sku' => $sku,
         'name' => $product->name ?? '',
         'query' => $query_display,
-        'sizes' => implode(',', $sizes),
-        'regular_price' => $regular_price,
-        'sale_price' => $sale_price,
         'menu_order' => $product->menu_order ?? 0,
     ];
 }
@@ -408,8 +278,8 @@ if ($handle === false) {
     exit(1);
 }
 
-// Header (same as catalog-csv-export)
-fputcsv($handle, ['Sezione', 'Marca', 'Sottocategoria', 'SKU', 'Titolo', 'Query', 'Taglie', 'Prezzo', 'Prezzo Scontato']);
+// Header
+fputcsv($handle, ['Sezione', 'Marca', 'Sottocategoria', 'SKU', 'Titolo', 'Query']);
 
 $section_stats = [];
 
@@ -421,9 +291,6 @@ foreach ($rows as $row) {
         $row['sku'],
         $row['name'],
         $row['query'],
-        $row['sizes'],
-        $row['regular_price'],
-        $row['sale_price'],
     ]);
 
     $sec = $row['section'];
