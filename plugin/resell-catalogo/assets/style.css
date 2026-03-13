@@ -1,0 +1,732 @@
+/**
+ * Resell Catalogo — Dashboard Styles
+ */
+
+/* ================================================================
+   Layout
+   ================================================================ */
+
+.resell-catalogo-wrap {
+    max-width: 1100px;
+}
+
+.resell-catalogo-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 23px;
+    margin-bottom: 16px;
+}
+
+.resell-catalogo-title .dashicons {
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+}
+
+/* ================================================================
+   Tabs
+   ================================================================ */
+
+.resell-tabs {
+    margin-bottom: 0;
+}
+
+.resell-tab-content {
+    display: none;
+    padding-top: 20px;
+}
+
+.resell-tab-content.active {
+    display: block;
+}
+
+/* ================================================================
+   Cards
+   ================================================================ */
+
+.resell-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.resell-card h2 {
+    margin: 0 0 8px;
+    padding: 0;
+    font-size: 16px;
+}
+
+.resell-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.resell-card-header h2 {
+    margin: 0;
+}
+
+.resell-card-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.resell-card-actions .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.resell-card-actions .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* ================================================================
+   Upload Zone
+   ================================================================ */
+
+.resell-upload-zone {
+    border: 2px dashed #c3c4c7;
+    border-radius: 8px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+    margin-top: 16px;
+}
+
+.resell-upload-zone:hover,
+.resell-upload-zone.drag-over {
+    border-color: #2271b1;
+    background: #f0f6fc;
+}
+
+.resell-upload-icon .dashicons {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    color: #c3c4c7;
+}
+
+.resell-upload-zone:hover .resell-upload-icon .dashicons,
+.resell-upload-zone.drag-over .resell-upload-icon .dashicons {
+    color: #2271b1;
+}
+
+.resell-upload-text {
+    margin: 12px 0 4px;
+    font-size: 14px;
+}
+
+.resell-upload-link {
+    color: #2271b1;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.resell-upload-hint {
+    color: #757575;
+    font-size: 12px;
+    margin: 4px 0 0;
+}
+
+/* ================================================================
+   Progress Bar
+   ================================================================ */
+
+.resell-progress {
+    margin-top: 16px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    height: 32px;
+}
+
+.resell-progress-bar {
+    background: #2271b1;
+    height: 100%;
+    width: 0;
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}
+
+.resell-progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+/* ================================================================
+   Metadata Grid
+   ================================================================ */
+
+.resell-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: #f6f7f7;
+    border-radius: 4px;
+}
+
+.resell-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.resell-meta-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #757575;
+    font-weight: 600;
+}
+
+.resell-meta-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1d2327;
+}
+
+/* ================================================================
+   Tree View
+   ================================================================ */
+
+.resell-tree {
+    margin-top: 8px;
+}
+
+.resell-tree-section {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.resell-tree-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #f6f7f7;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s;
+}
+
+.resell-tree-toggle:hover {
+    background: #eff0f1;
+}
+
+.resell-tree-toggle .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    transition: transform 0.2s;
+    color: #757575;
+}
+
+.resell-tree-toggle[data-expanded="false"] .dashicons {
+    transform: rotate(-90deg);
+}
+
+.resell-tree-toggle[data-expanded="false"] + .resell-tree-children {
+    display: none;
+}
+
+.resell-tree-children {
+    padding: 12px 16px 12px 42px;
+}
+
+.resell-tree-subcategories {
+    margin-bottom: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.resell-tree-brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.resell-tree-brand .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    color: #757575;
+}
+
+/* ================================================================
+   Badges & Tags
+   ================================================================ */
+
+.resell-badge {
+    display: inline-block;
+    background: #2271b1;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 4px;
+}
+
+.resell-badge-sm {
+    display: inline-block;
+    background: #dcdcde;
+    color: #50575e;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+
+.resell-tag {
+    display: inline-block;
+    background: #e7e8ea;
+    color: #50575e;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: auto;
+}
+
+.resell-tag-sub {
+    display: inline-block;
+    background: #dbe7f0;
+    color: #2271b1;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+.resell-label {
+    font-size: 12px;
+    color: #757575;
+    font-weight: 600;
+}
+
+/* ================================================================
+   Empty State
+   ================================================================ */
+
+.resell-empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: #757575;
+}
+
+.resell-empty-state .dashicons {
+    font-size: 64px;
+    width: 64px;
+    height: 64px;
+    color: #dcdcde;
+    margin-bottom: 16px;
+}
+
+.resell-empty-state h3 {
+    color: #1d2327;
+    margin: 0 0 8px;
+}
+
+/* ================================================================
+   Search Box
+   ================================================================ */
+
+.resell-search-box {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 16px;
+}
+
+.resell-search-box .regular-text {
+    flex: 1;
+    max-width: 500px;
+}
+
+.resell-search-box .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.resell-search-box .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* ================================================================
+   Results Grid
+   ================================================================ */
+
+.resell-results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.resell-product-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    cursor: pointer;
+    background: #fff;
+}
+
+.resell-product-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-color: #2271b1;
+}
+
+.resell-product-img {
+    width: 100%;
+    height: 180px;
+    object-fit: contain;
+    background: #f9f9f9;
+    padding: 12px;
+}
+
+.resell-product-info {
+    padding: 12px 16px;
+}
+
+.resell-product-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.resell-product-sku {
+    font-family: monospace;
+    font-size: 11px;
+    color: #757575;
+    margin: 0 0 8px;
+}
+
+.resell-product-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.resell-product-brand {
+    font-size: 12px;
+    font-weight: 600;
+    color: #2271b1;
+}
+
+.resell-product-price {
+    font-size: 12px;
+    color: #50575e;
+}
+
+.resell-product-variants {
+    font-size: 11px;
+    color: #757575;
+    margin-top: 4px;
+}
+
+/* ================================================================
+   Modal
+   ================================================================ */
+
+.resell-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.resell-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.resell-modal-content {
+    position: relative;
+    background: #fff;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.resell-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.resell-modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.resell-modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #757575;
+    padding: 0;
+    line-height: 1;
+}
+
+.resell-modal-close:hover {
+    color: #d63638;
+}
+
+.resell-modal-body {
+    padding: 24px;
+}
+
+.resell-modal-footer {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 16px 24px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.resell-modal-footer .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ================================================================
+   Import Preview
+   ================================================================ */
+
+.resell-import-preview {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.resell-import-preview img {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+    background: #f9f9f9;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.resell-import-details h4 {
+    margin: 0 0 4px;
+    font-size: 14px;
+}
+
+.resell-import-details p {
+    margin: 0 0 2px;
+    font-size: 13px;
+    color: #50575e;
+}
+
+.resell-text-mono {
+    font-family: monospace;
+}
+
+.resell-form-group {
+    margin-bottom: 16px;
+}
+
+.resell-form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.resell-form-group select {
+    width: 100%;
+    max-width: 300px;
+}
+
+.resell-import-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 12px;
+    background: #f6f7f7;
+    border-radius: 4px;
+}
+
+.resell-import-stat {
+    text-align: center;
+}
+
+.resell-import-stat-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #757575;
+}
+
+.resell-import-stat-value {
+    display: block;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1d2327;
+}
+
+/* ================================================================
+   Import Result
+   ================================================================ */
+
+.resell-import-success {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+}
+
+.resell-import-success .dashicons {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+    color: #00a32a;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.resell-import-success h3 {
+    margin: 0 0 8px;
+    color: #00a32a;
+}
+
+.resell-import-success p {
+    margin: 0 0 4px;
+    font-size: 13px;
+}
+
+.resell-import-success .resell-result-links {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+}
+
+/* ================================================================
+   Warning Notice
+   ================================================================ */
+
+.resell-notice-warning {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fcf9e8;
+    border-color: #dba617;
+}
+
+.resell-notice-warning .dashicons {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+    color: #dba617;
+}
+
+.resell-notice-warning p {
+    margin: 0;
+}
+
+/* ================================================================
+   Settings
+   ================================================================ */
+
+#btn-toggle-key {
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+#btn-toggle-key .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+.resell-saved-notice {
+    color: #00a32a;
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+/* ================================================================
+   Spinner override
+   ================================================================ */
+
+.resell-search-box .spinner,
+.resell-modal-footer .spinner,
+.submit .spinner {
+    margin: 0;
+    visibility: hidden;
+}
+
+.resell-search-box .spinner.is-active,
+.resell-modal-footer .spinner.is-active,
+.submit .spinner.is-active {
+    visibility: visible;
+}
+
+/* ================================================================
+   No-image placeholder
+   ================================================================ */
+
+.resell-product-no-img {
+    width: 100%;
+    height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f0f1;
+    color: #c3c4c7;
+}
+
+.resell-product-no-img .dashicons {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+}
