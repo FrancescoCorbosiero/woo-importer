@@ -61,7 +61,7 @@ CSV format:
   - Remaining columns are ignored (reference-only for human editors)
 
 Output format:
-  Products are stored as {"SKU": "title"} objects in catalog.json.
+  Products are stored as [{"sku": "SKU", "title": "title"}] arrays in catalog.json.
   The title is used by catalog-fetch to search KicksDB by name (more reliable
   than raw SKU lookup). Order is preserved for menu_order.
 
@@ -208,7 +208,7 @@ $existing_skus = []; // SKU set for --merge deduplication
 
 /**
  * Normalize a products field from catalog.json to associative array {SKU: title}.
- * Handles both old format (indexed array of strings) and new format (object/assoc array).
+ * Handles: [{sku, title}] arrays, {SKU: title} objects, ["SKU1", "SKU2"] arrays.
  */
 function normalizeProducts($products): array
 {
@@ -217,7 +217,16 @@ function normalizeProducts($products): array
     }
     $products = (array) $products;
 
-    // Check if it's the old indexed array format: ["SKU1", "SKU2"]
+    // New format: array of {sku, title} objects
+    if (isset($products[0]) && is_array($products[0]) && isset($products[0]['sku'])) {
+        $normalized = [];
+        foreach ($products as $p) {
+            $normalized[$p['sku']] = $p['title'] ?? '';
+        }
+        return $normalized;
+    }
+
+    // Old format: indexed array of SKU strings ["SKU1", "SKU2"]
     if (isset($products[0]) && is_string($products[0])) {
         $normalized = [];
         foreach ($products as $sku) {
@@ -226,7 +235,7 @@ function normalizeProducts($products): array
         return $normalized;
     }
 
-    // Already associative {SKU: title} or mixed — keep as-is
+    // Legacy format: associative {SKU: title} — keep as-is
     return $products;
 }
 
@@ -450,6 +459,25 @@ foreach ($rows as $row) {
 }
 
 // ============================================================================
+// Helper: convert internal {SKU: title} to [{sku, title}] array format
+// ============================================================================
+
+/**
+ * Convert associative {SKU: title} products to [{sku, title}] array format.
+ */
+function toProductArray(array $products): array
+{
+    if (empty($products)) {
+        return [];
+    }
+    $result = [];
+    foreach ($products as $sku => $title) {
+        $result[] = ['sku' => (string) $sku, 'title' => (string) $title];
+    }
+    return $result;
+}
+
+// ============================================================================
 // Assemble final catalog.json
 // ============================================================================
 
@@ -489,7 +517,7 @@ foreach ($section_order as $sezione) {
                     $default_subcat_name = $brand['name'] . ' Altro';
                     $brand_out['subcategories'][] = [
                         'name' => $default_subcat_name,
-                        'products' => (object) $brand['products'],
+                        'products' => toProductArray($brand['products']),
                     ];
                     $total_skus += count($brand['products']);
                 }
@@ -498,17 +526,17 @@ foreach ($section_order as $sezione) {
                     $subcat = $brand['_subcat_data'][$subcat_name];
                     $brand_out['subcategories'][] = [
                         'name' => $subcat['name'],
-                        'products' => empty($subcat['products']) ? new \stdClass() : (object) $subcat['products'],
+                        'products' => toProductArray($subcat['products']),
                     ];
                     $total_skus += count($subcat['products']);
                 }
             } elseif ($has_flat) {
                 // Abbigliamento-style flat products only
-                $brand_out['products'] = (object) $brand['products'];
+                $brand_out['products'] = toProductArray($brand['products']);
                 $total_skus += count($brand['products']);
             } else {
-                // Empty products — output as empty object {}
-                $brand_out['products'] = new \stdClass();
+                // Empty products — output as empty array []
+                $brand_out['products'] = [];
             }
 
             $section_out['brands'][] = $brand_out;
@@ -526,7 +554,7 @@ foreach ($section_order as $sezione) {
                 $item_out['product_types'] = $item['product_types'];
             }
 
-            $item_out['products'] = empty($item['products']) ? new \stdClass() : (object) $item['products'];
+            $item_out['products'] = toProductArray($item['products']);
             $total_skus += count($item['products']);
             $section_out['items'][] = $item_out;
         }

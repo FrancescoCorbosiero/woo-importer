@@ -151,8 +151,7 @@ $position = 0;
 
 /**
  * Walk a products field from catalog.json and yield [sku, title] pairs.
- * Handles both old format (indexed array: ["SKU1", "SKU2"]) and
- * new format (object/assoc array: {"SKU1": "title1", "SKU2": "title2"}).
+ * Supports: [{sku, title}] arrays, {SKU: title} objects, ["SKU1", "SKU2"] arrays.
  */
 function walkProducts($products): array
 {
@@ -161,6 +160,13 @@ function walkProducts($products): array
     }
     $products = (array) $products;
 
+    // New format: array of {sku, title} objects
+    if (isset($products[0]) && is_array($products[0]) && isset($products[0]['sku'])) {
+        return array_map(function ($p) {
+            return ['sku' => $p['sku'], 'title' => $p['title'] ?? ''];
+        }, $products);
+    }
+
     // Old format: indexed array of SKU strings
     if (isset($products[0]) && is_string($products[0])) {
         return array_map(function ($sku) {
@@ -168,7 +174,7 @@ function walkProducts($products): array
         }, $products);
     }
 
-    // New format: associative {SKU: title}
+    // Legacy format: associative {SKU: title}
     $result = [];
     foreach ($products as $sku => $title) {
         $result[] = ['sku' => (string) $sku, 'title' => (string) $title];

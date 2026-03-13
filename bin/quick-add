@@ -3,10 +3,10 @@
 /**
  * Quick Add — Fetch products from KicksDB and import to WooCommerce
  *
- * Accepts a single SKU or a JSON file with [{sku, title}] objects.
- * For each product, searches KicksDB using the
- * title as hint, verifies the SKU matches, normalizes, uploads images,
- * and imports to WC. Self-contained — no pipeline dependencies.
+ * Accepts a single SKU or the catalog.json file directly. Walks the catalog
+ * tree, extracts products with their catalog context (section, brand,
+ * wc_category), fetches from KicksDB, normalizes, uploads images, and
+ * imports to WC. Self-contained — no pipeline dependencies.
  *
  * @package ResellPiacenza\Import
  */
@@ -32,18 +32,21 @@ Quick Add — Add products from KicksDB to WooCommerce
 Usage:
   bin/quick-add --sku=DD1391-100                     # Single product
   bin/quick-add --sku=DD1391-100 "Nike Dunk Low"     # SKU + title hint
-  bin/quick-add --file=products.json                  # Batch from JSON
+  bin/quick-add --file=data/catalog.json              # Full catalog import
 
-JSON file format (array of {sku, title} objects):
-  [
+Reads catalog.json directly — same file used by catalog-build. Products
+are {sku, title} objects inside each section's products arrays:
+
+  "products": [
     {"sku": "DD1391-100", "title": "Nike Dunk Low Retro White Black"},
-    {"sku": "FQ6965-700", "title": "Nike Dunk Low LX Phantom Khaki (Women's)"},
-    {"sku": "FD6900-200", "title": ""}
+    {"sku": "FQ6965-700", "title": "Nike Dunk Low LX Phantom Khaki"}
   ]
+
+Each section's wc_category is applied automatically (no --category needed).
 
 Options:
   --sku=SKU                 Single product SKU
-  --file=FILE               JSON file with [{sku, title}] array
+  --file=FILE               Catalog JSON file (data/catalog.json)
   --category=KEY            Override WC category (sneakers|clothing|accessories)
   --skip-media              Don't upload images
   --dry-run                 Preview without importing
@@ -53,9 +56,8 @@ Options:
 Examples:
   bin/quick-add --sku=DD1391-100
   bin/quick-add --sku=DD1391-100 "Nike Dunk Low Retro White Black"
-  bin/quick-add --file=data/quick-add.json --dry-run --verbose
-  bin/quick-add --file=data/quick-add.json --category=sneakers
-
+  bin/quick-add --file=data/catalog.json --dry-run --verbose
+  bin/quick-add --file=data/catalog.json --skip-media
 
 HELP;
     exit(0);
@@ -117,10 +119,43 @@ $client = new KicksDbClient($api_key, [
 // Build product list from input
 // ============================================================================
 
-$entries = []; // [{sku, title}, ...]
+/**
+ * Walk a products array and yield {sku, title} pairs.
+ * Supports: [{"sku":"X","title":"Y"}], {"X":"Y"}, ["X","Y"]
+ */
+function walkProducts($products): array
+{
+    if (empty($products)) {
+        return [];
+    }
+    $products = (array) $products;
+
+    // Array of {sku, title} objects
+    if (isset($products[0]) && is_array($products[0]) && isset($products[0]['sku'])) {
+        return array_map(function ($p) {
+            return ['sku' => $p['sku'], 'title' => $p['title'] ?? ''];
+        }, $products);
+    }
+
+    // Old format: indexed array of SKU strings ["DD1391-100", ...]
+    if (isset($products[0]) && is_string($products[0])) {
+        return array_map(function ($sku) {
+            return ['sku' => $sku, 'title' => ''];
+        }, $products);
+    }
+
+    // Associative format: {"SKU": "title", ...}
+    $result = [];
+    foreach ($products as $sku => $title) {
+        $result[] = ['sku' => (string) $sku, 'title' => (string) $title];
+    }
+    return $result;
+}
+
+$entries = []; // [{sku, title, wc_category}, ...]
 
 if ($opt_file) {
-    // Batch mode: load JSON file
+    // File mode: load catalog JSON
     $file_path = $opt_file;
     if ($file_path[0] !== '/') {
         $file_path = Config::projectRoot() . '/' . $file_path;
@@ -131,19 +166,38 @@ if ($opt_file) {
     }
 
     $json = json_decode(file_get_contents($file_path), true);
-    if (!is_array($json)) {
-        $logger->error("Invalid JSON file: {$file_path}");
+    if (!is_array($json) || empty($json['sections'])) {
+        $logger->error("Invalid catalog file (must have 'sections' array): {$file_path}");
         exit(1);
     }
 
-    // Format: [{"sku": "...", "title": "..."}, ...]
-    foreach ($json as $item) {
-        $sku = $item['sku'] ?? '';
-        $title = $item['title'] ?? '';
-        if (empty($sku)) {
-            continue;
+    // Walk catalog tree — same structure as catalog.json / catalog-fetch
+    foreach ($json['sections'] as $section) {
+        $wc_category = $section['wc_category'] ?? null;
+
+        // Brand-based sections (Sneakers, Abbigliamento)
+        foreach ($section['brands'] ?? [] as $brand) {
+            if (!empty($brand['subcategories'])) {
+                // Sneakers-style: brands[].subcategories[].products[]
+                foreach ($brand['subcategories'] as $subcat) {
+                    foreach (walkProducts($subcat['products'] ?? []) as $p) {
+                        $entries[] = ['sku' => $p['sku'], 'title' => $p['title'], 'wc_category' => $wc_category];
+                    }
+                }
+            } else {
+                // Clothing-style: brands[].products[]
+                foreach (walkProducts($brand['products'] ?? []) as $p) {
+                    $entries[] = ['sku' => $p['sku'], 'title' => $p['title'], 'wc_category' => $wc_category];
+                }
+            }
         }
-        $entries[] = ['sku' => $sku, 'title' => $title];
+
+        // Query-based sections (Accessori)
+        foreach ($section['items'] ?? [] as $item) {
+            foreach (walkProducts($item['products'] ?? []) as $p) {
+                $entries[] = ['sku' => $p['sku'], 'title' => $p['title'], 'wc_category' => $wc_category];
+            }
+        }
     }
 
     if (empty($entries)) {
@@ -152,7 +206,7 @@ if ($opt_file) {
     }
 } else {
     // Single mode
-    $entries[] = ['sku' => $opt_sku, 'title' => $opt_title ?? ''];
+    $entries[] = ['sku' => $opt_sku, 'title' => $opt_title ?? '', 'wc_category' => null];
 }
 
 // ============================================================================
@@ -191,6 +245,7 @@ $wc_products = []; // Collect all WC payloads for batch import
 foreach ($entries as $idx => $entry) {
     $sku = $entry['sku'];
     $title = $entry['title'];
+    $wc_category = $entry['wc_category'] ?? null;
     $progress = ($idx + 1) . "/{$total}";
 
     $logger->info("---------- [{$progress}] {$sku}" . ($title ? " — {$title}" : '') . " ----------");
@@ -288,9 +343,11 @@ foreach ($entries as $idx => $entry) {
         continue;
     }
 
-    // Override category if specified
+    // Category: CLI override > catalog wc_category > KicksDB product_type
     if ($opt_category) {
         $normalized['category_type'] = $opt_category;
+    } elseif ($wc_category) {
+        $normalized['category_type'] = $wc_category;
     }
 
     $logger->info("  Normalized: " . count($normalized['variations']) . " variations");
