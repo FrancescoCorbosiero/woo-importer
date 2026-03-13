@@ -288,36 +288,79 @@ if ($opt_replace) {
         $logger->info("  Found " . count($ids_to_delete) . " existing products to delete");
 
         if (!$opt_dry_run) {
-            // Small batches (10) to avoid WC timeouts — each product has many variations
-            $id_chunks = array_chunk(array_values($ids_to_delete), 10);
-            $total_batches = count($id_chunks);
+            // Concurrent deletion: 5 batch requests of 10 IDs each running in parallel
+            // via curl_multi. This is ~5x faster than sequential batch calls.
+            $batch_size = 10;
+            $concurrency = 5;
+            $all_ids = array_values($ids_to_delete);
+            $id_chunks = array_chunk($all_ids, $batch_size);
+            $total_chunks = count($id_chunks);
             $deleted = 0;
+            $failed = 0;
 
-            foreach ($id_chunks as $batch_num => $chunk) {
-                $batch_label = ($batch_num + 1) . "/{$total_batches}";
-                $retries = 0;
-                $success = false;
+            $wc_version = $config['woocommerce']['version'] ?? 'wc/v3';
+            $batch_url = rtrim($wc_url, '/') . "/wp-json/{$wc_version}/products/batch";
+            $auth = base64_encode(
+                $config['woocommerce']['consumer_key'] . ':' .
+                $config['woocommerce']['consumer_secret']
+            );
 
-                while (!$success && $retries < 3) {
-                    try {
-                        $replace_wc->post('products/batch', ['delete' => $chunk]);
-                        $deleted += count($chunk);
-                        $logger->info("  Batch {$batch_label}: deleted " . count($chunk) . " products ({$deleted}/" . count($ids_to_delete) . ")");
-                        $success = true;
-                    } catch (\Exception $e) {
-                        $retries++;
-                        if ($retries < 3) {
-                            $wait = $retries * 5;
-                            $logger->warning("  Batch {$batch_label}: timeout, retrying in {$wait}s ({$retries}/3)...");
-                            sleep($wait);
-                        } else {
-                            $logger->error("  Batch {$batch_label}: failed after 3 retries: " . $e->getMessage());
-                        }
-                    }
+            // Process in groups of $concurrency concurrent requests
+            $groups = array_chunk($id_chunks, $concurrency);
+
+            foreach ($groups as $group_idx => $group) {
+                $mh = curl_multi_init();
+                $handles = [];
+
+                foreach ($group as $chunk_offset => $chunk) {
+                    $ch = curl_init();
+                    $body = json_encode(['delete' => $chunk]);
+                    curl_setopt_array($ch, [
+                        CURLOPT_URL => $batch_url,
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_POST => true,
+                        CURLOPT_POSTFIELDS => $body,
+                        CURLOPT_HTTPHEADER => [
+                            "Authorization: Basic {$auth}",
+                            'Content-Type: application/json',
+                        ],
+                        CURLOPT_TIMEOUT => 300,
+                        CURLOPT_SSL_VERIFYPEER => false,
+                    ]);
+                    curl_multi_add_handle($mh, $ch);
+                    $handles[] = ['ch' => $ch, 'count' => count($chunk)];
                 }
+
+                // Execute all concurrent requests
+                do {
+                    $status = curl_multi_exec($mh, $running);
+                    if ($running > 0) {
+                        curl_multi_select($mh, 1);
+                    }
+                } while ($running > 0 && $status === CURLM_OK);
+
+                // Collect results
+                foreach ($handles as $h) {
+                    $http_code = curl_getinfo($h['ch'], CURLINFO_HTTP_CODE);
+                    if ($http_code >= 200 && $http_code < 300) {
+                        $deleted += $h['count'];
+                    } else {
+                        $error = curl_error($h['ch']);
+                        $failed += $h['count'];
+                        $logger->warning("  Delete batch failed: HTTP {$http_code}" . ($error ? " ({$error})" : ''));
+                    }
+                    curl_multi_remove_handle($mh, $h['ch']);
+                    curl_close($h['ch']);
+                }
+
+                curl_multi_close($mh);
+
+                $processed = $deleted + $failed;
+                $logger->info("  Progress: {$deleted} deleted, {$failed} failed / " . count($all_ids) . " total");
             }
 
-            $logger->info("  Delete complete: {$deleted}/" . count($ids_to_delete) . " products removed");
+            $logger->info("  Delete complete: {$deleted}/" . count($all_ids) . " products removed"
+                . ($failed > 0 ? " ({$failed} failed)" : ''));
         } else {
             $logger->info("  [DRY RUN] Would delete " . count($ids_to_delete) . " products");
         }
