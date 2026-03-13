@@ -604,8 +604,19 @@ class TaxonomyManager
                 // Auto-derived subcategories (no keyword matching needed)
                 $subcat_names = [];
 
-                if ($discovery_mode === 'brand') {
-                    // Brand-mode without explicit subcategories: queries = sub-categories
+                // Curated catalog: brands[].subcategories[].name = sub-categories
+                // e.g. Sneakers > Nike Dunk, Sneakers > Jordan 4
+                foreach ($section['brands'] ?? [] as $brand_entry) {
+                    foreach ($brand_entry['subcategories'] ?? [] as $subcat) {
+                        $name = $subcat['name'] ?? '';
+                        if ($name && !in_array($name, $subcat_names)) {
+                            $subcat_names[] = $name;
+                        }
+                    }
+                }
+
+                if (empty($subcat_names) && $discovery_mode === 'brand') {
+                    // Discovery mode fallback: queries = sub-categories
                     // e.g. Sneakers > Nike Dunk, Sneakers > Jordan 1
                     foreach ($section['brands'] ?? [] as $brand_entry) {
                         foreach ($brand_entry['queries'] ?? [] as $query) {
@@ -615,7 +626,9 @@ class TaxonomyManager
                             }
                         }
                     }
-                } elseif ($discovery_mode === 'query') {
+                }
+
+                if (empty($subcat_names) && $discovery_mode === 'query') {
                     // Query-mode: item labels = sub-categories
                     // e.g. Accessori > Beanie, Accessori > Labubu
                     foreach ($section['items'] ?? [] as $item) {
