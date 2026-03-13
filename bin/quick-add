@@ -3,14 +3,10 @@
 /**
  * Quick Add — Fetch products from KicksDB and import to WooCommerce
  *
- * Handy tool for rapidly adding products to the store. Accepts a single
- * SKU or a text file with a list of SKU + title pairs. Searches KicksDB,
- * verifies the SKU matches, normalizes, uploads images, and imports to WC.
- * Self-contained — does not depend on any pipeline or intermediate files.
- *
- * File format (one product per line):
- *   SKU  Title
- *   Lines without a valid SKU are ignored (use them as headers/comments).
+ * Accepts a single SKU or a JSON file with {SKU: title} pairs (same format
+ * as catalog.json products). For each product, searches KicksDB using the
+ * title as hint, verifies the SKU matches, normalizes, uploads images,
+ * and imports to WC. Self-contained — no pipeline dependencies.
  *
  * @package ResellPiacenza\Import
  */
@@ -34,21 +30,20 @@ if (in_array('--help', $argv) || in_array('-h', $argv)) {
 Quick Add — Add products from KicksDB to WooCommerce
 
 Usage:
-  bin/quick-add --sku=DD1391-100                     # Single product by SKU
-  bin/quick-add --sku=DD1391-100 "Nike Dunk Low"     # SKU + title hint (better search)
-  bin/quick-add --file=products.txt                   # Batch from text file
+  bin/quick-add --sku=DD1391-100                     # Single product
+  bin/quick-add --sku=DD1391-100 "Nike Dunk Low"     # SKU + title hint
+  bin/quick-add --file=products.json                  # Batch from JSON
 
-File format (one product per line, SKU + optional title):
-  DD1391-100  Nike Dunk Low Retro White Black
-  FQ6965-700  Nike Dunk Low LX Phantom Khaki (Women's)
-  AA3830-002  Nike Air Presto Off-White Black (2018)
-
-  Lines without a valid SKU pattern are ignored — use them as
-  section headers, comments, or visual separators.
+JSON file format (same as catalog.json products):
+  {
+    "DD1391-100": "Nike Dunk Low Retro White Black",
+    "FQ6965-700": "Nike Dunk Low LX Phantom Khaki (Women's)",
+    "FD6900-200": ""
+  }
 
 Options:
-  --sku=SKU                 Single product SKU (required in single mode)
-  --file=FILE               Text file with SKU + title list (batch mode)
+  --sku=SKU                 Single product SKU
+  --file=FILE               JSON file with {"SKU": "title"} pairs
   --category=KEY            Override WC category (sneakers|clothing|accessories)
   --skip-media              Don't upload images
   --dry-run                 Preview without importing
@@ -58,8 +53,9 @@ Options:
 Examples:
   bin/quick-add --sku=DD1391-100
   bin/quick-add --sku=DD1391-100 "Nike Dunk Low Retro White Black"
-  bin/quick-add --file=data/quick-add.txt --dry-run --verbose
-  bin/quick-add --file=data/quick-add.txt --category=sneakers --skip-media
+  bin/quick-add --file=data/quick-add.json --dry-run --verbose
+  bin/quick-add --file=data/quick-add.json --category=sneakers
+
 
 HELP;
     exit(0);
@@ -89,7 +85,7 @@ foreach ($argv as $i => $arg) {
 }
 
 if (!$opt_sku && !$opt_file) {
-    echo "Usage: bin/quick-add --sku=SKU or bin/quick-add --file=FILE\n";
+    echo "Usage: bin/quick-add --sku=SKU or bin/quick-add --file=products.json\n";
     echo "Run bin/quick-add --help for details.\n";
     exit(1);
 }
@@ -118,13 +114,13 @@ $client = new KicksDbClient($api_key, [
 ], $logger);
 
 // ============================================================================
-// Build product list
+// Build product list from input
 // ============================================================================
 
 $entries = []; // [{sku, title}, ...]
 
 if ($opt_file) {
-    // Batch mode: parse text file
+    // Batch mode: load JSON file
     $file_path = $opt_file;
     if ($file_path[0] !== '/') {
         $file_path = Config::projectRoot() . '/' . $file_path;
@@ -134,26 +130,19 @@ if ($opt_file) {
         exit(1);
     }
 
-    $lines = file($file_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        // Normalize unicode dashes (en-dash, em-dash) to ASCII hyphen
-        $line = str_replace(['–', '—'], '-', $line);
-        $line = trim($line);
-        if (empty($line)) continue;
+    $json = json_decode(file_get_contents($file_path), true);
+    if (!is_array($json)) {
+        $logger->error("Invalid JSON file: {$file_path}");
+        exit(1);
+    }
 
-        // Try to extract a SKU pattern: 2+ alphanumeric chars, hyphen, 1+ alphanumeric
-        // Matches: DD1391-100, AA3830-002, CU9225-001, D06290-100, HF8813-500
-        if (preg_match('/\b([A-Z0-9]{2,}-[A-Z0-9]+)\b/i', $line, $m)) {
-            $sku = strtoupper($m[1]);
-            // Title = everything after the SKU, trimmed
-            $after = trim(substr($line, strpos($line, $m[0]) + strlen($m[0])));
-            $entries[] = ['sku' => $sku, 'title' => $after];
-        }
-        // Lines without SKU pattern are headers/comments — skip silently
+    // Format: {"SKU": "title", ...}
+    foreach ($json as $sku => $title) {
+        $entries[] = ['sku' => (string) $sku, 'title' => (string) $title];
     }
 
     if (empty($entries)) {
-        $logger->error("No valid SKUs found in {$opt_file}");
+        $logger->error("No products found in {$opt_file}");
         exit(1);
     }
 } else {
