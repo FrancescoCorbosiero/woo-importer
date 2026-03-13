@@ -56,9 +56,14 @@ CSV format:
   - Marca: Brand name (empty for Accessori)
   - Sottocategoria: Subcategory (product line for Sneakers, item name for Accessori, empty for Abbigliamento)
   - SKU: Product SKU from KicksDB (empty rows define structure only)
-  - Titolo: Product title from KicksDB (reference-only, ignored by importer)
-  - Query: KicksDB search query used to find this product (reference-only, ignored by importer)
+  - Titolo: Product title — used as KicksDB search query in catalog-fetch
+  - Query: KicksDB search query (reference-only for human editors)
   - Remaining columns are ignored (reference-only for human editors)
+
+Output format:
+  Products are stored as {"SKU": "title"} objects in catalog.json.
+  The title is used by catalog-fetch to search KicksDB by name (more reliable
+  than raw SKU lookup). Order is preserved for menu_order.
 
 Examples:
   bin/catalog-csv-import                              # Default: data/catalog.csv → data/catalog.json
@@ -143,6 +148,7 @@ $col_sezione = $col_map['sezione'] ?? 0;
 $col_marca = $col_map['marca'] ?? 1;
 $col_sottocategoria = $col_map['sottocategoria'] ?? 2;
 $col_sku = $col_map['sku'] ?? 3;
+$col_titolo = $col_map['titolo'] ?? ($col_map['title'] ?? null);
 
 // Collect rows
 $rows = [];
@@ -165,11 +171,14 @@ while (($row = fgetcsv($handle)) !== false) {
         continue;
     }
 
+    $titolo = ($col_titolo !== null) ? trim($row[$col_titolo] ?? '') : '';
+
     $rows[] = [
         'sezione' => $sezione,
         'marca' => $marca,
         'sottocategoria' => $sottocategoria,
         'sku' => $sku,
+        'titolo' => $titolo,
     ];
 }
 fclose($handle);
@@ -196,6 +205,38 @@ $section_wc_categories = [
 $sections = []; // name → section data
 $section_order = []; // preserve CSV section order
 $existing_skus = []; // SKU set for --merge deduplication
+
+/**
+ * Normalize a products field from catalog.json to associative array {SKU: title}.
+ * Handles both old format (indexed array of strings) and new format (object/assoc array).
+ */
+function normalizeProducts($products): array
+{
+    if (empty($products)) {
+        return [];
+    }
+    $products = (array) $products;
+
+    // Check if it's the old indexed array format: ["SKU1", "SKU2"]
+    if (isset($products[0]) && is_string($products[0])) {
+        $normalized = [];
+        foreach ($products as $sku) {
+            $normalized[$sku] = '';
+        }
+        return $normalized;
+    }
+
+    // Already associative {SKU: title} or mixed — keep as-is
+    return $products;
+}
+
+/**
+ * Extract SKU keys from a products field (handles both old and new format).
+ */
+function extractSkus($products): array
+{
+    return array_keys(normalizeProducts($products));
+}
 
 // ============================================================================
 // Pre-populate from existing catalog when --merge is active
@@ -227,26 +268,28 @@ if ($opt_merge && $base_catalog && !empty($base_catalog['sections'])) {
         foreach ($base_sec['brands'] ?? [] as $brand) {
             $brand_name = $brand['name'];
             $sections[$sezione]['_brands'][] = $brand_name;
+            $brand_products = normalizeProducts($brand['products'] ?? []);
             $sections[$sezione]['_brand_data'][$brand_name] = [
                 'name' => $brand_name,
-                'products' => $brand['products'] ?? [],
+                'products' => $brand_products,
                 '_subcats' => [],
                 '_subcat_data' => [],
             ];
 
-            foreach ($brand['products'] ?? [] as $sku) {
+            foreach (array_keys($brand_products) as $sku) {
                 $existing_skus[$sku] = true;
             }
 
             foreach ($brand['subcategories'] ?? [] as $subcat) {
                 $subcat_name = $subcat['name'];
+                $subcat_products = normalizeProducts($subcat['products'] ?? []);
                 $sections[$sezione]['_brand_data'][$brand_name]['_subcats'][] = $subcat_name;
                 $sections[$sezione]['_brand_data'][$brand_name]['_subcat_data'][$subcat_name] = [
                     'name' => $subcat_name,
-                    'products' => $subcat['products'] ?? [],
+                    'products' => $subcat_products,
                 ];
 
-                foreach ($subcat['products'] ?? [] as $sku) {
+                foreach (array_keys($subcat_products) as $sku) {
                     $existing_skus[$sku] = true;
                 }
             }
@@ -257,14 +300,15 @@ if ($opt_merge && $base_catalog && !empty($base_catalog['sections'])) {
             $item_name = $item['name'];
             $sections[$sezione]['_items'][] = $item_name;
 
-            $item_data = ['name' => $item_name, 'products' => $item['products'] ?? []];
+            $item_products = normalizeProducts($item['products'] ?? []);
+            $item_data = ['name' => $item_name, 'products' => $item_products];
             if (!empty($item['product_types'])) {
                 $item_data['product_types'] = $item['product_types'];
             }
 
             $sections[$sezione]['_item_data'][$item_name] = $item_data;
 
-            foreach ($item['products'] ?? [] as $sku) {
+            foreach (array_keys($item_products) as $sku) {
                 $existing_skus[$sku] = true;
             }
         }
@@ -313,8 +357,11 @@ foreach ($rows as $row) {
     $is_accessori = empty($marca) && !empty($sottocategoria);
     $is_brand = !empty($marca);
 
+    // Product title from CSV (empty string if not available)
+    $titolo = $row['titolo'] ?? '';
+
     if ($is_accessori) {
-        // Accessori: items[].products[]
+        // Accessori: items[].products{}
         if (!isset($sec['_item_data'][$sottocategoria])) {
             $sec['_items'][] = $sottocategoria;
 
@@ -343,7 +390,7 @@ foreach ($rows as $row) {
                     fwrite(STDERR, "  SKIP duplicate SKU: {$sku}\n");
                 }
             } else {
-                $sec['_item_data'][$sottocategoria]['products'][] = $sku;
+                $sec['_item_data'][$sottocategoria]['products'][$sku] = $titolo;
                 $existing_skus[$sku] = true;
                 $skus_added++;
             }
@@ -363,7 +410,7 @@ foreach ($rows as $row) {
         $brand = &$sec['_brand_data'][$marca];
 
         if (!empty($sottocategoria)) {
-            // Sneakers-style: brands[].subcategories[].products[]
+            // Sneakers-style: brands[].subcategories[].products{}
             if (!isset($brand['_subcat_data'][$sottocategoria])) {
                 $brand['_subcats'][] = $sottocategoria;
                 $brand['_subcat_data'][$sottocategoria] = ['name' => $sottocategoria, 'products' => []];
@@ -375,7 +422,7 @@ foreach ($rows as $row) {
                         fwrite(STDERR, "  SKIP duplicate SKU: {$sku}\n");
                     }
                 } else {
-                    $brand['_subcat_data'][$sottocategoria]['products'][] = $sku;
+                    $brand['_subcat_data'][$sottocategoria]['products'][$sku] = $titolo;
                     $existing_skus[$sku] = true;
                     $skus_added++;
                 }
@@ -389,7 +436,7 @@ foreach ($rows as $row) {
                         fwrite(STDERR, "  SKIP duplicate SKU: {$sku}\n");
                     }
                 } else {
-                    $brand['products'][] = $sku;
+                    $brand['products'][$sku] = $titolo;
                     $existing_skus[$sku] = true;
                     $skus_added++;
                 }
@@ -430,7 +477,7 @@ foreach ($section_order as $sezione) {
             $brand_out = ['name' => $brand['name']];
 
             $has_subcats = !empty($brand['_subcats']);
-            $has_flat = !empty($brand['products']);
+            $has_flat = is_array($brand['products']) && count($brand['products']) > 0;
 
             if ($has_subcats) {
                 // Sneakers-style with subcategories
@@ -442,7 +489,7 @@ foreach ($section_order as $sezione) {
                     $default_subcat_name = $brand['name'] . ' Altro';
                     $brand_out['subcategories'][] = [
                         'name' => $default_subcat_name,
-                        'products' => $brand['products'],
+                        'products' => (object) $brand['products'],
                     ];
                     $total_skus += count($brand['products']);
                 }
@@ -451,14 +498,17 @@ foreach ($section_order as $sezione) {
                     $subcat = $brand['_subcat_data'][$subcat_name];
                     $brand_out['subcategories'][] = [
                         'name' => $subcat['name'],
-                        'products' => $subcat['products'],
+                        'products' => empty($subcat['products']) ? new \stdClass() : (object) $subcat['products'],
                     ];
                     $total_skus += count($subcat['products']);
                 }
             } elseif ($has_flat) {
                 // Abbigliamento-style flat products only
-                $brand_out['products'] = $brand['products'];
-                $total_skus += count($brand_out['products']);
+                $brand_out['products'] = (object) $brand['products'];
+                $total_skus += count($brand['products']);
+            } else {
+                // Empty products — output as empty object {}
+                $brand_out['products'] = new \stdClass();
             }
 
             $section_out['brands'][] = $brand_out;
@@ -476,7 +526,7 @@ foreach ($section_order as $sezione) {
                 $item_out['product_types'] = $item['product_types'];
             }
 
-            $item_out['products'] = $item['products'];
+            $item_out['products'] = empty($item['products']) ? new \stdClass() : (object) $item['products'];
             $total_skus += count($item['products']);
             $section_out['items'][] = $item_out;
         }
@@ -500,14 +550,14 @@ foreach ($catalog['sections'] as $sec) {
     foreach ($sec['brands'] ?? [] as $b) {
         if (isset($b['subcategories'])) {
             foreach ($b['subcategories'] as $sc) {
-                $sec_skus += count($sc['products']);
+                $sec_skus += count((array) $sc['products']);
             }
         } else {
-            $sec_skus += count($b['products'] ?? []);
+            $sec_skus += count((array) ($b['products'] ?? []));
         }
     }
     foreach ($sec['items'] ?? [] as $item) {
-        $sec_skus += count($item['products']);
+        $sec_skus += count((array) $item['products']);
     }
     echo "  {$sec['name']}: {$sec_skus} SKUs\n";
 }

@@ -146,8 +146,35 @@ $logger->info('  Curated SKUs → KicksDB');
 $logger->info('========================================');
 $logger->info("  Catalog:    {$catalog_file}");
 
-$sku_entries = []; // Ordered list of [sku, catalog_brand, catalog_subcategory, catalog_section, catalog_wc_category, catalog_discovery]
+$sku_entries = []; // Ordered list of [sku, title, catalog_brand, catalog_subcategory, catalog_section, catalog_wc_category, catalog_discovery]
 $position = 0;
+
+/**
+ * Walk a products field from catalog.json and yield [sku, title] pairs.
+ * Handles both old format (indexed array: ["SKU1", "SKU2"]) and
+ * new format (object/assoc array: {"SKU1": "title1", "SKU2": "title2"}).
+ */
+function walkProducts($products): array
+{
+    if (empty($products)) {
+        return [];
+    }
+    $products = (array) $products;
+
+    // Old format: indexed array of SKU strings
+    if (isset($products[0]) && is_string($products[0])) {
+        return array_map(function ($sku) {
+            return ['sku' => $sku, 'title' => ''];
+        }, $products);
+    }
+
+    // New format: associative {SKU: title}
+    $result = [];
+    foreach ($products as $sku => $title) {
+        $result[] = ['sku' => (string) $sku, 'title' => (string) $title];
+    }
+    return $result;
+}
 
 foreach ($catalog['sections'] as $section) {
     $section_name = $section['name'] ?? 'Unknown';
@@ -161,12 +188,13 @@ foreach ($catalog['sections'] as $section) {
             $brand_name = $brand['name'] ?? '';
 
             if (!empty($brand['subcategories'])) {
-                // Sneakers-style: brands[].subcategories[].products[]
+                // Sneakers-style: brands[].subcategories[].products{}
                 foreach ($brand['subcategories'] as $subcat) {
                     $subcat_name = $subcat['name'] ?? '';
-                    foreach ($subcat['products'] ?? [] as $sku) {
+                    foreach (walkProducts($subcat['products'] ?? []) as $p) {
                         $sku_entries[] = [
-                            'sku' => $sku,
+                            'sku' => $p['sku'],
+                            'title' => $p['title'],
                             'catalog_brand' => $brand_name,
                             'catalog_subcategory' => $subcat_name,
                             'catalog_section' => $section_slug,
@@ -177,10 +205,11 @@ foreach ($catalog['sections'] as $section) {
                     }
                 }
             } else {
-                // Clothing-style: brands[].products[] (keyword subcategories)
-                foreach ($brand['products'] ?? [] as $sku) {
+                // Clothing-style: brands[].products{} (keyword subcategories)
+                foreach (walkProducts($brand['products'] ?? []) as $p) {
                     $sku_entries[] = [
-                        'sku' => $sku,
+                        'sku' => $p['sku'],
+                        'title' => $p['title'],
                         'catalog_brand' => $brand_name,
                         'catalog_subcategory' => $brand_name,
                         'catalog_section' => $section_slug,
@@ -197,9 +226,10 @@ foreach ($catalog['sections'] as $section) {
         // Query-based sections (Accessori)
         foreach ($section['items'] as $item) {
             $item_name = $item['name'] ?? $item['label'] ?? '';
-            foreach ($item['products'] ?? [] as $sku) {
+            foreach (walkProducts($item['products'] ?? []) as $p) {
                 $sku_entries[] = [
-                    'sku' => $sku,
+                    'sku' => $p['sku'],
+                    'title' => $p['title'],
                     'catalog_brand' => '',
                     'catalog_subcategory' => $item_name,
                     'catalog_section' => $section_slug,
@@ -372,29 +402,57 @@ foreach ($sku_entries as $entry) {
     }
 
     // Fetch from KicksDB API
-    $result = $client->getStockXProduct($sku, $market);
-    $api_calls++;
+    // Strategy: use title-based browseProducts (rich_display) when title is available,
+    // fall back to direct SKU lookup otherwise
+    $catalog_title = $entry['title'] ?? '';
+    $item = null;
 
-    if ($result === null) {
+    if (!empty($catalog_title)) {
+        // Title-based search: more reliable than raw SKU lookup
+        $browse_result = $client->browseProducts($catalog_title, 5, $market, 1, null, null, null, true);
+        $api_calls++;
+
+        $candidates = $browse_result['data'] ?? [];
+        if (is_array($candidates)) {
+            foreach ($candidates as $candidate) {
+                $candidate_sku = $candidate['sku'] ?? '';
+                if (!empty($candidate_sku) && strcasecmp($candidate_sku, $sku) === 0) {
+                    $item = $candidate;
+                    break;
+                }
+            }
+        }
+
+        if ($item === null) {
+            $logger->debug("    Title search no SKU match for {$sku}, trying direct lookup...");
+        }
+    }
+
+    // Fallback: direct SKU lookup
+    if ($item === null) {
+        $result = $client->getStockXProduct($sku, $market);
+        $api_calls++;
+
+        if ($result !== null) {
+            // Unwrap response (getStockXProduct may wrap in data envelope)
+            $item = $result['data'] ?? $result;
+            if (isset($item['data']) && is_array($item['data']) && isset($item['data']['sku'])) {
+                $item = $item['data'];
+            }
+
+            // Verify SKU matches
+            $returned_sku = $item['sku'] ?? '';
+            if (!empty($returned_sku) && strcasecmp($returned_sku, $sku) !== 0) {
+                $item = null;
+                $logger->debug("    Direct lookup MISMATCH: requested {$sku}, got {$returned_sku}");
+            }
+        }
+    }
+
+    if ($item === null) {
         $not_found++;
-        $logger->warning("    NOT FOUND: {$sku}");
+        $logger->warning("    NOT FOUND: {$sku}" . (!empty($catalog_title) ? " ({$catalog_title})" : ''));
         // Cache the miss to avoid re-fetching
-        $product_cache[$sku] = ['_cached_at' => $now, 'data' => null];
-        usleep(200000);
-        continue;
-    }
-
-    // Unwrap response (getStockXProduct may wrap in data envelope)
-    $item = $result['data'] ?? $result;
-    if (isset($item['data']) && is_array($item['data']) && isset($item['data']['sku'])) {
-        $item = $item['data'];
-    }
-
-    // Verify SKU matches (getStockXProduct might return a different product via fallback search)
-    $returned_sku = $item['sku'] ?? '';
-    if (!empty($returned_sku) && strcasecmp($returned_sku, $sku) !== 0) {
-        $not_found++;
-        $logger->warning("    MISMATCH: requested {$sku}, got {$returned_sku} — skipping");
         $product_cache[$sku] = ['_cached_at' => $now, 'data' => null];
         usleep(200000);
         continue;
