@@ -1,0 +1,502 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Quick Add — Fetch a single product from KicksDB and import to WooCommerce
+ *
+ * Handy tool for rapidly adding products to the store. Searches KicksDB by
+ * title or SKU, normalizes the product, uploads images, and imports to WC.
+ * Self-contained — does not depend on any pipeline or intermediate files.
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\KicksDb\Client as KicksDbClient;
+use ResellPiacenza\Import\KicksDbAdapter;
+use ResellPiacenza\Import\WcProductBuilder;
+use ResellPiacenza\Import\WooCommerceImporter;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Quick Add — Add a single product from KicksDB to WooCommerce
+
+Usage:
+  bin/quick-add <query>                    # Search by title (recommended)
+  bin/quick-add --sku=DD1391-100           # Direct SKU lookup
+  bin/quick-add "Nike Dunk Low"            # Search by title
+
+Options:
+  --sku=SKU                 Direct SKU lookup (exact match)
+  --category=KEY            Override WC category (sneakers|clothing|accessories)
+  --skip-media              Don't upload images
+  --dry-run                 Preview without importing
+  --verbose, -v             Detailed output
+  --help, -h                Show help
+
+Examples:
+  bin/quick-add "Nike Dunk Low Retro White Black"
+  bin/quick-add --sku=DD1391-100
+  bin/quick-add "Supreme Box Logo Hoodie" --category=clothing
+  bin/quick-add --sku=DD1391-100 --dry-run --verbose
+
+HELP;
+    exit(0);
+}
+
+$opt_verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$opt_dry_run = in_array('--dry-run', $argv);
+$opt_skip_media = in_array('--skip-media', $argv);
+$opt_sku = null;
+$opt_category = null;
+$opt_query = null;
+
+foreach ($argv as $i => $arg) {
+    if ($i === 0) continue;
+    if (strpos($arg, '--sku=') === 0) {
+        $opt_sku = str_replace('--sku=', '', $arg);
+    } elseif (strpos($arg, '--category=') === 0) {
+        $opt_category = str_replace('--category=', '', $arg);
+    } elseif (strpos($arg, '-') !== 0) {
+        $opt_query = $arg;
+    }
+}
+
+if (!$opt_sku && !$opt_query) {
+    echo "Usage: bin/quick-add <query> or bin/quick-add --sku=SKU\n";
+    echo "Run bin/quick-add --help for details.\n";
+    exit(1);
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('QuickAdd', [
+    'file' => Config::projectRoot() . '/logs/quick-add.log',
+    'console_level' => $opt_verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Quick Add');
+$logger->info('========================================');
+
+if ($opt_sku) {
+    $logger->info("  SKU:      {$opt_sku}");
+} else {
+    $logger->info("  Query:    {$opt_query}");
+}
+if ($opt_category) {
+    $logger->info("  Category: {$opt_category}");
+}
+if ($opt_dry_run) {
+    $logger->warning('  DRY RUN');
+}
+$logger->info('');
+
+$api_key = $config['pricing']['kicksdb_api_key'] ?? '';
+if (empty($api_key)) {
+    $logger->error('KICKSDB_API_KEY not set in .env');
+    exit(1);
+}
+
+$market = $config['pricing']['kicksdb_market'] ?? 'IT';
+$client = new KicksDbClient($api_key, [
+    'base_url' => $config['pricing']['kicksdb_base_url'] ?? 'https://api.kicks.dev/v3',
+], $logger);
+
+// ============================================================================
+// Step 1: Find product on KicksDB
+// ============================================================================
+
+$logger->info('Step 1: Searching KicksDB...');
+
+$product_data = null;
+
+if ($opt_sku) {
+    // Direct SKU lookup
+    $result = $client->getStockXProduct($opt_sku, $market);
+    if ($result !== null) {
+        $product_data = $result['data'] ?? $result;
+        // Unwrap double-envelope
+        if (isset($product_data['data']) && is_array($product_data['data']) && isset($product_data['data']['sku'])) {
+            $product_data = $product_data['data'];
+        }
+    }
+} else {
+    // Title search — show results and pick best match (or let user see what's available)
+    $search = $client->browseProducts($opt_query, 5, $market, 1, null, null, null, true);
+    $candidates = $search['data'] ?? [];
+
+    if (empty($candidates)) {
+        $logger->error("No results for: {$opt_query}");
+        exit(1);
+    }
+
+    // Show candidates
+    $logger->info("  Found " . count($candidates) . " results:");
+    foreach ($candidates as $idx => $c) {
+        $c_sku = $c['sku'] ?? '(no sku)';
+        $c_title = $c['title'] ?? $c['name'] ?? '?';
+        $c_brand = $c['brand'] ?? '';
+        $num = $idx + 1;
+        $logger->info("    [{$num}] {$c_brand} {$c_title} ({$c_sku})");
+    }
+
+    // Interactive: ask which one
+    if (function_exists('readline') && !$opt_dry_run) {
+        $choice = readline("\n  Select product [1-" . count($candidates) . "] (default: 1): ");
+        $choice = trim($choice);
+        if ($choice === '' || $choice === '0') {
+            $choice = 1;
+        }
+        $choice = (int) $choice;
+    } else {
+        // Non-interactive: take first result
+        $choice = 1;
+    }
+
+    if ($choice < 1 || $choice > count($candidates)) {
+        $logger->error("Invalid choice: {$choice}");
+        exit(1);
+    }
+
+    $product_data = $candidates[$choice - 1];
+    $logger->info('');
+    $logger->info("  Selected: " . ($product_data['title'] ?? $product_data['name'] ?? '?'));
+}
+
+if ($product_data === null) {
+    $logger->error('Product not found on KicksDB');
+    exit(1);
+}
+
+$sku = $product_data['sku'] ?? $product_data['slug'] ?? '';
+if (empty($sku)) {
+    $logger->error('Product has no SKU or slug, cannot import');
+    exit(1);
+}
+
+$logger->info("  Product: " . ($product_data['title'] ?? '') . " ({$sku})");
+$logger->info("  Brand:   " . ($product_data['brand'] ?? ''));
+$logger->info("  Type:    " . ($product_data['product_type'] ?? 'sneakers'));
+
+// Ensure variants are loaded
+$variants = $product_data['variants'] ?? [];
+if (empty($variants)) {
+    $product_id = $product_data['id'] ?? $product_data['slug'] ?? $sku;
+    $logger->info("  Fetching variants for {$product_id}...");
+    $raw = $client->getStockXVariants($product_id, $market);
+    if ($raw !== null) {
+        $variants = $raw['data'] ?? $raw;
+        $product_data['variants'] = $variants;
+    }
+}
+
+$logger->info("  Variants: " . count($variants));
+
+if (empty($variants)) {
+    $logger->error('No variants found — cannot create product without sizes/prices');
+    exit(1);
+}
+
+// ============================================================================
+// Step 2: Normalize via KicksDbAdapter
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 2: Normalizing product...');
+
+// KicksDbAdapter expects SKUs and resolves via API/cache. We already have the
+// raw data, so we preload it to avoid a redundant API call.
+$adapter = new KicksDbAdapter($config, [$sku], $logger);
+$adapter->preloadFromAssortment([$sku => ['_raw' => $product_data]]);
+
+$normalized = null;
+foreach ($adapter->fetchProducts() as $product) {
+    $normalized = $product;
+    break;
+}
+
+if ($normalized === null) {
+    $logger->error('Failed to normalize product (no valid variations?)');
+    exit(1);
+}
+
+// Override category if specified
+if ($opt_category) {
+    $normalized['category_type'] = $opt_category;
+    $logger->info("  Category override: {$opt_category}");
+}
+
+$logger->info("  Name:       " . $normalized['name']);
+$logger->info("  Brand:      " . $normalized['brand']);
+$logger->info("  Variations: " . count($normalized['variations']));
+
+// ============================================================================
+// Step 3: Upload images (optional)
+// ============================================================================
+
+$logger->info('');
+if ($opt_skip_media || $opt_dry_run) {
+    $logger->info('Step 3: Image upload ' . ($opt_dry_run ? '(skipped in dry-run)' : '(skipped)'));
+} else {
+    $logger->info('Step 3: Uploading images...');
+
+    $image_url = $normalized['image_url'] ?? null;
+    $gallery_urls = $normalized['gallery_urls'] ?? [];
+
+    // Load existing image map
+    $image_map_file = Config::imageMapFile();
+    $image_map = [];
+    if (file_exists($image_map_file)) {
+        $image_map = json_decode(file_get_contents($image_map_file), true) ?: [];
+    }
+
+    // Skip if already uploaded
+    if (isset($image_map[$sku]['media_id'])) {
+        $logger->info("  Already uploaded: media_id={$image_map[$sku]['media_id']}");
+    } elseif ($image_url) {
+        $uploaded = uploadImage($config, $sku, $image_url, $normalized['name'], $normalized['brand'], $logger);
+        if ($uploaded) {
+            $image_map[$sku] = [
+                'media_id' => $uploaded,
+                'url' => $image_url,
+                'uploaded_at' => date('c'),
+                'gallery_ids' => [],
+            ];
+            $logger->info("  Primary image uploaded: media_id={$uploaded}");
+
+            // Upload gallery (first 4 images to keep it fast)
+            $gallery_ids = [];
+            $gallery_slice = array_slice($gallery_urls, 0, 4);
+            foreach ($gallery_slice as $gal_idx => $gal_url) {
+                $gal_sku = $sku . '-gallery-' . ($gal_idx + 1);
+                $gal_id = uploadImage($config, $gal_sku, $gal_url, $normalized['name'], $normalized['brand'], $logger);
+                if ($gal_id) {
+                    $gallery_ids[] = $gal_id;
+                    $logger->debug("    Gallery image " . ($gal_idx + 1) . ": media_id={$gal_id}");
+                }
+            }
+            $image_map[$sku]['gallery_ids'] = $gallery_ids;
+
+            if (!empty($gallery_ids)) {
+                $logger->info("  Gallery uploaded: " . count($gallery_ids) . " images");
+            }
+
+            // Save updated image map
+            file_put_contents(
+                $image_map_file,
+                json_encode($image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+            );
+        } else {
+            $logger->warning("  Image upload failed, product will be created without image");
+        }
+    } else {
+        $logger->info("  No image URL available");
+    }
+}
+
+// ============================================================================
+// Step 4: Build WC payload
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 4: Building WC product...');
+
+$builder = new WcProductBuilder($config, $logger);
+$wc_product = $builder->build($normalized);
+
+if ($wc_product === null) {
+    $logger->error('Failed to build WC product payload');
+    exit(1);
+}
+
+$type = $wc_product['type'] ?? 'variable';
+$var_count = count($wc_product['_variations'] ?? []);
+$img_count = count($wc_product['images'] ?? []);
+$logger->info("  Type:       {$type}");
+$logger->info("  Variations: {$var_count}");
+$logger->info("  Images:     {$img_count}");
+
+if ($opt_dry_run) {
+    $logger->info('');
+    $logger->info('[DRY RUN] Would import:');
+    $logger->info("  Name: {$wc_product['name']}");
+    $logger->info("  SKU:  {$wc_product['sku']}");
+    $logger->info("  Type: {$type}, {$var_count} variations, {$img_count} images");
+
+    if ($opt_verbose) {
+        $logger->debug('');
+        $logger->debug('Full WC payload:');
+        $logger->debug(json_encode($wc_product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    }
+
+    $duration = round(microtime(true) - $start_time, 1);
+    $logger->info('');
+    $logger->info("Done (dry-run) in {$duration}s");
+    exit(0);
+}
+
+// ============================================================================
+// Step 5: Import to WooCommerce
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 5: Importing to WooCommerce...');
+
+$importer = new WooCommerceImporter($config);
+$success = $importer->import([$wc_product]);
+
+if (!$success) {
+    $logger->error('Import failed');
+    exit(1);
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  QUICK ADD COMPLETE');
+$logger->info('========================================');
+$logger->info("  Product:    {$wc_product['name']}");
+$logger->info("  SKU:        {$sku}");
+$logger->info("  Type:       {$type}");
+$logger->info("  Variations: {$var_count}");
+$logger->info("  Images:     {$img_count}");
+$logger->info("  Duration:   {$duration}s");
+$logger->info('========================================');
+
+exit(0);
+
+// ============================================================================
+// Helper: Upload a single image to WordPress media library
+// ============================================================================
+
+/**
+ * Download an image and upload it to WordPress media library
+ *
+ * @param array $config Application config
+ * @param string $sku SKU for filename
+ * @param string $url Image URL
+ * @param string $product_name Product name for SEO metadata
+ * @param string $brand Brand name for SEO metadata
+ * @param object $logger Logger
+ * @return int|null WordPress media ID or null on failure
+ */
+function uploadImage(array $config, string $sku, string $url, string $product_name, string $brand, $logger): ?int
+{
+    // Sanitize StockX CDN URLs (fm=webp → fm=jpg to avoid MIME mismatch)
+    if (strpos($url, 'stockx') !== false) {
+        $url = preg_replace('/([?&])fm=webp/', '$1fm=jpg', $url);
+    }
+
+    // Download
+    $temp_file = tempnam(sys_get_temp_dir(), 'qa_img_');
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_USERAGENT => 'Mozilla/5.0',
+    ]);
+    $content = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($http_code !== 200 || empty($content)) {
+        @unlink($temp_file);
+        $logger->warning("  Image download failed: HTTP {$http_code} for {$url}");
+        return null;
+    }
+
+    file_put_contents($temp_file, $content);
+
+    // Validate
+    $info = @getimagesize($temp_file);
+    if ($info === false) {
+        @unlink($temp_file);
+        $logger->warning("  Invalid image format: {$url}");
+        return null;
+    }
+
+    $mime = $info['mime'];
+    $ext = image_type_to_extension($info[2], false);
+
+    // Upload to WordPress
+    $filename = preg_replace('/[^a-zA-Z0-9._-]/', '', $sku) . '.' . $ext;
+    $store = $config['store']['name'] ?? 'ResellPiacenza';
+
+    $alt_text = str_replace(
+        ['{product_name}', '{brand_name}', '{sku}', '{store_name}'],
+        [$product_name, $brand, $sku, $store],
+        $config['templates']['image_alt'] ?? '{product_name}'
+    );
+
+    $boundary = 'QuickAddUpload' . time() . rand(1000, 9999);
+    $file_content = file_get_contents($temp_file);
+
+    $body = "--{$boundary}\r\n";
+    $body .= "Content-Disposition: form-data; name=\"file\"; filename=\"{$filename}\"\r\n";
+    $body .= "Content-Type: {$mime}\r\n\r\n";
+    $body .= $file_content . "\r\n";
+
+    foreach (['title' => $product_name, 'alt_text' => $alt_text] as $field => $value) {
+        $body .= "--{$boundary}\r\n";
+        $body .= "Content-Disposition: form-data; name=\"{$field}\"\r\n\r\n";
+        $body .= $value . "\r\n";
+    }
+    $body .= "--{$boundary}--\r\n";
+
+    $wp_url = rtrim($config['woocommerce']['url'], '/') . '/wp-json/wp/v2/media';
+    $auth = base64_encode(
+        $config['wordpress']['username'] . ':' .
+        $config['wordpress']['app_password']
+    );
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $wp_url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: Basic {$auth}",
+            "Content-Type: multipart/form-data; boundary={$boundary}",
+        ],
+        CURLOPT_TIMEOUT => 60,
+    ]);
+
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    @unlink($temp_file);
+
+    if ($http_code !== 201) {
+        $error = json_decode($response, true);
+        $msg = $error['message'] ?? "HTTP {$http_code}";
+        $logger->warning("  Image upload failed: {$msg}");
+        return null;
+    }
+
+    $result = json_decode($response, true);
+    return $result['id'] ?? null;
+}
