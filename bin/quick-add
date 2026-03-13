@@ -250,16 +250,16 @@ if ($opt_replace) {
 
     // Step 1: Look up existing WC product IDs by SKU
     $wc_url = rtrim($config['woocommerce']['url'], '/');
-    $timeout = (int) ($config['import']['api_timeout'] ?? 120);
     $replace_wc = new \Automattic\WooCommerce\Client(
         $wc_url,
         $config['woocommerce']['consumer_key'],
         $config['woocommerce']['consumer_secret'],
-        ['version' => $config['woocommerce']['version'], 'timeout' => $timeout]
+        ['version' => $config['woocommerce']['version'], 'timeout' => 300]
     );
 
     $logger->info('Looking up existing products to replace...');
     $ids_to_delete = [];
+    $replace_sku_set = array_flip($replace_skus);
 
     // Fetch all products (paginated) and match SKUs
     $page = 1;
@@ -273,7 +273,7 @@ if ($opt_replace) {
 
             foreach ($products as $product) {
                 $p_sku = $product->sku ?? '';
-                if (!empty($p_sku) && in_array($p_sku, $replace_skus)) {
+                if (!empty($p_sku) && isset($replace_sku_set[$p_sku])) {
                     $ids_to_delete[$p_sku] = $product->id;
                 }
             }
@@ -288,16 +288,36 @@ if ($opt_replace) {
         $logger->info("  Found " . count($ids_to_delete) . " existing products to delete");
 
         if (!$opt_dry_run) {
-            // Batch delete (WC batch supports up to 100 per request)
-            $id_chunks = array_chunk(array_values($ids_to_delete), 100);
-            foreach ($id_chunks as $chunk) {
-                try {
-                    $replace_wc->post('products/batch', ['delete' => $chunk]);
-                    $logger->info("  Deleted " . count($chunk) . " products");
-                } catch (\Exception $e) {
-                    $logger->error("  Delete failed: " . $e->getMessage());
+            // Small batches (10) to avoid WC timeouts — each product has many variations
+            $id_chunks = array_chunk(array_values($ids_to_delete), 10);
+            $total_batches = count($id_chunks);
+            $deleted = 0;
+
+            foreach ($id_chunks as $batch_num => $chunk) {
+                $batch_label = ($batch_num + 1) . "/{$total_batches}";
+                $retries = 0;
+                $success = false;
+
+                while (!$success && $retries < 3) {
+                    try {
+                        $replace_wc->post('products/batch', ['delete' => $chunk]);
+                        $deleted += count($chunk);
+                        $logger->info("  Batch {$batch_label}: deleted " . count($chunk) . " products ({$deleted}/" . count($ids_to_delete) . ")");
+                        $success = true;
+                    } catch (\Exception $e) {
+                        $retries++;
+                        if ($retries < 3) {
+                            $wait = $retries * 5;
+                            $logger->warning("  Batch {$batch_label}: timeout, retrying in {$wait}s ({$retries}/3)...");
+                            sleep($wait);
+                        } else {
+                            $logger->error("  Batch {$batch_label}: failed after 3 retries: " . $e->getMessage());
+                        }
+                    }
                 }
             }
+
+            $logger->info("  Delete complete: {$deleted}/" . count($ids_to_delete) . " products removed");
         } else {
             $logger->info("  [DRY RUN] Would delete " . count($ids_to_delete) . " products");
         }
