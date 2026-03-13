@@ -8,9 +8,6 @@
  * title as hint, verifies the SKU matches, normalizes, uploads images,
  * and imports to WC. Self-contained — no pipeline dependencies.
  *
- * To convert raw text lists into the expected JSON format, use:
- *   bin/parse-quick-add raw.txt -o products.json
- *
  * @package ResellPiacenza\Import
  */
 
@@ -44,9 +41,6 @@ JSON file format (same as catalog.json products):
     "FD6900-200": ""
   }
 
-  To convert raw text lists into this format:
-    bin/parse-quick-add raw.txt -o products.json
-
 Options:
   --sku=SKU                 Single product SKU
   --file=FILE               JSON file with {"SKU": "title"} pairs
@@ -62,11 +56,6 @@ Examples:
   bin/quick-add --file=data/quick-add.json --dry-run --verbose
   bin/quick-add --file=data/quick-add.json --category=sneakers
 
-Workflow:
-  1. Prepare raw text with SKUs and titles
-  2. bin/parse-quick-add raw.txt -o data/quick-add.json
-  3. bin/quick-add --file=data/quick-add.json --dry-run
-  4. bin/quick-add --file=data/quick-add.json
 
 HELP;
     exit(0);
