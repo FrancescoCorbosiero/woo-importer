@@ -42,13 +42,13 @@ Options:
   --help, -h        Show help
 
 CSV columns:
-  Sezione, Marca, Sottocategoria, SKU, Titolo, Query, Taglie, Prezzo, Prezzo Scontato
+  Sezione, Marca, Sottocategoria, SKU, Titolo, Query
 
   - Sezione/Marca/Sottocategoria: from catalog metadata in assortment
   - SKU: product identifier
   - Titolo: product title from KicksDB
   - Query: the search query used to discover this product (nullable)
-  - Taglie/Prezzo/Prezzo Scontato: empty (reference columns for manual editing)
+  - Query: subcategory or discovery label (reference for human editors)
 
 Examples:
   bin/catalog-csv-export                                    # Full export
@@ -217,7 +217,7 @@ if ($handle === false) {
 }
 
 // Header
-fputcsv($handle, ['Sezione', 'Marca', 'Sottocategoria', 'SKU', 'Titolo', 'Query', 'Taglie', 'Prezzo', 'Prezzo Scontato']);
+fputcsv($handle, ['Sezione', 'Marca', 'Sottocategoria', 'SKU', 'Titolo', 'Query']);
 
 $total_rows = 0;
 $section_stats = [];
@@ -246,9 +246,6 @@ foreach ($section_order as $section_display) {
                     $p['sku'] ?? '',
                     $p['name'] ?? '',
                     $p['catalog_subcategory'] ?? '',
-                    '',
-                    '',
-                    '',
                 ]);
                 $total_rows++;
                 $sec_count++;
@@ -291,9 +288,6 @@ foreach ($section_order as $section_display) {
                             $p['sku'] ?? '',
                             $p['name'] ?? '',
                             $query_display,
-                            '',
-                            '',
-                            '',
                         ]);
                         $total_rows++;
                         $sec_count++;
@@ -312,9 +306,6 @@ foreach ($section_order as $section_display) {
                         $p['sku'] ?? '',
                         $p['name'] ?? '',
                         $p['catalog_subcategory'] ?? '',
-                        '',
-                        '',
-                        '',
                     ]);
                     $total_rows++;
                     $sec_count++;

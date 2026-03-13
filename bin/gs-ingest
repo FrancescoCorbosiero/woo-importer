@@ -141,10 +141,12 @@ if (file_exists($catalog_file)) {
                 $brand_name = $brand['name'] ?? '';
 
                 if (!empty($brand['subcategories'])) {
-                    // Sneakers-style: brands[].subcategories[].products[]
+                    // Sneakers-style: brands[].subcategories[].products{} or products[]
                     foreach ($brand['subcategories'] as $subcat) {
                         $subcat_name = $subcat['name'] ?? '';
-                        foreach ($subcat['products'] ?? [] as $sku) {
+                        foreach ((array) ($subcat['products'] ?? []) as $key => $val) {
+                            // Handle both {"SKU": "title"} and ["SKU"] formats
+                            $sku = is_int($key) ? $val : (string) $key;
                             $catalog_lookup[$sku] = [
                                 'catalog_brand' => $brand_name,
                                 'catalog_subcategory' => $subcat_name,
@@ -154,8 +156,9 @@ if (file_exists($catalog_file)) {
                         }
                     }
                 } else {
-                    // Clothing-style: brands[].products[]
-                    foreach ($brand['products'] ?? [] as $sku) {
+                    // Clothing-style: brands[].products{} or products[]
+                    foreach ((array) ($brand['products'] ?? []) as $key => $val) {
+                        $sku = is_int($key) ? $val : (string) $key;
                         $catalog_lookup[$sku] = [
                             'catalog_brand' => $brand_name,
                             'catalog_subcategory' => $brand_name,
@@ -169,7 +172,8 @@ if (file_exists($catalog_file)) {
             // Item-based sections (Accessori)
             foreach ($section['items'] ?? [] as $item) {
                 $item_name = $item['name'] ?? $item['label'] ?? '';
-                foreach ($item['products'] ?? [] as $sku) {
+                foreach ((array) ($item['products'] ?? []) as $key => $val) {
+                    $sku = is_int($key) ? $val : (string) $key;
                     $catalog_lookup[$sku] = [
                         'catalog_brand' => '',
                         'catalog_subcategory' => $item_name,
