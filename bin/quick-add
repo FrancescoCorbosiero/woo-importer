@@ -48,6 +48,7 @@ Options:
   --sku=SKU                 Single product SKU
   --file=FILE               Catalog JSON file (data/catalog.json)
   --category=KEY            Override WC category (sneakers|clothing|accessories)
+  --replace                 Delete existing WC products + images before re-importing
   --skip-media              Don't upload images
   --dry-run                 Preview without importing
   --verbose, -v             Detailed output
@@ -57,6 +58,7 @@ Examples:
   bin/quick-add --sku=DD1391-100
   bin/quick-add --sku=DD1391-100 "Nike Dunk Low Retro White Black"
   bin/quick-add --file=data/catalog.json --dry-run --verbose
+  bin/quick-add --file=data/catalog.json --replace          # Fresh re-import
   bin/quick-add --file=data/catalog.json --skip-media
 
 HELP;
@@ -66,6 +68,7 @@ HELP;
 $opt_verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
 $opt_dry_run = in_array('--dry-run', $argv);
 $opt_skip_media = in_array('--skip-media', $argv);
+$opt_replace = in_array('--replace', $argv);
 $opt_sku = null;
 $opt_file = null;
 $opt_category = null;
@@ -227,6 +230,9 @@ $logger->info("  Products: {$total}");
 if ($opt_category) {
     $logger->info("  Category: {$opt_category}");
 }
+if ($opt_replace) {
+    $logger->info("  Replace:  ON (delete existing before re-import)");
+}
 if ($opt_skip_media) {
     $logger->info("  Media:    skipped");
 }
@@ -234,6 +240,95 @@ if ($opt_dry_run) {
     $logger->warning('  DRY RUN');
 }
 $logger->info('');
+
+// ============================================================================
+// Replace mode: delete existing WC products + clear image-map entries
+// ============================================================================
+
+if ($opt_replace) {
+    $replace_skus = array_column($entries, 'sku');
+
+    // Step 1: Look up existing WC product IDs by SKU
+    $wc_url = rtrim($config['woocommerce']['url'], '/');
+    $timeout = (int) ($config['import']['api_timeout'] ?? 120);
+    $replace_wc = new \Automattic\WooCommerce\Client(
+        $wc_url,
+        $config['woocommerce']['consumer_key'],
+        $config['woocommerce']['consumer_secret'],
+        ['version' => $config['woocommerce']['version'], 'timeout' => $timeout]
+    );
+
+    $logger->info('Looking up existing products to replace...');
+    $ids_to_delete = [];
+
+    // Fetch all products (paginated) and match SKUs
+    $page = 1;
+    do {
+        try {
+            $products = $replace_wc->get('products', [
+                'per_page' => 100,
+                'page' => $page,
+                'status' => 'any',
+            ]);
+
+            foreach ($products as $product) {
+                $p_sku = $product->sku ?? '';
+                if (!empty($p_sku) && in_array($p_sku, $replace_skus)) {
+                    $ids_to_delete[$p_sku] = $product->id;
+                }
+            }
+            $page++;
+        } catch (\Exception $e) {
+            $logger->warning("  Error fetching page {$page}: " . $e->getMessage());
+            break;
+        }
+    } while (count($products ?? []) === 100);
+
+    if (!empty($ids_to_delete)) {
+        $logger->info("  Found " . count($ids_to_delete) . " existing products to delete");
+
+        if (!$opt_dry_run) {
+            // Batch delete (WC batch supports up to 100 per request)
+            $id_chunks = array_chunk(array_values($ids_to_delete), 100);
+            foreach ($id_chunks as $chunk) {
+                try {
+                    $replace_wc->post('products/batch', ['delete' => $chunk]);
+                    $logger->info("  Deleted " . count($chunk) . " products");
+                } catch (\Exception $e) {
+                    $logger->error("  Delete failed: " . $e->getMessage());
+                }
+            }
+        } else {
+            $logger->info("  [DRY RUN] Would delete " . count($ids_to_delete) . " products");
+        }
+    } else {
+        $logger->info("  No existing products found for these SKUs");
+    }
+
+    // Step 2: Clear image-map entries so images are re-uploaded
+    if (!$opt_dry_run) {
+        $image_map_file = Config::imageMapFile();
+        if (file_exists($image_map_file)) {
+            $image_map = json_decode(file_get_contents($image_map_file), true) ?: [];
+            $cleared = 0;
+            foreach ($replace_skus as $sku) {
+                if (isset($image_map[$sku])) {
+                    unset($image_map[$sku]);
+                    $cleared++;
+                }
+            }
+            if ($cleared > 0) {
+                file_put_contents(
+                    $image_map_file,
+                    json_encode($image_map, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+                );
+                $logger->info("  Cleared {$cleared} image-map entries");
+            }
+        }
+    }
+
+    $logger->info('');
+}
 
 // ============================================================================
 // Process each product
