@@ -1,0 +1,616 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Fix Subcategories — Assign WC sub-categories to products based on catalog.json
+ *
+ * Post-import script that reads the catalog structure and assigns hierarchical
+ * sub-categories to WooCommerce products that only have parent categories.
+ *
+ * Sub-category resolution follows the same logic as catalog-transform:
+ *   - Sneakers: direct slug match from catalog subcategory name
+ *     e.g. SKU in "Nike Dunk" subcategory → Sneakers > Nike Dunk
+ *   - Abbigliamento: keyword match against product name
+ *     e.g. product name contains "hoodie" → Abbigliamento > Felpe
+ *   - Accessori: keyword match against product name + item label
+ *     e.g. product name contains "beanie" → Accessori > Beanie
+ *
+ * Usage:
+ *   bin/fix-subcategories                              # Dry run
+ *   bin/fix-subcategories --confirm                    # Apply changes
+ *   bin/fix-subcategories --confirm --verbose
+ *   bin/fix-subcategories --file=data/catalog.json     # Custom catalog file
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use Automattic\WooCommerce\Client;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Fix Subcategories
+Assign WC sub-categories to products based on catalog.json structure.
+
+Products are matched by SKU to their catalog position. Sub-categories
+are resolved using the same logic as catalog-transform:
+  - Sneakers: direct slug match (catalog subcategory name)
+  - Abbigliamento/Accessori: keyword match (product name vs keywords)
+
+Sub-categories are ADDED without removing existing categories.
+
+Usage:
+  bin/fix-subcategories [options]
+
+Options:
+  --confirm              Apply changes (without this, it's a dry run)
+  --file=FILE            Catalog JSON file (default: data/catalog.json)
+  --verbose, -v          Detailed output
+  --help, -h             Show help
+
+Examples:
+  bin/fix-subcategories                              # Dry run
+  bin/fix-subcategories --confirm                    # Apply
+  bin/fix-subcategories --confirm --verbose          # Apply with details
+
+HELP;
+    exit(0);
+}
+
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$dry_run = !in_array('--confirm', $argv);
+$catalog_file = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--file=') === 0) {
+        $catalog_file = str_replace('--file=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('FixSubcategories', [
+    'file' => Config::projectRoot() . '/logs/fix-subcategories.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Fix Subcategories');
+$logger->info('  Assign sub-categories from catalog');
+$logger->info('========================================');
+if ($dry_run) {
+    $logger->warning('  DRY RUN — use --confirm to apply');
+}
+$logger->info('');
+
+$wc_url = rtrim(trim($config['woocommerce']['url'] ?? ''), ':');
+if (empty($wc_url)) {
+    $logger->error('WC_URL not configured');
+    exit(1);
+}
+
+$wc_client = new Client(
+    $wc_url,
+    $config['woocommerce']['consumer_key'],
+    $config['woocommerce']['consumer_secret'],
+    ['version' => $config['woocommerce']['version'] ?? 'wc/v3', 'timeout' => 120]
+);
+
+// ============================================================================
+// Step 1: Load and parse catalog.json
+// ============================================================================
+
+$logger->info('Step 1: Loading catalog...');
+
+if (!$catalog_file) {
+    $catalog_file = Config::dataDir() . '/catalog.json';
+}
+if ($catalog_file[0] !== '/') {
+    $catalog_file = Config::projectRoot() . '/' . $catalog_file;
+}
+
+if (!file_exists($catalog_file)) {
+    $logger->error("Catalog file not found: {$catalog_file}");
+    exit(1);
+}
+
+$catalog = json_decode(file_get_contents($catalog_file), true);
+if (!is_array($catalog) || empty($catalog['sections'])) {
+    $logger->error("Invalid catalog file (must have 'sections' array)");
+    exit(1);
+}
+
+// Build SKU → catalog context map
+// {sku: {wc_category, brand, subcategory, item_label}}
+$sku_map = [];
+
+foreach ($catalog['sections'] as $section) {
+    $wc_category = $section['wc_category'] ?? '';
+    $section_subcategories = $section['subcategories'] ?? [];
+
+    // Brand-based sections (Sneakers, Abbigliamento)
+    foreach ($section['brands'] ?? [] as $brand) {
+        $brand_name = $brand['name'] ?? '';
+
+        if (!empty($brand['subcategories'])) {
+            // Sneakers-style: brands[].subcategories[].products[]
+            foreach ($brand['subcategories'] as $subcat) {
+                $subcat_name = $subcat['name'] ?? '';
+                foreach (walkProducts($subcat['products'] ?? []) as $sku) {
+                    $sku_map[$sku] = [
+                        'wc_category' => $wc_category,
+                        'brand' => $brand_name,
+                        'subcategory' => $subcat_name,
+                        'item_label' => '',
+                    ];
+                }
+            }
+        } else {
+            // Clothing-style: brands[].products[]
+            foreach (walkProducts($brand['products'] ?? []) as $sku) {
+                $sku_map[$sku] = [
+                    'wc_category' => $wc_category,
+                    'brand' => $brand_name,
+                    'subcategory' => '',
+                    'item_label' => '',
+                ];
+            }
+        }
+    }
+
+    // Query-based sections (Accessori)
+    foreach ($section['items'] ?? [] as $item) {
+        $item_label = $item['name'] ?? $item['label'] ?? '';
+        foreach (walkProducts($item['products'] ?? []) as $sku) {
+            $sku_map[$sku] = [
+                'wc_category' => $wc_category,
+                'brand' => '',
+                'subcategory' => '',
+                'item_label' => $item_label,
+            ];
+        }
+    }
+}
+
+$logger->info("  Catalog SKUs: " . count($sku_map));
+
+if (empty($sku_map)) {
+    $logger->error('No products found in catalog');
+    exit(1);
+}
+
+// Build keyword subcategory definitions per section
+// wc_category → [{name, slug, keywords}]
+$keyword_subcats = [];
+foreach ($catalog['sections'] as $section) {
+    $wc_category = $section['wc_category'] ?? '';
+    if (!empty($section['subcategories'])) {
+        $keyword_subcats[$wc_category] = [];
+        foreach ($section['subcategories'] as $subcat_def) {
+            $keyword_subcats[$wc_category][] = [
+                'name' => $subcat_def['name'] ?? '',
+                'slug' => sanitizeSlug($subcat_def['name'] ?? ''),
+                'keywords' => array_map('strtolower', $subcat_def['keywords'] ?? []),
+            ];
+        }
+    }
+}
+
+// ============================================================================
+// Step 2: Fetch/ensure WC subcategories
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 2: Resolving WC categories...');
+
+// First, fetch all existing WC categories
+$all_wc_categories = [];
+$page = 1;
+
+while (true) {
+    try {
+        $cats = $wc_client->get('products/categories', [
+            'per_page' => 100,
+            'page' => $page,
+        ]);
+    } catch (\Exception $e) {
+        $logger->error("  Failed to fetch categories page {$page}: " . $e->getMessage());
+        break;
+    }
+
+    if (empty($cats)) {
+        break;
+    }
+
+    foreach ($cats as $cat) {
+        $all_wc_categories[] = $cat;
+    }
+    $page++;
+}
+
+$logger->info("  Loaded " . count($all_wc_categories) . " WC categories");
+
+// Build slug → ID map, and parent slug → ID map
+$cat_slug_to_id = [];
+$cat_id_to_slug = [];
+$cat_id_to_parent = [];
+
+foreach ($all_wc_categories as $cat) {
+    $cat_slug_to_id[$cat->slug] = $cat->id;
+    $cat_id_to_slug[$cat->id] = $cat->slug;
+    $cat_id_to_parent[$cat->id] = $cat->parent ?? 0;
+}
+
+// Resolve parent category IDs from config
+$parent_cat_ids = []; // wc_category key → parent category ID
+foreach ($config['categories'] as $key => $cat_config) {
+    $slug = $cat_config['slug'] ?? '';
+    if (isset($cat_slug_to_id[$slug])) {
+        $parent_cat_ids[$key] = $cat_slug_to_id[$slug];
+        $logger->info("  Parent: {$cat_config['name']} → ID {$cat_slug_to_id[$slug]}");
+    }
+}
+
+// Collect all needed subcategory slugs and ensure they exist
+$subcat_slug_to_id = []; // slug → ID
+
+// Sneakers-style: direct subcategory names from catalog
+foreach ($sku_map as $sku => $ctx) {
+    if (!empty($ctx['subcategory']) && !isset($keyword_subcats[$ctx['wc_category']])) {
+        $slug = sanitizeSlug($ctx['subcategory']);
+        if (!isset($subcat_slug_to_id[$slug])) {
+            if (isset($cat_slug_to_id[$slug])) {
+                $subcat_slug_to_id[$slug] = $cat_slug_to_id[$slug];
+            } else {
+                // Need to create this subcategory
+                $parent_id = $parent_cat_ids[$ctx['wc_category']] ?? null;
+                if ($parent_id) {
+                    $id = ensureCategory($wc_client, $ctx['subcategory'], $slug, $parent_id, $dry_run, $logger);
+                    if ($id) {
+                        $subcat_slug_to_id[$slug] = $id;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Keyword-based: ensure subcategories exist for keyword sections
+foreach ($keyword_subcats as $wc_cat_key => $subcats) {
+    $parent_id = $parent_cat_ids[$wc_cat_key] ?? null;
+    if (!$parent_id) {
+        continue;
+    }
+
+    foreach ($subcats as &$subcat_def) {
+        $slug = $subcat_def['slug'];
+        if (isset($cat_slug_to_id[$slug])) {
+            $subcat_def['id'] = $cat_slug_to_id[$slug];
+            $subcat_slug_to_id[$slug] = $cat_slug_to_id[$slug];
+        } else {
+            $id = ensureCategory($wc_client, $subcat_def['name'], $slug, $parent_id, $dry_run, $logger);
+            if ($id) {
+                $subcat_def['id'] = $id;
+                $subcat_slug_to_id[$slug] = $id;
+            }
+        }
+    }
+    unset($subcat_def);
+    $keyword_subcats[$wc_cat_key] = $subcats;
+}
+
+// Accessori items: ensure subcategories for item labels
+foreach ($sku_map as $sku => $ctx) {
+    if (!empty($ctx['item_label'])) {
+        $slug = sanitizeSlug($ctx['item_label']);
+        if (!isset($subcat_slug_to_id[$slug])) {
+            $parent_id = $parent_cat_ids[$ctx['wc_category']] ?? null;
+            if ($parent_id) {
+                if (isset($cat_slug_to_id[$slug])) {
+                    $subcat_slug_to_id[$slug] = $cat_slug_to_id[$slug];
+                } else {
+                    $id = ensureCategory($wc_client, $ctx['item_label'], $slug, $parent_id, $dry_run, $logger);
+                    if ($id) {
+                        $subcat_slug_to_id[$slug] = $id;
+                    }
+                }
+            }
+        }
+    }
+}
+
+$logger->info("  Resolved " . count($subcat_slug_to_id) . " subcategories");
+
+// ============================================================================
+// Step 3: Fetch all WC products
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 3: Fetching WC products...');
+
+$all_products = [];
+$page = 1;
+
+while (true) {
+    try {
+        $products = $wc_client->get('products', [
+            'per_page' => 100,
+            'page' => $page,
+            'status' => 'any',
+        ]);
+    } catch (\Exception $e) {
+        $logger->error("  Failed to fetch page {$page}: " . $e->getMessage());
+        break;
+    }
+
+    if (empty($products)) {
+        break;
+    }
+
+    foreach ($products as $p) {
+        $all_products[] = $p;
+    }
+
+    $logger->debug("  Fetched page {$page}: " . count($products) . " products");
+    $page++;
+}
+
+$logger->info("  Total products: " . count($all_products));
+
+// ============================================================================
+// Step 4: Match products to subcategories
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 4: Matching products to subcategories...');
+
+$assignments = []; // product_id → {existing_cats, add_cat_id, subcat_name, sku}
+$stats = ['matched' => 0, 'already_set' => 0, 'no_catalog' => 0, 'no_match' => 0];
+
+foreach ($all_products as $product) {
+    $sku = $product->sku ?? '';
+    if (empty($sku) || !isset($sku_map[$sku])) {
+        $stats['no_catalog']++;
+        continue;
+    }
+
+    $ctx = $sku_map[$sku];
+    $product_name = $product->name ?? '';
+    $existing_cat_ids = array_map(fn($c) => $c->id, $product->categories ?? []);
+
+    $matched_subcat_id = null;
+    $matched_subcat_name = '';
+
+    // Determine subcategory based on section type
+    if (isset($keyword_subcats[$ctx['wc_category']])) {
+        // Keyword-based matching (Abbigliamento, Accessori with subcategories defined)
+        $searchable = strtolower($ctx['item_label'] . ' ' . $ctx['subcategory'] . ' ' . $product_name);
+        foreach ($keyword_subcats[$ctx['wc_category']] as $subcat_def) {
+            foreach ($subcat_def['keywords'] as $kw) {
+                if (strpos($searchable, $kw) !== false) {
+                    $matched_subcat_id = $subcat_def['id'] ?? null;
+                    $matched_subcat_name = $subcat_def['name'];
+                    break 2;
+                }
+            }
+        }
+    } elseif (!empty($ctx['subcategory'])) {
+        // Direct slug match (Sneakers subcategories)
+        $slug = sanitizeSlug($ctx['subcategory']);
+        $matched_subcat_id = $subcat_slug_to_id[$slug] ?? null;
+        $matched_subcat_name = $ctx['subcategory'];
+    } elseif (!empty($ctx['item_label'])) {
+        // Item label match (Accessori items without section-level subcategories)
+        $slug = sanitizeSlug($ctx['item_label']);
+        $matched_subcat_id = $subcat_slug_to_id[$slug] ?? null;
+        $matched_subcat_name = $ctx['item_label'];
+    }
+
+    if (!$matched_subcat_id) {
+        $stats['no_match']++;
+        if ($verbose) {
+            $logger->debug("  [{$sku}] No subcategory match for '{$product_name}'");
+        }
+        continue;
+    }
+
+    // Skip if already has this subcategory
+    if (in_array($matched_subcat_id, $existing_cat_ids)) {
+        $stats['already_set']++;
+        if ($verbose) {
+            $logger->debug("  [{$sku}] Already in '{$matched_subcat_name}'");
+        }
+        continue;
+    }
+
+    $assignments[$product->id] = [
+        'existing_cats' => $existing_cat_ids,
+        'add_cat_id' => $matched_subcat_id,
+        'subcat_name' => $matched_subcat_name,
+        'sku' => $sku,
+        'name' => $product_name,
+    ];
+    $stats['matched']++;
+
+    if ($verbose) {
+        $logger->debug("  [{$sku}] {$product_name} → +{$matched_subcat_name}");
+    }
+}
+
+$logger->info("  Matched:     {$stats['matched']} products need subcategory");
+$logger->info("  Already set: {$stats['already_set']}");
+$logger->info("  No catalog:  {$stats['no_catalog']} (SKU not in catalog)");
+$logger->info("  No match:    {$stats['no_match']} (no keyword/slug match)");
+
+if (empty($assignments)) {
+    $logger->info('');
+    $logger->info('No products need subcategory updates.');
+    exit(0);
+}
+
+// ============================================================================
+// Step 5: Batch update products
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 5: Updating product categories...');
+
+$batch_size = 25;
+$updated = 0;
+$errors = 0;
+
+$update_list = [];
+foreach ($assignments as $product_id => $info) {
+    $all_cat_ids = $info['existing_cats'];
+    $all_cat_ids[] = $info['add_cat_id'];
+    $all_cat_ids = array_unique($all_cat_ids);
+
+    $update_list[] = [
+        'id' => $product_id,
+        'categories' => array_map(fn($id) => ['id' => $id], $all_cat_ids),
+    ];
+}
+
+$chunks = array_chunk($update_list, $batch_size);
+
+foreach ($chunks as $ci => $chunk) {
+    if ($dry_run) {
+        $updated += count($chunk);
+        $logger->info("  [DRY RUN] Batch " . ($ci + 1) . "/" . count($chunks) . ": would update " . count($chunk) . " products");
+        continue;
+    }
+
+    try {
+        $result = $wc_client->post('products/batch', ['update' => $chunk]);
+
+        foreach ($result->update ?? [] as $item) {
+            if (isset($item->error)) {
+                $errors++;
+                $logger->error("  Product {$item->id}: " . ($item->error->message ?? 'Unknown error'));
+            } else {
+                $updated++;
+            }
+        }
+
+        $logger->info("  Batch " . ($ci + 1) . "/" . count($chunks) . ": updated " . count($chunk) . " products");
+    } catch (\Exception $e) {
+        $errors += count($chunk);
+        $logger->error("  Batch " . ($ci + 1) . " failed: " . $e->getMessage());
+    }
+
+    usleep(200000); // 200ms between batches
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  FIX SUBCATEGORIES SUMMARY');
+$logger->info('========================================');
+$logger->info("  Total products:     " . count($all_products));
+$logger->info("  Catalog SKUs:       " . count($sku_map));
+$logger->info("  Matched:            {$stats['matched']}");
+$logger->info("  Already set:        {$stats['already_set']}");
+$logger->info("  No catalog match:   {$stats['no_catalog']}");
+$logger->info("  No subcat match:    {$stats['no_match']}");
+$logger->info("  Updated:            {$updated}");
+$logger->info("  Errors:             {$errors}");
+$logger->info("  Duration:           {$duration}s");
+$logger->info('========================================');
+
+exit($errors > 0 ? 1 : 0);
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Extract SKUs from a products array (supports multiple formats)
+ */
+function walkProducts($products): array
+{
+    if (empty($products)) {
+        return [];
+    }
+    $products = (array) $products;
+
+    $skus = [];
+
+    // Array of {sku, title} objects
+    if (isset($products[0]) && is_array($products[0]) && isset($products[0]['sku'])) {
+        foreach ($products as $p) {
+            $skus[] = $p['sku'];
+        }
+        return $skus;
+    }
+
+    // Indexed array of SKU strings
+    if (isset($products[0]) && is_string($products[0])) {
+        return $products;
+    }
+
+    // Associative format: {"SKU": "title", ...}
+    return array_map('strval', array_keys($products));
+}
+
+/**
+ * Sanitize a string to a URL-safe slug
+ */
+function sanitizeSlug(string $str): string
+{
+    $str = strtolower($str);
+    $str = preg_replace('/[^a-z0-9-]/', '-', $str);
+    $str = preg_replace('/-+/', '-', $str);
+    return trim($str, '-');
+}
+
+/**
+ * Ensure a WC category exists, creating it if needed
+ */
+function ensureCategory(Client $wc_client, string $name, string $slug, int $parent_id, bool $dry_run, $logger): ?int
+{
+    try {
+        $existing = $wc_client->get('products/categories', ['slug' => $slug, 'per_page' => 1]);
+        if (!empty($existing)) {
+            $logger->debug("  Category exists: {$name} (ID {$existing[0]->id})");
+            return $existing[0]->id;
+        }
+    } catch (\Exception $e) {
+        // Fall through to create
+    }
+
+    if ($dry_run) {
+        $logger->info("  [DRY RUN] Would create category: {$name} under parent {$parent_id}");
+        return 0;
+    }
+
+    try {
+        $created = $wc_client->post('products/categories', [
+            'name' => $name,
+            'slug' => $slug,
+            'parent' => $parent_id,
+        ]);
+        $logger->info("  Created category: {$name} (ID {$created->id})");
+        return $created->id;
+    } catch (\Exception $e) {
+        $logger->error("  Failed to create category {$name}: " . $e->getMessage());
+        return null;
+    }
+}
