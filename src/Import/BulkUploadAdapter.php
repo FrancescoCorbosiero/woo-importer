@@ -166,6 +166,7 @@ class BulkUploadAdapter implements FeedAdapter
         $i_image = $col('image_url', 'image', 'img');
         $i_size = $col('size', 'size_eu', 'taglia');
         $i_price = $col('price', 'regular_price');
+        $i_sale = $col('sale_price', 'sale', 'prezzo_in_offerta');
         $i_stock = $col('stock', 'stock_quantity', 'qty');
 
         if ($i_sku === null) {
@@ -192,11 +193,15 @@ class BulkUploadAdapter implements FeedAdapter
             }
 
             if ($i_size !== null) {
-                $grouped[$sku]['sizes'][] = [
+                $size_entry = [
                     'size' => trim($row[$i_size] ?? ''),
                     'price' => (string) ($i_price !== null ? trim($row[$i_price]) : '0'),
                     'stock' => (int) ($i_stock !== null ? trim($row[$i_stock]) : 0),
                 ];
+                if ($i_sale !== null && trim($row[$i_sale] ?? '') !== '') {
+                    $size_entry['sale_price'] = (string) trim($row[$i_sale]);
+                }
+                $grouped[$sku]['sizes'][] = $size_entry;
             }
         }
 
@@ -229,13 +234,20 @@ class BulkUploadAdapter implements FeedAdapter
             $sizeEu = (string) ($size['size'] ?? $size['size_eu'] ?? '');
             $price = (float) ($size['price'] ?? $size['regular_price'] ?? 0);
             $stock = (int) ($size['stock'] ?? $size['stock_quantity'] ?? 0);
+            $salePrice = $size['sale_price'] ?? null;
 
-            $variations[] = [
+            $var = [
                 'size_eu' => $sizeEu,
                 'price' => $price,
                 'stock_quantity' => $stock,
                 'stock_status' => $stock > 0 ? 'instock' : 'outofstock',
             ];
+
+            if ($salePrice !== null && $salePrice !== '') {
+                $var['sale_price'] = (float) $salePrice;
+            }
+
+            $variations[] = $var;
         }
 
         return [
