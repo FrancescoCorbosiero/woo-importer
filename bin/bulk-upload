@@ -50,16 +50,22 @@ JSON format:
       "category": "sneakers",
       "image_url": "https://example.com/image.jpg",
       "sizes": [
-        {"size": "40", "price": 120.00, "stock": 3},
-        {"size": "41", "price": 120.00, "stock": 5}
+        {"size": "40", "price": 149.00, "sale_price": 129.00, "stock": 3},
+        {"size": "41", "price": 149.00, "sale_price": 129.00, "stock": 5}
       ]
     }
   ]
 
+  sale_price is optional. When present, price = crossed-out regular, sale_price = active.
+
 CSV format (rows with same SKU = one product, multiple sizes):
-  sku,name,brand,category,image_url,size,price,stock
-  MY-001,Product Name,Nike,sneakers,https://...,40,120.00,3
-  MY-001,Product Name,Nike,sneakers,https://...,41,120.00,5
+  sku,name,brand,category,image_url,size,price,sale_price,stock
+  MY-001,Product Name,Nike,sneakers,https://...,40,149.00,129.00,3
+  MY-001,Product Name,Nike,sneakers,https://...,41,149.00,129.00,5
+  MY-002,Other Product,Supreme,clothing,https://...,M,200.00,,1
+
+  sale_price is optional. When set, price becomes the crossed-out regular price
+  and sale_price becomes the active price (shows WooCommerce "Sale" badge).
 
 See docs/bulk-upload-example.json and docs/bulk-upload-example.csv
 

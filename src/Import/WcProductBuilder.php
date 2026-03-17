@@ -227,8 +227,13 @@ class WcProductBuilder
                 'attributes' => [],
             ];
 
+            // Explicit sale_price from adapter (bulk upload, manual CSV)
+            $one_explicit_sale = $one_var['sale_price'] ?? null;
+            if ($one_explicit_sale !== null && (float) $one_explicit_sale > 0) {
+                $wc_product['sale_price'] = (string) (float) $one_explicit_sale;
+            }
             // GS sale pricing: show sale badge on GS-sourced simple products (only when GS has stock)
-            if ($this->gs_sale_enabled && $one_price > 0 && $one_is_gs) {
+            elseif ($this->gs_sale_enabled && $one_price > 0 && $one_is_gs) {
                 $sale = $this->applyGsSalePricing($one_price);
                 $wc_product['regular_price'] = $sale['regular_price'];
                 $wc_product['sale_price'] = $sale['sale_price'];
@@ -428,8 +433,13 @@ class WcProductBuilder
                         : [['name' => 'pa_' . $size_slug, 'option' => $size_eu]],
                 ];
 
+                // Explicit sale_price from adapter (bulk upload, manual CSV)
+                $explicit_sale = $var['sale_price'] ?? null;
+                if ($explicit_sale !== null && (float) $explicit_sale > 0) {
+                    $wc_var['sale_price'] = (string) (float) $explicit_sale;
+                }
                 // GS sale pricing: show sale badge on GS-priced variations (only when GS has stock)
-                if ($this->gs_sale_enabled && $var_price > 0 && $is_gs_priced) {
+                elseif ($this->gs_sale_enabled && $var_price > 0 && $is_gs_priced) {
                     $sale = $this->applyGsSalePricing($var_price);
                     $wc_var['regular_price'] = $sale['regular_price'];
                     $wc_var['sale_price'] = $sale['sale_price'];
