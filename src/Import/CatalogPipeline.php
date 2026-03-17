@@ -48,6 +48,9 @@ class CatalogPipeline
     /** @var string|null Custom feed output path */
     private ?string $feedOutputPath;
 
+    /** @var string|null Custom baseline file for DeltaSync (default: feed-wc.json) */
+    private ?string $baselineFile;
+
     /** @var Storage|null SQLite storage for product + sync persistence */
     private ?Storage $storage;
 
@@ -84,6 +87,7 @@ class CatalogPipeline
         $this->postBuildCallback = $options['post_build'] ?? null;
         $this->writeFeed = $options['write_feed'] ?? true;
         $this->feedOutputPath = $options['feed_output_path'] ?? null;
+        $this->baselineFile = $options['baseline_file'] ?? null;
         // Initialize Storage: use provided instance or auto-create from Config
         if (isset($options['storage'])) {
             $this->storage = $options['storage'];
@@ -335,12 +339,16 @@ class CatalogPipeline
             }
 
             // Run DeltaSync
-            $sync = new DeltaSync($this->config, [
+            $syncOptions = [
                 'dry_run' => $this->dry_run,
                 'force_full' => $this->force_full,
                 'verbose' => $this->verbose,
                 'feed_file' => $feedFile,
-            ], $this->storage);
+            ];
+            if ($this->baselineFile !== null) {
+                $syncOptions['baseline_file'] = $this->baselineFile;
+            }
+            $sync = new DeltaSync($this->config, $syncOptions, $this->storage);
 
             $syncSuccess = $sync->run();
 

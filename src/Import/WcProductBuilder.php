@@ -720,11 +720,16 @@ class WcProductBuilder
         if (in_array($lower, ['shoes', 'sneakers', 'footwear'])) {
             return 'sneakers';
         }
-        if (in_array($lower, ['clothing', 'apparel', 'streetwear', 'abbigliamento'])) {
+        if (in_array($lower, ['clothing', 'apparel', 'streetwear', 'abbigliamento',
+            'jeans', 'pants', 'jacket', 'hoodie', 't-shirt', 'tee', 'shirt'])) {
             return 'clothing';
         }
-        if (in_array($lower, ['accessories', 'accessori', 'collectibles'])) {
+        if (in_array($lower, ['accessories', 'accessori', 'collectibles',
+            'bag', 'bags', 'hat', 'cap', 'beanie', 'scarf'])) {
             return 'accessories';
+        }
+        if ($lower !== '' && $lower !== 'sneakers') {
+            $this->log('warning', "  Unknown category_type '{$type}', defaulting to sneakers");
         }
         return 'sneakers';
     }

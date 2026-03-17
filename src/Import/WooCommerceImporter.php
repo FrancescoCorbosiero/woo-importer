@@ -861,17 +861,49 @@ class WooCommerceImporter
                 );
                 $this->stats['batch_requests']++;
 
+                $duplicate_retry = [];
                 foreach ($result->$operation ?? [] as $idx => $item) {
                     if (isset($item->error)) {
-                        $this->stats['errors']++;
+                        $code = $item->error->code ?? '';
                         $var_sku = $item->sku ?? $chunk[$idx]['sku'] ?? 'unknown';
-                        $this->logger->error("  Variation error [product:{$product_id} {$var_sku}]: " . ($item->error->message ?? 'Unknown'));
+
+                        // Duplicate variation SKU: queue for update retry
+                        if ($operation === 'create' && (
+                            $code === 'product_invalid_sku'
+                            || strpos($item->error->message ?? '', 'duplicat') !== false
+                        )) {
+                            $duplicate_retry[] = $chunk[$idx];
+                            $this->logger->debug("  Variation duplicate SKU [{$var_sku}], will retry as update");
+                        } else {
+                            $this->stats['errors']++;
+                            $this->logger->error("  Variation error [product:{$product_id} {$var_sku}]: " . ($item->error->message ?? 'Unknown'));
+                        }
                     } else {
                         if ($operation === 'create') {
                             $this->stats['variations_created']++;
                         } else {
                             $this->stats['variations_updated']++;
                         }
+                    }
+                }
+
+                // Retry duplicate variations as updates: find existing by SKU
+                if (!empty($duplicate_retry)) {
+                    $existing = $this->fetchExistingVariations($product_id);
+                    $to_update = [];
+                    foreach ($duplicate_retry as $var) {
+                        $sku = $var['sku'] ?? '';
+                        if (isset($existing[$sku])) {
+                            $var['id'] = $existing[$sku]['id'];
+                            $to_update[] = $var;
+                        } else {
+                            $this->stats['errors']++;
+                            $this->logger->error("  Variation duplicate but not found under product:{$product_id} [{$sku}]");
+                        }
+                    }
+                    if (!empty($to_update)) {
+                        $this->logger->info("  Retrying " . count($to_update) . " duplicate variations as updates...");
+                        $this->executeVariationBatch($product_id, 'update', $to_update);
                     }
                 }
 

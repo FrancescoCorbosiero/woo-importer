@@ -118,14 +118,18 @@ $logger = LoggerFactory::create('BulkUpload', [
 
 $adapter = new BulkUploadAdapter($file, 'auto', $logger, $limit, $verbose);
 
+// Bulk uploads are always additive — force-full prevents DeltaSync from
+// comparing against the master feed-wc.json and zeroing existing catalog products.
+// A separate baseline file ensures bulk uploads never interfere with catalog-build delta.
 $pipeline = new CatalogPipeline($config, $logger, [
     'dry_run' => $dry_run,
     'verbose' => $verbose,
     'skip_media' => $skip_media,
     'skip_taxonomies' => $skip_taxonomies,
-    'force_full' => $force_full,
+    'force_full' => true,
     'limit' => $limit,
     'feed_output_path' => Config::dataDir() . '/bulk-upload-feed-wc.json',
+    'baseline_file' => Config::dataDir() . '/bulk-upload-feed-wc-baseline.json',
 ]);
 
 $result = $pipeline->run($adapter);
