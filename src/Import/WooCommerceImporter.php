@@ -503,6 +503,10 @@ class WooCommerceImporter
         $count = count($items);
         $this->logger->info("  Retrying {$count} duplicate-SKU products as updates...");
 
+        // Brief delay — WC search index may not be immediately consistent
+        // after a batch create that returned duplicate-SKU errors
+        usleep(500000); // 500ms
+
         $to_update = [];
 
         foreach ($items as $item) {
@@ -541,6 +545,7 @@ class WooCommerceImporter
      */
     private function lookupProductIdBySku(string $sku): ?int
     {
+        // Try standard lookup first (covers publish, draft, pending, private)
         try {
             $results = $this->wc_client->get('products', [
                 'sku' => $sku,
@@ -552,6 +557,24 @@ class WooCommerceImporter
             }
         } catch (\Exception $e) {
             $this->logger->warning("  SKU lookup failed for {$sku}: " . $e->getMessage());
+        }
+
+        // Fallback: search by slug/keyword (WC SKU filter can miss products
+        // with certain statuses or during index lag)
+        try {
+            $results = $this->wc_client->get('products', [
+                'search' => $sku,
+                'per_page' => 10,
+            ]);
+
+            foreach ($results as $product) {
+                if (!empty($product->sku) && strcasecmp($product->sku, $sku) === 0) {
+                    $this->logger->debug("  Found {$sku} via search fallback (id={$product->id})");
+                    return (int) $product->id;
+                }
+            }
+        } catch (\Exception $e) {
+            // Ignore — already logged above if both fail
         }
 
         return null;
@@ -705,8 +728,12 @@ class WooCommerceImporter
             $result = $this->wc_client->post('products/batch', [$operation => $chunk]);
             $this->stats['batch_requests']++;
 
+            $batch_ok = 0;
+            $batch_errors = 0;
+
             foreach ($result->$operation ?? [] as $idx => $item) {
                 if (isset($item->error)) {
+                    $batch_errors++;
                     $sku = $item->sku ?? $chunk[$idx]['sku'] ?? 'unknown';
                     $code = $item->error->code ?? '';
                     $msg = $item->error->message ?? 'Unknown';
@@ -739,6 +766,7 @@ class WooCommerceImporter
                         $this->logger->warning("  Removed stale image-map entry for {$sku} (media_id {$stale_id})");
                     }
                 } else {
+                    $batch_ok++;
                     if ($operation === 'create') {
                         $this->stats['products_created']++;
                         if (!empty($item->sku) && isset($product_map[$item->sku])) {
@@ -754,7 +782,11 @@ class WooCommerceImporter
                 }
             }
 
-            $this->logger->info("  Batch {$batch_label}: {$operation}d " . count($chunk));
+            $log_parts = ["Batch {$batch_label}: {$operation}d {$batch_ok}"];
+            if ($batch_errors > 0) {
+                $log_parts[] = "{$batch_errors} errors";
+            }
+            $this->logger->info("  " . implode(', ', $log_parts));
 
         } catch (\Exception $e) {
             $is_timeout = strpos($e->getMessage(), 'timed out') !== false
