@@ -155,6 +155,8 @@ class CustomProductImporter
         $adapter = new InlineProductAdapter($products);
 
         // --- Run CatalogPipeline ---
+        // Use isolated feed + baseline files so custom-import never pollutes
+        // the shared feed-wc.json used by catalog-build's DeltaSync.
         $pipeline = new CatalogPipeline($this->config, $this->logger, [
             'dry_run' => $this->dry_run,
             'verbose' => $this->verbose,
@@ -165,6 +167,7 @@ class CustomProductImporter
             'taxonomy_manager' => $taxonomyManager,
             'media_uploader' => $mediaUploader,
             'feed_output_path' => Config::dataDir() . '/custom-import-feed-wc.json',
+            'baseline_file' => Config::dataDir() . '/custom-import-baseline.json',
         ]);
 
         $result = $pipeline->run($adapter);
