@@ -357,7 +357,7 @@ class MediaUploader
             $images[] = [
                 'sku' => $sku,
                 'url' => $url,
-                'gallery_urls' => [],
+                'gallery_urls' => $item['gallery_urls'] ?? [],
                 'product_name' => $item['product_name'] ?? $item['name'] ?? '',
                 'brand_name' => $item['brand_name'] ?? $item['brand'] ?? '',
             ];

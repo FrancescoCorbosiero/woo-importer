@@ -1,0 +1,173 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Custom Product Importer CLI
+ *
+ * Import custom-built products into WooCommerce with image sideloading.
+ * Accepts a JSON file (single product object or array of products).
+ *
+ * Pipeline: InlineProductAdapter → TaxonomyManager → MediaUploader → WcProductBuilder → DeltaSync
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Import\CustomProductImporter;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Custom Product Importer
+Import custom-built products into WooCommerce with image sideloading.
+
+Usage:
+  bin/custom-import --file=FILE [options]
+  bin/custom-import --product='JSON' [options]
+
+Options:
+  --file=FILE           JSON file with product(s) — object or array
+  --product=JSON        Inline JSON for a single product
+  --dry-run             Preview without importing or uploading
+  --skip-media          Don't sideload images (products created imageless)
+  --skip-taxonomies     Skip brand/category creation
+  --verbose, -v         Detailed output
+  --force-full          Force full import (ignore delta)
+  --limit=N             Import only first N products
+  --env=FILE            Use alternate .env file
+  --help, -h            Show help
+
+JSON format (single product):
+  {
+    "sku": "MY-001",
+    "name": "Nike Dunk Low Panda",
+    "brand": "Nike",
+    "category": "sneakers",
+    "description": "La Nike Dunk Low Panda in colorazione classica.",
+    "image_url": "https://cdn.example.com/dunk-low-panda.jpg",
+    "gallery_urls": [
+      "https://cdn.example.com/dunk-low-panda-2.jpg",
+      "https://cdn.example.com/dunk-low-panda-3.jpg"
+    ],
+    "sizes": [
+      {"size": "40", "price": 149.00, "stock": 3},
+      {"size": "41", "price": 149.00, "sale_price": 129.00, "stock": 5},
+      {"size": "42", "price": 149.00, "stock": 2}
+    ]
+  }
+
+JSON format (multiple products):
+  [ { ... }, { ... } ]
+
+Supported fields:
+  sku              (required) Product SKU
+  name             (required) Product title
+  brand            Brand name (creates pa_marca attribute)
+  category         'sneakers', 'clothing', or 'accessories' (default: sneakers)
+  description      Long description (HTML supported)
+  short_description Short description
+  image_url        Primary image CDN URL (sideloaded to WordPress media)
+  gallery_urls     Array of gallery image CDN URLs
+  model            Model name (e.g. "Dunk Low")
+  colorway         Colorway string (e.g. "White/Black")
+  gender           Gender: men, women, unisex, youth
+  release_date     Release date (YYYY-MM-DD)
+  sizes            Array of size/variation entries:
+    size           EU size label (e.g. "42", "M", "One Size")
+    price          Regular price
+    sale_price     Optional sale price (shows Sale badge)
+    stock          Stock quantity
+
+HELP;
+    exit(0);
+}
+
+// Parse CLI arguments
+$dry_run = in_array('--dry-run', $argv);
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$skip_media = in_array('--skip-media', $argv);
+$skip_taxonomies = in_array('--skip-taxonomies', $argv);
+$force_full = in_array('--force-full', $argv);
+$file = null;
+$inline_product = null;
+$limit = null;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--file=') === 0) {
+        $file = str_replace('--file=', '', $arg);
+    }
+    if (strpos($arg, '--product=') === 0) {
+        $inline_product = str_replace('--product=', '', $arg);
+    }
+    if (strpos($arg, '--limit=') === 0) {
+        $limit = (int) str_replace('--limit=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Load products
+// ============================================================================
+
+$products = null;
+
+if ($inline_product) {
+    $decoded = json_decode($inline_product, true);
+    if ($decoded === null) {
+        echo "Error: Invalid JSON in --product argument: " . json_last_error_msg() . "\n";
+        exit(1);
+    }
+    // Single product object → wrap in array
+    $products = isset($decoded['sku']) ? [$decoded] : $decoded;
+
+} elseif ($file) {
+    // Resolve relative paths
+    if ($file[0] !== '/') {
+        $file = Config::projectRoot() . '/' . $file;
+    }
+    if (!file_exists($file)) {
+        echo "Error: File not found: {$file}\n";
+        exit(1);
+    }
+
+    $decoded = json_decode(file_get_contents($file), true);
+    if ($decoded === null) {
+        echo "Error: Invalid JSON in file: " . json_last_error_msg() . "\n";
+        exit(1);
+    }
+    // Single product object → wrap in array
+    $products = isset($decoded['sku']) ? [$decoded] : $decoded;
+
+} else {
+    echo "Error: --file=FILE or --product=JSON is required. Use --help for usage.\n";
+    exit(1);
+}
+
+if (empty($products)) {
+    echo "Error: No products found in input.\n";
+    exit(1);
+}
+
+echo "Loaded " . count($products) . " product(s)\n";
+
+// ============================================================================
+// Run
+// ============================================================================
+
+$config = Config::load();
+
+$importer = new CustomProductImporter($config, [
+    'dry_run' => $dry_run,
+    'verbose' => $verbose,
+    'skip_media' => $skip_media,
+    'skip_taxonomies' => $skip_taxonomies,
+    'force_full' => $force_full,
+    'limit' => $limit,
+]);
+
+$result = $importer->importProducts($products);
+
+exit($result->isSuccess() ? 0 : 1);
