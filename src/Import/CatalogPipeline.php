@@ -51,6 +51,9 @@ class CatalogPipeline
     /** @var string|null Custom baseline file for DeltaSync (isolates from shared feed-wc.json) */
     private ?string $baselineFile;
 
+    /** @var bool Append mode: merge current batch into baseline instead of replacing */
+    private bool $appendBaseline;
+
     /** @var Storage|null SQLite storage for product + sync persistence */
     private ?Storage $storage;
 
@@ -71,6 +74,7 @@ class CatalogPipeline
      *   - write_feed: bool (default true) — write feed-wc-latest.json
      *   - feed_output_path: string|null — custom feed output path
      *   - baseline_file: string|null — custom DeltaSync baseline (isolates from shared feed-wc.json)
+     *   - append_baseline: bool (default false) — merge batch into baseline (no removals)
      *   - storage: Storage|null — SQLite storage instance
      */
     public function __construct(array $config, $logger = null, array $options = [])
@@ -89,6 +93,7 @@ class CatalogPipeline
         $this->writeFeed = $options['write_feed'] ?? true;
         $this->feedOutputPath = $options['feed_output_path'] ?? null;
         $this->baselineFile = $options['baseline_file'] ?? null;
+        $this->appendBaseline = $options['append_baseline'] ?? false;
         // Initialize Storage: use provided instance or auto-create from Config
         if (isset($options['storage'])) {
             $this->storage = $options['storage'];
@@ -348,6 +353,9 @@ class CatalogPipeline
             ];
             if ($this->baselineFile !== null) {
                 $syncOptions['baseline_file'] = $this->baselineFile;
+            }
+            if ($this->appendBaseline) {
+                $syncOptions['append_baseline'] = true;
             }
             $sync = new DeltaSync($this->config, $syncOptions, $this->storage);
 

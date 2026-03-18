@@ -31,6 +31,7 @@ class DeltaSync
     private $force_full = false;
     private $verbose = false;
     private $feed_file_input = null;
+    private bool $append_baseline = false;
 
     // Paths
     private $data_dir;
@@ -66,6 +67,7 @@ class DeltaSync
         $this->force_full = $options['force_full'] ?? false;
         $this->verbose = $options['verbose'] ?? false;
         $this->feed_file_input = $options['feed_file'] ?? null;
+        $this->append_baseline = $options['append_baseline'] ?? false;
         $this->storage = $storage;
 
         $this->data_dir = Config::dataDir();
@@ -266,19 +268,22 @@ class DeltaSync
             }
         }
 
-        // Removed
-        foreach ($saved_by_sku as $sku => $product) {
-            if (!isset($current_by_sku[$sku])) {
-                $this->stats['products_removed']++;
-                $product['_sync_action'] = 'removed';
-                foreach ($product['_variations'] ?? [] as &$var) {
-                    $var['stock_quantity'] = 0;
-                    $var['stock_status'] = 'outofstock';
-                }
-                $this->diff_products[] = $product;
+        // Removed — skip when append_baseline is true (batch imports should
+        // not mark products from earlier batches as removed)
+        if (!$this->append_baseline) {
+            foreach ($saved_by_sku as $sku => $product) {
+                if (!isset($current_by_sku[$sku])) {
+                    $this->stats['products_removed']++;
+                    $product['_sync_action'] = 'removed';
+                    foreach ($product['_variations'] ?? [] as &$var) {
+                        $var['stock_quantity'] = 0;
+                        $var['stock_status'] = 'outofstock';
+                    }
+                    $this->diff_products[] = $product;
 
-                if ($this->verbose) {
-                    $this->logger->debug("   - REMOVED: {$sku}");
+                    if ($this->verbose) {
+                        $this->logger->debug("   - REMOVED: {$sku}");
+                    }
                 }
             }
         }
@@ -309,6 +314,37 @@ class DeltaSync
             $this->feed_file,
             json_encode($feed, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
+    }
+
+    /**
+     * Merge current feed into existing baseline (append mode)
+     *
+     * Products from the current feed replace matching SKUs in the baseline.
+     * Baseline products not in the current feed are preserved as-is.
+     *
+     * @param array $baseline Existing baseline feed
+     * @param array $current Current batch feed
+     * @return array Merged feed
+     */
+    private function mergeFeedIntoBaseline(array $baseline, array $current): array
+    {
+        $merged_by_sku = [];
+
+        // Start with existing baseline
+        foreach ($baseline as $product) {
+            if ($sku = $product['sku'] ?? null) {
+                $merged_by_sku[$sku] = $product;
+            }
+        }
+
+        // Overlay current batch (add new, replace updated)
+        foreach ($current as $product) {
+            if ($sku = $product['sku'] ?? null) {
+                $merged_by_sku[$sku] = $product;
+            }
+        }
+
+        return array_values($merged_by_sku);
     }
 
     /**
@@ -364,6 +400,9 @@ class DeltaSync
         }
         if ($this->force_full) {
             $this->logger->warning('  FORCE FULL');
+        }
+        if ($this->append_baseline) {
+            $this->logger->info('  APPEND MODE (no removals)');
         }
 
         $this->logger->info('');
@@ -434,7 +473,13 @@ class DeltaSync
                 // Save baseline AFTER successful import
                 // (prevents corrupted baseline if import fails)
                 if ($success) {
-                    $this->saveFeed($current_feed);
+                    if ($this->append_baseline && $saved_feed !== null) {
+                        // Merge: current batch products replace/add to existing baseline
+                        $merged = $this->mergeFeedIntoBaseline($saved_feed, $current_feed);
+                        $this->saveFeed($merged);
+                    } else {
+                        $this->saveFeed($current_feed);
+                    }
                 }
 
                 // Log sync actions to Storage
