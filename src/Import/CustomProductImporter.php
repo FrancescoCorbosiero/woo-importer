@@ -168,6 +168,7 @@ class CustomProductImporter
             'media_uploader' => $mediaUploader,
             'feed_output_path' => Config::dataDir() . '/custom-import-feed-wc.json',
             'baseline_file' => Config::dataDir() . '/custom-import-baseline.json',
+            'append_baseline' => true,
         ]);
 
         $result = $pipeline->run($adapter);
