@@ -1,0 +1,290 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Bulk Taxonomy Update — Manipulate WC taxonomies for products by SKU
+ *
+ * Generic tool to set/add/remove categories, brands, and product attributes
+ * on a group of WooCommerce products identified by SKU.
+ *
+ * Supported taxonomy types:
+ *   category   — WC product categories (product_cat)
+ *   brand      — WC brands taxonomy (products/brands)
+ *   attribute  — WC global attributes (pa_marca, pa_genere, pa_modello, etc.)
+ *   status     — Product status (publish, draft, pending, private)
+ *
+ * Supported operations:
+ *   set    — Replace existing values with the specified ones
+ *   add    — Add values without removing existing ones
+ *   remove — Remove specified values, keep the rest
+ *
+ * Usage:
+ *   bin/bulk-taxonomy-update --type=category --op=add --value=sneakers --skus=SKU1,SKU2
+ *   bin/bulk-taxonomy-update --type=brand --op=set --value=Nike --skus-file=skus.txt
+ *   bin/bulk-taxonomy-update --type=attribute --attr=pa_genere --op=set --value=Uomo --skus=DD1391-100
+ *   bin/bulk-taxonomy-update --type=status --value=draft --skus-file=to-hide.txt
+ *
+ * @package ResellPiacenza\Taxonomy
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use Automattic\WooCommerce\Client;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+use ResellPiacenza\Taxonomy\BulkTaxonomyUpdater;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv) || $argc < 2) {
+    echo <<<'HELP'
+Bulk Taxonomy Update
+Manipulate WC taxonomies (categories, brands, attributes) for products by SKU.
+
+Usage:
+  bin/bulk-taxonomy-update [options]
+
+Required:
+  --type=TYPE          Taxonomy type: category, brand, attribute, status
+  --skus=SKU1,SKU2     Comma-separated SKU list
+    OR
+  --skus-file=FILE     File with one SKU per line (supports # comments)
+
+For category/brand/attribute:
+  --op=OPERATION       Operation: set, add, remove (default: add)
+  --value=VALUE        Value(s) — comma-separated for multiple
+                         category: slug or name (e.g. "sneakers", "sneakers-in-offerta")
+                         brand: slug or name (e.g. "Nike", "jordan")
+                         attribute: option value(s) (e.g. "Uomo", "Nike,Adidas")
+                         status: publish, draft, pending, private
+
+For attribute type:
+  --attr=ATTRIBUTE     Attribute slug/name (e.g. "pa_marca", "genere", "Modello")
+
+Options:
+  --confirm            Apply changes (without this, it's a dry run)
+  --batch-size=N       Products per batch (default: 25, max: 100)
+  --verbose, -v        Detailed output
+  --env=FILE           Use alternate .env file
+  --help, -h           Show help
+
+Examples:
+  # Add category "Sneakers in Offerta" to specific SKUs (dry run)
+  bin/bulk-taxonomy-update --type=category --op=add --value=sneakers-in-offerta \
+    --skus=DD1391-100,DD1503-101,FQ6965-700
+
+  # Set brand to Nike for all SKUs in a file
+  bin/bulk-taxonomy-update --type=brand --op=set --value=Nike \
+    --skus-file=data/nike-skus.txt --confirm
+
+  # Set attribute pa_genere=Uomo on products
+  bin/bulk-taxonomy-update --type=attribute --attr=pa_genere --op=set --value=Uomo \
+    --skus=DD1391-100,DD1503-101 --confirm
+
+  # Remove attribute pa_colorway from products
+  bin/bulk-taxonomy-update --type=attribute --attr=colorway --op=remove --value=White/Black \
+    --skus=DD1391-100
+
+  # Set multiple attribute values at once
+  bin/bulk-taxonomy-update --type=attribute --attr=pa_marca --op=set --value="Nike,Jordan" \
+    --skus=DD1391-100
+
+  # Move products to draft
+  bin/bulk-taxonomy-update --type=status --value=draft --skus-file=to-hide.txt --confirm
+
+  # Remove a category from products
+  bin/bulk-taxonomy-update --type=category --op=remove --value=sneakers-sotto-i-100 \
+    --skus=DD1391-100,DD1503-101 --confirm
+
+HELP;
+    exit(0);
+}
+
+// Parse CLI arguments
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$dry_run = !in_array('--confirm', $argv);
+
+$type = null;
+$operation = 'add';
+$values_raw = null;
+$attribute = null;
+$skus_raw = null;
+$skus_file = null;
+$batch_size = 25;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--type=') === 0) {
+        $type = str_replace('--type=', '', $arg);
+    } elseif (strpos($arg, '--op=') === 0) {
+        $operation = str_replace('--op=', '', $arg);
+    } elseif (strpos($arg, '--value=') === 0) {
+        $values_raw = str_replace('--value=', '', $arg);
+    } elseif (strpos($arg, '--attr=') === 0) {
+        $attribute = str_replace('--attr=', '', $arg);
+    } elseif (strpos($arg, '--skus=') === 0) {
+        $skus_raw = str_replace('--skus=', '', $arg);
+    } elseif (strpos($arg, '--skus-file=') === 0) {
+        $skus_file = str_replace('--skus-file=', '', $arg);
+    } elseif (strpos($arg, '--batch-size=') === 0) {
+        $batch_size = (int) str_replace('--batch-size=', '', $arg);
+    }
+}
+
+// ============================================================================
+// Validate inputs
+// ============================================================================
+
+$valid_types = ['category', 'brand', 'attribute', 'status'];
+if (!$type || !in_array($type, $valid_types)) {
+    fwrite(STDERR, "Error: --type is required. Must be one of: " . implode(', ', $valid_types) . "\n");
+    exit(1);
+}
+
+$valid_ops = ['set', 'add', 'remove'];
+if (!in_array($operation, $valid_ops)) {
+    fwrite(STDERR, "Error: --op must be one of: " . implode(', ', $valid_ops) . "\n");
+    exit(1);
+}
+
+if ($type === 'attribute' && !$attribute) {
+    fwrite(STDERR, "Error: --attr is required for attribute type (e.g. --attr=pa_marca)\n");
+    exit(1);
+}
+
+if (!$values_raw) {
+    fwrite(STDERR, "Error: --value is required\n");
+    exit(1);
+}
+
+// Parse values (comma-separated)
+$values = array_filter(array_map('trim', explode(',', $values_raw)));
+if (empty($values)) {
+    fwrite(STDERR, "Error: --value cannot be empty\n");
+    exit(1);
+}
+
+// Parse SKUs
+$skus = [];
+
+if ($skus_raw) {
+    $skus = array_filter(array_map('trim', explode(',', $skus_raw)));
+}
+
+if ($skus_file) {
+    if ($skus_file[0] !== '/') {
+        $skus_file = Config::projectRoot() . '/' . $skus_file;
+    }
+    if (!file_exists($skus_file)) {
+        fwrite(STDERR, "Error: SKU file not found: {$skus_file}\n");
+        exit(1);
+    }
+    $lines = file($skus_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        // Skip comments
+        if ($line === '' || $line[0] === '#') {
+            continue;
+        }
+        $skus[] = $line;
+    }
+}
+
+$skus = array_unique(array_filter($skus));
+if (empty($skus)) {
+    fwrite(STDERR, "Error: No SKUs provided. Use --skus=SKU1,SKU2 or --skus-file=FILE\n");
+    exit(1);
+}
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('BulkTaxonomy', [
+    'file' => Config::projectRoot() . '/logs/bulk-taxonomy-update.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Bulk Taxonomy Update');
+$logger->info('========================================');
+$logger->info("  Type:      {$type}");
+$logger->info("  Operation: {$operation}");
+$logger->info("  Value(s):  " . implode(', ', $values));
+if ($attribute) {
+    $logger->info("  Attribute: {$attribute}");
+}
+$logger->info("  SKUs:      " . count($skus));
+if ($dry_run) {
+    $logger->warning('  DRY RUN — use --confirm to apply');
+}
+$logger->info('');
+
+// WC client
+$wc_url = rtrim(trim($config['woocommerce']['url'] ?? ''), ':');
+if (empty($wc_url)) {
+    $logger->error('WC_URL not configured');
+    exit(1);
+}
+
+$wc_client = new Client(
+    $wc_url,
+    $config['woocommerce']['consumer_key'],
+    $config['woocommerce']['consumer_secret'],
+    ['version' => $config['woocommerce']['version'] ?? 'wc/v3', 'timeout' => 120]
+);
+
+$updater = new BulkTaxonomyUpdater($wc_client, $logger, $dry_run, $batch_size);
+
+// ============================================================================
+// Execute
+// ============================================================================
+
+switch ($type) {
+    case 'category':
+        $stats = $updater->updateCategories($skus, $operation, $values);
+        break;
+
+    case 'brand':
+        $stats = $updater->updateBrands($skus, $operation, $values);
+        break;
+
+    case 'attribute':
+        $stats = $updater->updateAttribute($skus, $operation, $attribute, $values);
+        break;
+
+    case 'status':
+        // Status uses the first value only
+        $stats = $updater->updateStatus($skus, $values[0]);
+        break;
+
+    default:
+        $logger->error("Unknown type: {$type}");
+        exit(1);
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  BULK TAXONOMY UPDATE SUMMARY');
+$logger->info('========================================');
+$logger->info("  SKUs requested:     " . count($skus));
+$logger->info("  Products found:     {$stats['products_found']}");
+$logger->info("  Products updated:   {$stats['products_updated']}");
+$logger->info("  Products skipped:   {$stats['products_skipped']}");
+$logger->info("  Errors:             {$stats['errors']}");
+$logger->info("  Batch requests:     {$stats['batch_requests']}");
+$logger->info("  Duration:           {$duration}s");
+$logger->info('========================================');
+
+exit($stats['errors'] > 0 ? 1 : 0);
