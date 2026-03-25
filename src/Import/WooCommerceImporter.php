@@ -1279,6 +1279,16 @@ class WooCommerceImporter
     /**
      * Print summary
      */
+    /**
+     * Get import stats
+     *
+     * @return array Current stats counters
+     */
+    public function getStats(): array
+    {
+        return $this->stats;
+    }
+
     private function printSummary(float $start_time): void
     {
         $duration = round(microtime(true) - $start_time, 1);

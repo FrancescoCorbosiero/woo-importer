@@ -7,11 +7,19 @@
 #
 # Root directory: ~/resellpiacenza/woo-importer
 #
-# Architecture: One catalog, separate update loops
-#   1. catalog-build.sh   (daily)      — Full catalog refresh
+# Architecture: GS-driven catalog with update loops
+#   0. gs-catalog-sync.sh (every 4h)   — GS-driven import: diff → enrich → upsert
+#   1. catalog-build.sh   (daily)      — Full catalog refresh (KicksDB + GS)
 #   2. gs-update.sh       (30 min)     — Lightweight GS price/stock patches
 #   3. kicksdb-price-refresh.sh (daily) — Market price updates for non-GS SKUs
 # =============================================================================
+
+# -------------------------------------------
+# GS Catalog Sync - GS-Driven Import (Every 4 hours)
+# -------------------------------------------
+# GS feed → diff vs WC → enrich new from KicksDB → upsert.
+# Simple and self-contained. GS feed is the source of truth.
+0 */4 * * * cd ~/resellpiacenza/woo-importer && ./gs-catalog-sync.sh >> logs/cron-gs-catalog-sync.log 2>&1
 
 # -------------------------------------------
 # Catalog Build - Full Catalog Refresh (Daily)
