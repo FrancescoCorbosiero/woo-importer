@@ -1,0 +1,96 @@
+#!/usr/bin/env php
+<?php
+/**
+ * GS Catalog Sync — GS-driven product import pipeline
+ *
+ * Simple pipeline:
+ *   GS feed → diff vs WC → enrich new from KicksDB → upsert to WC
+ *
+ * GS feed is the source of truth. Products removed from GS are left alone.
+ * New products are enriched from KicksDB (richer metadata, gallery images).
+ * Changed products get variation-level price/stock patches.
+ *
+ * Designed to run as a cron job (e.g. every 2-4 hours).
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Import\GsCatalogSync;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+GS Catalog Sync
+GS-driven product import pipeline for WooCommerce.
+
+Usage:
+  bin/gs-catalog-sync [options]
+
+Options:
+  --dry-run           Preview all changes without writing to WC
+  --verbose, -v       Detailed output
+  --limit=N           Limit GS feed to first N products
+  --skip-kicksdb      Skip KicksDB enrichment (GS-only data for new products)
+  --env=FILE          Use alternate .env file
+  --help, -h          Show help
+
+Flow:
+  1. Fetch GS feed (source of truth)
+  2. Fetch current WC products
+  3. Diff: detect new + changed products
+  4. New → enrich from KicksDB (fallback: GS-only) → create in WC
+  5. Changed → patch WC variations (price + stock)
+
+Prerequisites:
+  - Run bin/prepare-taxonomies --from-gs at least once (creates taxonomy-map.json)
+  - .env configured with GS + WC + KicksDB credentials
+
+Examples:
+  bin/gs-catalog-sync                         # Full sync
+  bin/gs-catalog-sync --dry-run --verbose     # Preview everything
+  bin/gs-catalog-sync --limit=10 --dry-run    # Test with 10 products
+  bin/gs-catalog-sync --skip-kicksdb          # GS-only data (faster, less metadata)
+
+HELP;
+    exit(0);
+}
+
+$options = [
+    'dry_run' => in_array('--dry-run', $argv),
+    'verbose' => in_array('--verbose', $argv) || in_array('-v', $argv),
+    'limit' => null,
+    'skip_kicksdb' => in_array('--skip-kicksdb', $argv),
+];
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--limit=') === 0) {
+        $options['limit'] = (int) str_replace('--limit=', '', $arg);
+    }
+}
+
+$config = Config::load();
+
+// Auto-run prepare-taxonomies if taxonomy-map.json doesn't exist
+$tax_file = Config::dataDir() . '/taxonomy-map.json';
+if (!file_exists($tax_file)) {
+    echo "taxonomy-map.json not found. Running prepare-taxonomies --from-gs...\n\n";
+
+    $tax_options = [
+        'dry_run' => $options['dry_run'],
+        'verbose' => $options['verbose'],
+        'brand_source' => 'gs',
+    ];
+
+    $tax_manager = new \ResellPiacenza\Taxonomy\TaxonomyManager($config, $tax_options);
+    $tax_manager->run();
+    echo "\n";
+}
+
+$pipeline = new GsCatalogSync($config, $options);
+exit($pipeline->run() ? 0 : 1);

@@ -1,0 +1,453 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Auto-Tag — Populate WC product tags from product attributes
+ *
+ * Fetches all WooCommerce products and derives tags from:
+ *   - Brand (from pa_marca attribute)
+ *   - Price range (from lowest variation/product price)
+ *   - Gender (from pa_genere attribute)
+ *
+ * Tags are added WITHOUT removing existing ones.
+ *
+ * Usage:
+ *   bin/auto-tag                         # Dry run
+ *   bin/auto-tag --confirm               # Apply changes
+ *   bin/auto-tag --confirm --verbose
+ *
+ * @package ResellPiacenza\Import
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Monolog\Logger;
+use Automattic\WooCommerce\Client;
+use ResellPiacenza\Support\Config;
+use ResellPiacenza\Support\LoggerFactory;
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+if (in_array('--help', $argv) || in_array('-h', $argv)) {
+    echo <<<HELP
+Auto-Tag
+Populate WC product tags from product attributes.
+
+Tags derived:
+  - Brand:       from pa_marca attribute (e.g. "Nike", "Jordan")
+  - Price range:  from product price (e.g. "Sotto i 50€", "100€ - 200€")
+  - Gender:      from pa_genere attribute (e.g. "Uomo", "Donna", "Unisex")
+
+Usage:
+  bin/auto-tag [options]
+
+Options:
+  --confirm              Apply changes (without this, it's a dry run)
+  --verbose, -v          Detailed output
+  --env=FILE             Use alternate .env file
+  --help, -h             Show help
+
+Examples:
+  bin/auto-tag                         # Dry run — preview tags
+  bin/auto-tag --confirm               # Apply tags
+  bin/auto-tag --confirm --verbose     # Apply with details
+
+HELP;
+    exit(0);
+}
+
+$verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
+$dry_run = !in_array('--confirm', $argv);
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+$config = Config::load();
+$start_time = microtime(true);
+
+$logger = LoggerFactory::create('AutoTag', [
+    'file' => Config::projectRoot() . '/logs/auto-tag.log',
+    'console_level' => $verbose ? Logger::DEBUG : Logger::INFO,
+]);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  Auto-Tag');
+$logger->info('========================================');
+if ($dry_run) {
+    $logger->warning('  DRY RUN — use --confirm to apply');
+}
+$logger->info('');
+
+$wc_url = rtrim(trim($config['woocommerce']['url'] ?? ''), ':');
+if (empty($wc_url)) {
+    $logger->error('WC_URL not configured');
+    exit(1);
+}
+
+$wc_client = new Client(
+    $wc_url,
+    $config['woocommerce']['consumer_key'],
+    $config['woocommerce']['consumer_secret'],
+    ['version' => $config['woocommerce']['version'] ?? 'wc/v3', 'timeout' => 120]
+);
+
+// ============================================================================
+// Price range definitions
+// ============================================================================
+
+$price_ranges = [
+    ['max' => 50,   'tag' => 'Sotto i 50€'],
+    ['max' => 100,  'tag' => 'Sotto i 100€'],
+    ['max' => 200,  'tag' => '100€ - 200€'],
+    ['max' => null,  'tag' => 'Oltre 200€'],
+];
+
+// ============================================================================
+// Step 1: Fetch all products
+// ============================================================================
+
+$logger->info('Step 1: Fetching products...');
+
+$all_products = [];
+$page = 1;
+
+while (true) {
+    try {
+        $products = $wc_client->get('products', [
+            'per_page' => 100,
+            'page' => $page,
+            'status' => 'publish',
+        ]);
+    } catch (\Exception $e) {
+        $logger->error("  Failed to fetch page {$page}: " . $e->getMessage());
+        break;
+    }
+
+    if (empty($products)) {
+        break;
+    }
+
+    foreach ($products as $p) {
+        $all_products[] = $p;
+    }
+
+    $logger->debug("  Page {$page}: " . count($products) . " products");
+    $page++;
+}
+
+$logger->info("  Total products: " . count($all_products));
+
+// ============================================================================
+// Step 2: Ensure tags exist in WC (collect all needed tags first)
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 2: Resolving tags...');
+
+// Collect all tag names we'll need
+$needed_tags = [];
+foreach ($all_products as $product) {
+    // Brand
+    $brand = extractAttribute($product, 'marca');
+    if ($brand) {
+        $needed_tags[$brand] = true;
+    }
+
+    // Gender
+    $gender = extractAttribute($product, 'genere');
+    if ($gender) {
+        $needed_tags[$gender] = true;
+    }
+
+    // Price range
+    $price = getProductMinPrice($product);
+    if ($price > 0) {
+        $range_tag = getPriceRangeTag($price, $price_ranges);
+        if ($range_tag) {
+            $needed_tags[$range_tag] = true;
+        }
+    }
+}
+
+$logger->info("  Unique tags needed: " . count($needed_tags));
+
+// Fetch existing tags from WC (paginated)
+$existing_tags = []; // name (lowered) → id
+$page = 1;
+while (true) {
+    try {
+        $tags = $wc_client->get('products/tags', ['per_page' => 100, 'page' => $page]);
+    } catch (\Exception $e) {
+        $logger->error("  Failed to fetch tags page {$page}: " . $e->getMessage());
+        break;
+    }
+    if (empty($tags)) {
+        break;
+    }
+    foreach ($tags as $tag) {
+        $existing_tags[strtolower($tag->name)] = $tag->id;
+    }
+    $page++;
+}
+
+$logger->info("  Existing WC tags: " . count($existing_tags));
+
+// Create missing tags
+$tag_id_map = []; // tag name → id
+$tags_created = 0;
+
+foreach (array_keys($needed_tags) as $tag_name) {
+    $lower = strtolower($tag_name);
+    if (isset($existing_tags[$lower])) {
+        $tag_id_map[$tag_name] = $existing_tags[$lower];
+        continue;
+    }
+
+    if ($dry_run) {
+        $logger->debug("  [DRY RUN] Would create tag: {$tag_name}");
+        $tag_id_map[$tag_name] = 0;
+        $tags_created++;
+        continue;
+    }
+
+    try {
+        $created = $wc_client->post('products/tags', ['name' => $tag_name]);
+        $tag_id_map[$tag_name] = $created->id;
+        $existing_tags[$lower] = $created->id;
+        $tags_created++;
+        $logger->debug("  Created tag: {$tag_name} (ID {$created->id})");
+    } catch (\Exception $e) {
+        // Might already exist (race condition or slug collision)
+        if (strpos($e->getMessage(), 'term_exists') !== false) {
+            try {
+                $found = $wc_client->get('products/tags', ['search' => $tag_name, 'per_page' => 5]);
+                foreach ($found as $t) {
+                    if (strtolower($t->name) === $lower) {
+                        $tag_id_map[$tag_name] = $t->id;
+                        $existing_tags[$lower] = $t->id;
+                        break;
+                    }
+                }
+            } catch (\Exception $e2) {
+                // ignore
+            }
+        } else {
+            $logger->warning("  Failed to create tag '{$tag_name}': " . $e->getMessage());
+        }
+    }
+}
+
+$logger->info("  Tags to create: {$tags_created}");
+
+// ============================================================================
+// Step 3: Compute tag assignments per product
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 3: Computing tag assignments...');
+
+$assignments = []; // product_id → update payload
+$stats = ['brand' => 0, 'price' => 0, 'gender' => 0];
+
+foreach ($all_products as $product) {
+    $existing_tag_ids = array_map(fn($t) => $t->id, $product->tags ?? []);
+    $existing_tag_names = array_map(fn($t) => strtolower($t->name), $product->tags ?? []);
+    $new_tags = [];
+
+    // Brand tag
+    $brand = extractAttribute($product, 'marca');
+    if ($brand && !in_array(strtolower($brand), $existing_tag_names)) {
+        $id = $tag_id_map[$brand] ?? 0;
+        if ($id > 0) {
+            $new_tags[] = ['id' => $id];
+        } elseif ($dry_run) {
+            $new_tags[] = ['name' => $brand];
+        }
+        $stats['brand']++;
+    }
+
+    // Gender tag
+    $gender = extractAttribute($product, 'genere');
+    if ($gender && !in_array(strtolower($gender), $existing_tag_names)) {
+        $id = $tag_id_map[$gender] ?? 0;
+        if ($id > 0) {
+            $new_tags[] = ['id' => $id];
+        } elseif ($dry_run) {
+            $new_tags[] = ['name' => $gender];
+        }
+        $stats['gender']++;
+    }
+
+    // Price range tag
+    $price = getProductMinPrice($product);
+    if ($price > 0) {
+        $range_tag = getPriceRangeTag($price, $price_ranges);
+        if ($range_tag && !in_array(strtolower($range_tag), $existing_tag_names)) {
+            $id = $tag_id_map[$range_tag] ?? 0;
+            if ($id > 0) {
+                $new_tags[] = ['id' => $id];
+            } elseif ($dry_run) {
+                $new_tags[] = ['name' => $range_tag];
+            }
+            $stats['price']++;
+        }
+    }
+
+    if (empty($new_tags)) {
+        continue;
+    }
+
+    // Merge with existing tags
+    $all_tags = array_map(fn($id) => ['id' => $id], $existing_tag_ids);
+    $all_tags = array_merge($all_tags, $new_tags);
+
+    $assignments[] = [
+        'id' => $product->id,
+        'tags' => $all_tags,
+    ];
+
+    if ($verbose) {
+        $added = array_map(fn($t) => $t['name'] ?? "ID:{$t['id']}", $new_tags);
+        $logger->debug("  [{$product->sku}] +tags: " . implode(', ', $added));
+    }
+}
+
+$logger->info("  Products to update: " . count($assignments));
+$logger->info("    Brand tags:       {$stats['brand']}");
+$logger->info("    Price range tags: {$stats['price']}");
+$logger->info("    Gender tags:      {$stats['gender']}");
+
+if (empty($assignments)) {
+    $logger->info('');
+    $logger->info('All products already tagged.');
+    exit(0);
+}
+
+// ============================================================================
+// Step 4: Batch update products
+// ============================================================================
+
+$logger->info('');
+$logger->info('Step 4: Updating products...');
+
+$batch_size = 25;
+$updated = 0;
+$errors = 0;
+
+$chunks = array_chunk($assignments, $batch_size);
+
+foreach ($chunks as $ci => $chunk) {
+    $label = ($ci + 1) . '/' . count($chunks);
+
+    if ($dry_run) {
+        $updated += count($chunk);
+        $logger->info("  [DRY RUN] Batch {$label}: would update " . count($chunk) . " products");
+        continue;
+    }
+
+    try {
+        $result = $wc_client->post('products/batch', ['update' => $chunk]);
+
+        foreach ($result->update ?? [] as $item) {
+            if (isset($item->error)) {
+                $errors++;
+                $logger->error("  Product {$item->id}: " . ($item->error->message ?? 'Unknown'));
+            } else {
+                $updated++;
+            }
+        }
+
+        $logger->info("  Batch {$label}: updated " . count($chunk) . " products");
+    } catch (\Exception $e) {
+        $errors += count($chunk);
+        $logger->error("  Batch {$label} failed: " . $e->getMessage());
+    }
+
+    usleep(200000);
+}
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+$duration = round(microtime(true) - $start_time, 1);
+
+$logger->info('');
+$logger->info('========================================');
+$logger->info('  AUTO-TAG SUMMARY');
+$logger->info('========================================');
+$logger->info("  Total products:     " . count($all_products));
+$logger->info("  Products updated:   {$updated}");
+$logger->info("  Brand tags added:   {$stats['brand']}");
+$logger->info("  Price tags added:   {$stats['price']}");
+$logger->info("  Gender tags added:  {$stats['gender']}");
+$logger->info("  Tags created:       {$tags_created}");
+$logger->info("  Errors:             {$errors}");
+$logger->info("  Duration:           {$duration}s");
+$logger->info('========================================');
+
+exit($errors > 0 ? 1 : 0);
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Extract an attribute value from a WC product by slug keyword
+ *
+ * @param object $product WC product object
+ * @param string $slug_keyword Attribute slug keyword (e.g. 'marca', 'genere')
+ * @return string|null First option value, or null
+ */
+function extractAttribute(object $product, string $slug_keyword): ?string
+{
+    foreach ($product->attributes ?? [] as $attr) {
+        $attr_slug = strtolower($attr->slug ?? $attr->name ?? '');
+        if (strpos($attr_slug, $slug_keyword) !== false) {
+            $options = $attr->options ?? [];
+            return !empty($options) ? $options[0] : null;
+        }
+    }
+    return null;
+}
+
+/**
+ * Get the minimum price for a product
+ *
+ * For simple products: regular_price or sale_price.
+ * For variable products: WC sets `price` to the lowest variation price.
+ *
+ * @param object $product WC product object
+ * @return float Minimum price (0 if no price)
+ */
+function getProductMinPrice(object $product): float
+{
+    if ($product->type === 'simple') {
+        $sale = $product->sale_price ?? '';
+        $regular = $product->regular_price ?? '0';
+        return (float) ($sale !== '' && (float) $sale > 0 ? $sale : $regular);
+    }
+
+    // Variable: WC `price` = lowest variation price
+    return (float) ($product->price ?? 0);
+}
+
+/**
+ * Determine the price range tag for a given price
+ *
+ * @param float $price Product price
+ * @param array $ranges Price range definitions
+ * @return string|null Tag name
+ */
+function getPriceRangeTag(float $price, array $ranges): ?string
+{
+    foreach ($ranges as $range) {
+        if ($range['max'] === null || $price < $range['max']) {
+            return $range['tag'];
+        }
+    }
+    return null;
+}

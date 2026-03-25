@@ -239,6 +239,12 @@ return [
         'clothing' => [
             'name' => env('CATEGORY_CLOTHING_NAME', 'Abbigliamento'),
             'slug' => env('CATEGORY_CLOTHING_SLUG', 'abbigliamento'),
+            'subcategories' => [
+                ['name' => 'T-Shirt', 'keywords' => ['t-shirt', 'tee']],
+                ['name' => 'Felpe', 'keywords' => ['hoodie', 'sweatshirt', 'crewneck']],
+                ['name' => 'Giacche', 'keywords' => ['jacket', 'coat', 'puffer', 'windbreaker']],
+                ['name' => 'Pantaloni', 'keywords' => ['pants', 'jogger', 'trousers', 'cargo']],
+            ],
         ],
         'accessories' => [
             'name' => env('CATEGORY_ACCESSORIES_NAME', 'Accessori'),

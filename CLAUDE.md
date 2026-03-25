@@ -6,9 +6,10 @@ WooCommerce product importer for ResellPiacenza. Architecture: **one master cata
 
 ### Primary Pipelines
 
-1. **Catalog Build** (`catalog-build.sh`) - Full catalog refresh: KicksDB discovery + GS ingestion → WC import (daily)
-2. **GS Update** (`gs-update.sh`) - Lightweight GS price/stock variation patches (every 30 min)
-3. **KicksDB Price Refresh** (`kicksdb-price-refresh.sh`) - Market price updates for non-GS products (daily)
+1. **GS Catalog Sync** (`gs-catalog-sync.sh`) - GS-driven import: GS feed → diff vs WC → KicksDB enrich → upsert (every 2-4 hours)
+2. **Catalog Build** (`catalog-build.sh`) - Full catalog refresh: KicksDB discovery + GS ingestion → WC import (daily)
+3. **GS Update** (`gs-update.sh`) - Lightweight GS price/stock variation patches (every 30 min)
+4. **KicksDB Price Refresh** (`kicksdb-price-refresh.sh`) - Market price updates for non-GS products (daily)
 
 ### Secondary Pipelines
 
@@ -46,6 +47,13 @@ All pipelines produce WooCommerce products (variable or simple) with Italian SEO
 │  GS API ──→ KicksDB lookup (enrich) ──→ merged assortment     │
 │  FeedMerger (variation-level merge) → WcProductBuilder → WC   │
 └─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  GS CATALOG SYNC  (every 2-4h)                              │
+│                                                               │
+│  GS API ──→ diff vs WC ──→ new? KicksDB enrich ──→ create   │
+│                          ──→ changed? patch variations        │
+│                          ──→ gone? leave alone                │
+└─────────────────────────────────────────────────────────────┘
 ┌────────────────────────────┐  ┌────────────────────────────┐
 │  GS UPDATE  (30 min)       │  │  KICKSDB PRICE  (daily)    │
 │  GS API → compare cached   │  │  KicksDB price API          │
@@ -66,6 +74,7 @@ All pipelines produce WooCommerce products (variable or simple) with Italian SEO
 | `FeedMerger` | `src/Import/FeedMerger.php` | Merges KicksDB + GS feeds at variation level |
 | `BulkUploader` | `src/Import/BulkUploader.php` | Self-contained pipeline for CSV/JSON/Shopify imports |
 | `ShopifyCsvParser` | `src/Import/ShopifyCsvParser.php` | Parses Shopify product export CSVs |
+| `GsCatalogSync` | `src/Import/GsCatalogSync.php` | GS-driven pipeline: fetch → diff → enrich → upsert |
 | `GoldenSneakersAdapter` | `src/Import/GoldenSneakersAdapter.php` | Normalizes Golden Sneakers API response |
 | `KicksDbAdapter` | `src/Import/KicksDbAdapter.php` | Normalizes KicksDB API response |
 | `KicksDb\Client` | `src/KicksDb/Client.php` | KicksDB v3 API client (search, prices, webhooks) |
@@ -104,6 +113,7 @@ woo-importer/
 │   ├── import-wc                 # Generic WC JSON import
 │   ├── import-dir                # Shopify CSV directory import
 │   ├── bulk-upload               # Manual CSV/JSON import
+│   ├── gs-catalog-sync           # GS-driven import pipeline (recommended)
 │   ├── nuke-products             # Delete all WC products (dangerous)
 │   ├── gs-transform              # (legacy) GS feed → WC format
 │   ├── kicksdb-transform         # (legacy) KicksDB feed → WC format
@@ -116,7 +126,8 @@ woo-importer/
 │   ├── Pricing/                  # Margin calculation, price updates
 │   ├── Support/                  # Config, Logger
 │   └── Taxonomy/                 # Category/attribute/brand management
-├── catalog-build.sh              # Full catalog refresh (NEW, recommended)
+├── gs-catalog-sync.sh            # GS-driven import pipeline (NEW, recommended)
+├── catalog-build.sh              # Full catalog refresh
 ├── gs-update.sh                  # Lightweight GS price/stock patcher (NEW)
 ├── kicksdb-price-refresh.sh      # KicksDB market price updates (NEW)
 ├── unified-sync.sh               # (legacy) Unified pipeline
@@ -144,7 +155,28 @@ woo-importer/
 
 ## Import Pipelines
 
-### 1. Catalog Build (Recommended — Daily)
+### 0. GS Catalog Sync (Recommended — Every 2-4 hours)
+
+**Entry point:** `./gs-catalog-sync.sh`
+
+**Pipeline:** `GS feed → diff vs WC → KicksDB enrich (new only) → upsert`
+
+Simplest pipeline. GS feed is the source of truth — no catalog.json, no discovery queries. Compares GS feed against current WC inventory:
+- **New products:** Enriched from KicksDB (SKU lookup, title fallback) for rich metadata + gallery. Fallback to GS-only data. Created via `WcProductBuilder` → `WooCommerceImporter`.
+- **Changed products:** Variation-level price/stock patches via WC REST API batch.
+- **Removed from GS:** Left alone in WC (GS removals are temporary).
+
+Subcategories for clothing use keyword matching from `config.php` (no external catalog files needed).
+
+```bash
+./gs-catalog-sync.sh                         # Full sync
+./gs-catalog-sync.sh --dry-run --verbose     # Preview
+./gs-catalog-sync.sh --limit=10              # Test with 10 products
+./gs-catalog-sync.sh --skip-kicksdb          # GS-only data (faster)
+./gs-catalog-sync.sh --env=environment/clientA.env  # Multi-customer
+```
+
+### 1. Catalog Build (Daily)
 
 **Entry point:** `./catalog-build.sh`
 
@@ -391,6 +423,7 @@ Applied consistently in both `catalog-transform` (full builds) and `gs-variation
 
 | Source | Entry point | Format | Mode |
 |--------|-------------|--------|------|
+| GS Catalog Sync | `bin/gs-catalog-sync` | JSON API | GS-driven: fetch → diff vs WC → KicksDB enrich → upsert |
 | KicksDB REST API (curated) | `bin/catalog-fetch` | JSON API | Fetch explicit SKUs from `catalog.json` |
 | KicksDB REST API (discovery) | `bin/kicksdb-discover` | JSON API | Query-based discovery via `brand-catalog.json` |
 | Golden Sneakers REST API | `bin/gs-ingest` | JSON API | Automatic feed fetch + KicksDB enrichment |
