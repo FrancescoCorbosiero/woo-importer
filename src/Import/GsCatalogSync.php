@@ -479,8 +479,15 @@ class GsCatalogSync
      * Merge KicksDB rich metadata into a GS product
      *
      * KicksDB provides: name, brand, model, colorway, gender, release_date,
-     * description, image_url, gallery_urls, category_type.
-     * GS provides: variations (price + stock) — these are kept as-is.
+     * description, image_url, gallery_urls, category_type, and market prices.
+     * GS provides: variations (real price + real stock).
+     *
+     * Pricing logic:
+     *   - KicksDB market price + margin = regular_price (the "retail" price)
+     *   - GS price = the actual selling price (wholesale/B2B)
+     *   - If GS price < KicksDB price → sale_price = GS, regular_price = KicksDB (shows "Sale" badge)
+     *   - If GS price >= KicksDB price → regular_price = GS price (no sale)
+     *   - GS stock always wins over KicksDB synthetic stock
      *
      * @param array $gs GS normalized product
      * @param array $kdb Raw KicksDB product data
@@ -530,6 +537,29 @@ class GsCatalogSync
             $category_type = 'accessories';
         }
 
+        // Build KicksDB price map: size_eu → selling price (market price + margin)
+        $kdb_prices = $this->buildKicksDbPriceMap($kdb, $category_type);
+
+        // Merge GS variations with KicksDB pricing:
+        // GS stock is always authoritative. For prices:
+        //   GS price < KicksDB price → sale_price = GS, regular_price = KicksDB
+        //   GS price >= KicksDB price → regular_price = GS (no sale)
+        $merged_variations = [];
+        foreach ($gs['variations'] as $var) {
+            $size = $var['size_eu'] ?? '';
+            $gs_price = (float) ($var['price'] ?? 0);
+            $kdb_price = $kdb_prices[$size] ?? 0.0;
+
+            if ($kdb_price > 0 && $gs_price > 0 && $gs_price < $kdb_price) {
+                // GS is cheaper → show as sale
+                $var['price'] = $kdb_price;          // regular_price = KicksDB
+                $var['sale_price'] = $gs_price;       // sale_price = GS (the actual price)
+            }
+            // Otherwise: GS price stays as regular_price (no sale)
+
+            $merged_variations[] = $var;
+        }
+
         return [
             'sku' => $gs['sku'],
             'name' => $kdb['name'] ?? $gs['name'],
@@ -543,9 +573,136 @@ class GsCatalogSync
             'category_type' => $category_type,
             'image_url' => $kdb['image_url'] ?? $gs['image_url'],
             'gallery_urls' => $gallery_urls,
-            'variations' => $gs['variations'], // GS pricing + stock preserved
+            'variations' => $merged_variations,
             'meta_data' => $gs['meta_data'] ?? [],
         ];
+    }
+
+    /**
+     * Build a size → selling price map from KicksDB raw variant data
+     *
+     * Extracts market prices from KicksDB variants and applies the configured
+     * margin via PriceCalculator (same logic as KicksDbAdapter).
+     *
+     * @param array $kdb Raw KicksDB product data (with 'variants' key)
+     * @param string $category_type Product category for size extraction mode
+     * @return array size_eu => selling price (after margin)
+     */
+    private function buildKicksDbPriceMap(array $kdb, string $category_type): array
+    {
+        $variants = $kdb['variants'] ?? [];
+        if (empty($variants)) {
+            return [];
+        }
+
+        $pricing = $this->config['pricing'] ?? [];
+        $calculator = new PriceCalculator($pricing['margin'] ?? []);
+
+        $is_clothing = in_array($category_type, ['clothing', 'accessories']);
+        $price_map = [];
+
+        foreach ($variants as $variant) {
+            // Extract size (same logic as KicksDbAdapter)
+            $size = $is_clothing
+                ? $this->extractLetterSize($variant)
+                : $this->extractEuSize($variant);
+
+            if ($size === null) {
+                continue;
+            }
+
+            // Extract market price (same logic as KicksDbAdapter::extractStandardPrice)
+            $market_price = $this->extractStandardPrice($variant);
+            if ($market_price <= 0) {
+                continue;
+            }
+
+            $price_map[$size] = $calculator->calculate($market_price);
+        }
+
+        return $price_map;
+    }
+
+    /**
+     * Extract EU numeric size from a KicksDB variant
+     */
+    private function extractEuSize(array $variant): ?string
+    {
+        // From sizes[] sub-array
+        foreach ($variant['sizes'] ?? [] as $size_entry) {
+            $type = strtolower($size_entry['type'] ?? '');
+            if ($type === 'eu' && !empty($size_entry['size'])) {
+                return $size_entry['size'];
+            }
+        }
+
+        // Direct field
+        if (!empty($variant['size_eu'])) {
+            return $variant['size_eu'];
+        }
+
+        // Parse from title "EU 44"
+        $title = $variant['title'] ?? $variant['name'] ?? '';
+        if (preg_match('/EU\s*([\d.]+)/i', $title, $m)) {
+            return $m[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract letter size (S/M/L/XL) from a KicksDB variant
+     */
+    private function extractLetterSize(array $variant): ?string
+    {
+        // From sizes[] sub-array
+        foreach ($variant['sizes'] ?? [] as $size_entry) {
+            $raw = $size_entry['size'] ?? '';
+            if (preg_match('/^(XXS|XS|S|M|L|XL|XXL|XXXL|One Size)$/i', trim($raw))) {
+                return strtoupper(trim($raw));
+            }
+            // "US S", "US M" style
+            if (preg_match('/^US\s+(XXS|XS|S|M|L|XL|XXL|XXXL)$/i', trim($raw), $m)) {
+                return strtoupper($m[1]);
+            }
+        }
+
+        // Direct field
+        $direct = $variant['size'] ?? $variant['size_eu'] ?? '';
+        if (preg_match('/^(XXS|XS|S|M|L|XL|XXL|XXXL|One Size)$/i', trim($direct))) {
+            return strtoupper(trim($direct));
+        }
+
+        // Fallback: return raw size for non-standard sizes (e.g. fitted caps "7 1/4")
+        if (!empty($direct) && !is_numeric($direct)) {
+            return trim($direct);
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract market price from a KicksDB variant (standard type preferred)
+     */
+    private function extractStandardPrice(array $variant): float
+    {
+        if (!empty($variant['prices']) && is_array($variant['prices'])) {
+            foreach ($variant['prices'] as $price_entry) {
+                if (($price_entry['type'] ?? '') === 'standard') {
+                    return (float) ($price_entry['price'] ?? 0);
+                }
+            }
+            $prices = array_filter(
+                array_column($variant['prices'], 'price'),
+                fn($p) => $p > 0
+            );
+            return !empty($prices) ? (float) min($prices) : 0.0;
+        }
+
+        return (float) ($variant['lowest_ask']
+            ?? $variant['price']
+            ?? $variant['amount']
+            ?? 0);
     }
 
     /**
@@ -678,7 +835,8 @@ class GsCatalogSync
                 if ($variation_id === null) {
                     // Simple product: patch the product itself
                     if ($wc['type'] === 'simple') {
-                        $this->patchSimpleProduct($product_id, $sku, $change);
+                        $wc_regular = (float) ($wc_var['price'] ?? 0);
+                        $this->patchSimpleProduct($product_id, $sku, $change, $wc_regular);
                         continue;
                     }
                     // New size on a variable product — skip (would need full variation creation)
@@ -688,12 +846,17 @@ class GsCatalogSync
 
                 $update = ['id' => $variation_id];
 
-                $price = (float) $change['price'];
-                if ($this->gs_sale_enabled && $price > 0) {
-                    $update['regular_price'] = (string) ceil($price * (1 + $this->gs_sale_markup / 100));
-                    $update['sale_price'] = (string) $price;
+                $gs_price = (float) $change['price'];
+                $wc_regular = (float) ($wc_var['price'] ?? 0); // current WC regular_price (KicksDB-derived)
+
+                if ($wc_regular > 0 && $gs_price > 0 && $gs_price < $wc_regular) {
+                    // GS is cheaper than KicksDB regular → show as sale
+                    $update['regular_price'] = (string) $wc_regular;
+                    $update['sale_price'] = (string) $gs_price;
                 } else {
-                    $update['regular_price'] = (string) $price;
+                    // GS price >= KicksDB or no KicksDB reference → just update regular
+                    $update['regular_price'] = (string) $gs_price;
+                    $update['sale_price'] = ''; // clear any existing sale
                 }
 
                 $update['stock_quantity'] = (int) $change['stock_quantity'];
@@ -744,21 +907,25 @@ class GsCatalogSync
 
     /**
      * Patch a simple (One Size) product's price and stock directly
+     *
+     * @param float $wc_regular Current WC regular_price (KicksDB-derived) for sale comparison
      */
-    private function patchSimpleProduct(int $product_id, string $sku, array $change): void
+    private function patchSimpleProduct(int $product_id, string $sku, array $change, float $wc_regular = 0): void
     {
-        $price = (float) $change['price'];
+        $gs_price = (float) $change['price'];
         $payload = [
             'stock_quantity' => (int) $change['stock_quantity'],
             'stock_status' => $change['stock_status'] ?? 'instock',
             'manage_stock' => true,
         ];
 
-        if ($this->gs_sale_enabled && $price > 0) {
-            $payload['regular_price'] = (string) ceil($price * (1 + $this->gs_sale_markup / 100));
-            $payload['sale_price'] = (string) $price;
+        if ($wc_regular > 0 && $gs_price > 0 && $gs_price < $wc_regular) {
+            // GS is cheaper → show as sale
+            $payload['regular_price'] = (string) $wc_regular;
+            $payload['sale_price'] = (string) $gs_price;
         } else {
-            $payload['regular_price'] = (string) $price;
+            $payload['regular_price'] = (string) $gs_price;
+            $payload['sale_price'] = ''; // clear any existing sale
         }
 
         if ($this->dry_run) {
